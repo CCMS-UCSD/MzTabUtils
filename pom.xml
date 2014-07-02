@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>ccms</groupId>
+	<artifactId>mztab-utils</artifactId>
+	<name>CCMS MzTab Utilities</name>
+	<packaging>jar</packaging>
+	<version>1.0</version>
+	<properties>
+		<my.type></my.type>
+		<my.name></my.name>
+	</properties>
+	<repositories>
+		<repository>
+			<id>internal</id>
+			<name>Maven 2 Internal Repository</name>
+			<url>http://proteomics1.ucsd.edu/maven</url>
+		</repository>
+	</repositories>
+	<pluginRepositories>
+		<pluginRepository>
+			<id>Maven Snapshots</id>
+			<url>http://snapshots.maven.codehaus.org/maven2/</url>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+		</pluginRepository>
+	</pluginRepositories>
+	<build>
+		<finalName>MzTabUtils</finalName>
+		<plugins>
+			<plugin>
+				<inherited>true</inherited>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>1.6</source>
+					<target>1.6</target>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifest>
+							<addClasspath>true</addClasspath>
+							<mainClass>edu.ucsd.mztab.MzTabUtils</mainClass>
+						</manifest>
+					</archive>
+				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>unpack-dependencies</id>
+						<phase>generate-resources</phase>
+						<goals> 
+							<goal>unpack-dependencies</goal> 
+						</goals>
+				</execution>
+				</executions>
+			</plugin>
+		</plugins>
+		<resources>
+			<!-- to enable maven profile -->
+			<resource>
+				<directory>src/main/resources</directory>				
+				<filtering>true</filtering>
+			</resource>
+			<!-- to make dependencies available to built JAR -->
+			<resource> 
+				<directory>${basedir}/target/dependency</directory> 
+			</resource>
+		</resources>
+	</build>
+	
+	<dependencies>
+		<!-- Logging -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>1.5.8</version>
+		</dependency>
+		<!-- Apache dependencies -->
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>RELEASE</version>
+		</dependency>
+		<dependency>
+			<groupId>commons-codec</groupId>
+			<artifactId>commons-codec</artifactId>
+			<version>RELEASE</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>4.3.4</version>
+		</dependency>
+		<!-- XPath API -->
+		<dependency>
+			<groupId>xalan</groupId>
+			<artifactId>xalan</artifactId>
+			<version>2.7.1</version>
+		</dependency>
+		<!-- MySQL JDBC implementation -->
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>5.1.6</version>
+		</dependency>
+	</dependencies>
+</project>
