@@ -2,8 +2,8 @@ package edu.ucsd.mztab;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -14,16 +14,23 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
 import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.util.FilePathComparator;
 
 public class MassIVEMzTabContext
 {
+	/*========================================================================
+	 * Constants
+	 *========================================================================*/
+	private static final FilePathComparator FILE_PATH_COMPARATOR =
+		new FilePathComparator();
+	
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
 	private File params;
 	private Collection<File> mzTabFiles;
 	private Collection<File> scansFiles;
-	private Map<String, Map<String, String>> filenameMap;
+	private Map<String, Collection<PeakListFileMapping>> filenameMap;
 	
 	/*========================================================================
 	 * Constructors
@@ -107,18 +114,25 @@ public class MassIVEMzTabContext
 			return null;
 		StringBuffer output = new StringBuffer("{");
 		for (String resultFilename : filenameMap.keySet()) {
-			output.append("\n\t\"").append(resultFilename).append("\":{");
-			Map<String, String> resultFileMapping =
+			output.append("\n\t\"").append(resultFilename).append("\":[");
+			Collection<PeakListFileMapping> resultFileMap =
 				filenameMap.get(resultFilename);
-			for (String referencedFilename : resultFileMapping.keySet()) {
-				output.append("\"").append(referencedFilename).append("\":");
-				output.append("\"").append(
-					resultFileMapping.get(referencedFilename)).append("\",");
+			for (PeakListFileMapping mapping : resultFileMap) {
+				output.append("\n\t\t{\"uploadedMzTabFilename\":\"").append(
+					mapping.uploadedMzTabFilename).append("\",");
+				output.append("\"mangledMzTabFilename\":\"").append(
+					mapping.mangledMzTabFilename).append("\",");
+				output.append("\"uploadedPeakListFilename\":\"").append(
+					mapping.uploadedPeakListFilename).append("\",");
+				output.append("\"mangledPeakListFilename\":\"").append(
+					mapping.mangledPeakListFilename).append("\",");
+				output.append("\"mzTabPeakListFilename\":\"").append(
+					mapping.mzTabPeakListFilename).append("\"},");
 			}
 			// chomp trailing comma
 			if (output.charAt(output.length() - 1) == ',')
 				output.setLength(output.length() - 1);
-			output.append("},");
+			output.append("],");
 		}
 		// chomp trailing comma
 		if (output.charAt(output.length() - 1) == ',')
@@ -146,18 +160,23 @@ public class MassIVEMzTabContext
 		if (document == null)
 			throw new NullPointerException(
 				"Argument params.xml file could not be parsed.");
-		// traverse "result_file_mapping" parameters to build first-level map:
-		// result filename ->
-		// {referenced spectrum filename -> uploaded spectrum filename}
+		// traverse "result_file_mapping" parameters to build mapping collection
 		try {
 			NodeList mappings = XPathAPI.selectNodeList(
 				document, "//parameter[@name='result_file_mapping']");
 			if (mappings == null || mappings.getLength() < 1) {
-				filenameMap = new LinkedHashMap<String, Map<String, String>>();
+				filenameMap = new LinkedHashMap<String,
+					Collection<PeakListFileMapping>>();
 				return;
 			} else filenameMap =
-				new LinkedHashMap<String, Map<String, String>>(
+				new LinkedHashMap<String, Collection<PeakListFileMapping>>(
 					mappings.getLength());
+			// also keep track of all the original uploaded peak list
+			// filenames, as recorded in "result_file_mapping" parameters
+			Map<String, Collection<PeakListFileMapping>>
+				uploadedPeakListFilenames =
+					new LinkedHashMap<String, Collection<PeakListFileMapping>>(
+						mappings.getLength());
 			for (int i=0; i<mappings.getLength(); i++) {
 				String value =
 					mappings.item(i).getFirstChild().getNodeValue();
@@ -178,22 +197,30 @@ public class MassIVEMzTabContext
 						"is invalid - its first token ([%s]) should " +
 						"consist of two values separated by a hash " +
 						"(\"#\") character.", value, tokens[0]));
-				// built a one-element map for this mapping
-				Map<String, String> mapping = new HashMap<String, String>(1);
-				mapping.put(mapped[1], tokens[1]);
-				filenameMap.put(mapped[0], mapping);
+				// build this mapping
+				PeakListFileMapping mapping = new PeakListFileMapping(
+					mapped[0], mapped[1], tokens[1]);
+				// add it to the collection for this peak list file
+				Collection<PeakListFileMapping> peakListMappings =
+					uploadedPeakListFilenames.get(tokens[1]);
+				if (peakListMappings == null)
+					peakListMappings = new ArrayList<PeakListFileMapping>();
+				peakListMappings.add(mapping);
+				uploadedPeakListFilenames.put(tokens[1], peakListMappings);
+				// add it to the collection for this result file
+				Collection<PeakListFileMapping> resultFileMap =
+					filenameMap.get(mapped[0]);
+				if (resultFileMap == null)
+					resultFileMap = new ArrayList<PeakListFileMapping>();
+				resultFileMap.add(mapping);
+				filenameMap.put(mapped[0], resultFileMap);
 			}
-			// then traverse "upload_file_mapping" parameters to mangle
-			// result filenames, and build a peak list filename map:
-			// uploaded spectrum filename -> mangled spectrum filename
+			// then traverse "upload_file_mapping" parameters
+			// to mangle result and peak list filenames
 			mappings = XPathAPI.selectNodeList(
 				document, "//parameter[@name='upload_file_mapping']");
-			if (mappings == null || mappings.getLength() < 1) {
-				filenameMap = new LinkedHashMap<String, Map<String, String>>();
+			if (mappings == null || mappings.getLength() < 1)
 				return;
-			}
-			Map<String, String> peakListFileMap =
-				new HashMap<String, String>(mappings.getLength());
 			for (int i=0; i<mappings.getLength(); i++) {
 				String value =
 					mappings.item(i).getFirstChild().getNodeValue();
@@ -206,9 +233,25 @@ public class MassIVEMzTabContext
 						"\"upload_file_mapping\" parameter value [%s] " +
 						"is invalid - it should contain two tokens " +
 						"separated by a pipe (\"|\") character.", value));
-				if (value.startsWith("PEAK-"))
-					peakListFileMap.put(tokens[1], tokens[0]);
-				else if (value.startsWith("RESULT-")) {
+				if (value.startsWith("PEAK-")) {
+					// find the mapping that best fits this source
+					// filename from the peak list source filename map
+					String bestMatch = FILE_PATH_COMPARATOR.findBestFileMatch(
+						tokens[1], uploadedPeakListFilenames.keySet());
+					if (bestMatch == null)
+						throw new NullPointerException(String.format(
+							"No source peak list filename could be found " +
+							"from among the \"result_file_mapping\" " +
+							"parameters to match source filename [%s], " +
+							"from \"upload_file_mapping\" parameter value [%s]",
+							tokens[1], value));
+					// update all of this peak list file's mapping
+					// with the mangled filename
+					Collection<PeakListFileMapping> peakListMappings =
+						uploadedPeakListFilenames.get(bestMatch);
+					for (PeakListFileMapping mapping : peakListMappings)
+						mapping.mangledPeakListFilename = tokens[0];
+				} else if (value.startsWith("RESULT-")) {
 					// convert mangled filename to mzTab, if necessary,
 					// since that's what the workflow did
 					String mangledFilename = tokens[0];
@@ -220,62 +263,22 @@ public class MassIVEMzTabContext
 							".mzTab";
 					// find the mapping that best fits this source
 					// filename from the first-level map
-					int bestMatchLength = 0;
-					String bestMatch = null;
-					for (String resultFilename : filenameMap.keySet()) {
-						if (tokens[1].endsWith(resultFilename) &&
-							resultFilename.length() > bestMatchLength) {
-							bestMatch = resultFilename;
-							bestMatchLength = resultFilename.length();
-						}
-					}
-					if (bestMatch == null) {
-						System.out.println(String.format("Warning: no " +
-							"referenced spectrum filename mappings were " +
-							"found for result file [%s]", tokens[1]));
-						continue;
-					}
-					// replace the mapping in the main map
-					// with the mangled filename key
-					Map<String, String> mapping = filenameMap.get(bestMatch);
-					filenameMap.put(mangledFilename, mapping);
-					filenameMap.remove(bestMatch);
-				}
-			}
-			// finally, examine each leaf mapping and replace its value
-			// with the best matching mangled peak list filename
-			for (String resultFilename : filenameMap.keySet()) {
-				Map<String, String> resultFileMapping =
-					filenameMap.get(resultFilename);
-				for (String referencedFilename : resultFileMapping.keySet()) {
-					String leafMapping =
-						resultFileMapping.get(referencedFilename);
-					// find the mapping that best fits this source
-					// filename from the peak list file map
-					int bestMatchLength = 0;
-					String bestMatch = null;
-					for (String mangledFilename : peakListFileMap.keySet()) {
-						String peakListFilename =
-							peakListFileMap.get(mangledFilename);
-						if (peakListFilename.endsWith(leafMapping) &&
-							leafMapping.length() > bestMatchLength) {
-							bestMatch = mangledFilename;
-							bestMatchLength = leafMapping.length();
-						}
-					}
+					String bestMatch = FILE_PATH_COMPARATOR.findBestFileMatch(
+						tokens[1], filenameMap.keySet());
 					if (bestMatch == null)
-						throw new IllegalArgumentException(String.format(
-							"\"result_file_mapping\" parameter value [%s] " +
-							"is invalid - no associated " +
-							"\"upload_file_mapping\" parameter could be " +
-							"found for mapped peak list file [%s]",
-							resultFilename + "#" + referencedFilename + "|" +
-							leafMapping, leafMapping));
-					// replace the leaf mapping with the
-					// mangled peak list filename
-					resultFileMapping.put(referencedFilename, bestMatch);
+						throw new NullPointerException(String.format(
+							"No source result filename could be found " +
+							"from among the \"result_file_mapping\" " +
+							"parameters to match source filename [%s], " +
+							"from \"upload_file_mapping\" parameter value [%s]",
+							tokens[1], value));
+					// update all of this mzTab file's mappings
+					// with the mangled filename
+					Collection<PeakListFileMapping> mzTabMappings =
+						filenameMap.get(bestMatch);
+					for (PeakListFileMapping mapping : mzTabMappings)
+						mapping.mangledMzTabFilename = mangledFilename;
 				}
-				filenameMap.put(resultFilename, resultFileMapping);
 			}
 		} catch (Throwable error) {
 			String errorMessage = "There was an error parsing params.xml to " +
@@ -283,6 +286,45 @@ public class MassIVEMzTabContext
 			System.err.println(errorMessage);
 			error.printStackTrace();
 			throw new RuntimeException(errorMessage, error);
+		}
+	}
+	
+	/*========================================================================
+	 * Convenience classes
+	 *========================================================================*/
+	/**
+	 * Struct to maintain context data for a particular mapping of peak list
+	 * file referenced within an mzTab file -> uploaded dataset peak list file.
+	 */
+	private static class PeakListFileMapping {
+		/*====================================================================
+		 * Properties
+		 *====================================================================*/
+		private String uploadedMzTabFilename;
+		private String mangledMzTabFilename;
+		private String mzTabPeakListFilename;
+		private String uploadedPeakListFilename;
+		private String mangledPeakListFilename;
+		
+		/*====================================================================
+		 * Constructor
+		 *====================================================================*/
+		public PeakListFileMapping(
+			String uploadedMzTabFilename, String mzTabPeakListFilename,
+			String uploadedPeakListFilename
+		) {
+			if (uploadedMzTabFilename == null)
+				throw new NullPointerException(
+					"Uploaded mzTab filename cannot be null.");
+			else this.uploadedMzTabFilename = uploadedMzTabFilename;
+			if (mzTabPeakListFilename == null)
+				throw new NullPointerException(
+					"MzTab peak list filename cannot be null.");
+			else this.mzTabPeakListFilename = mzTabPeakListFilename;
+			if (uploadedPeakListFilename == null)
+				throw new NullPointerException(
+					"Uploaded peak list filename cannot be null.");
+			else this.uploadedPeakListFilename = uploadedPeakListFilename;
 		}
 	}
 }

@@ -119,14 +119,20 @@
 		</dependency>
 		<!-- Apache dependencies -->
 		<dependency>
+			<groupId>commons-codec</groupId>
+			<artifactId>commons-codec</artifactId>
+			<version>RELEASE</version>
+		</dependency>
+		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
 			<version>RELEASE</version>
 		</dependency>
 		<dependency>
-			<groupId>commons-codec</groupId>
-			<artifactId>commons-codec</artifactId>
-			<version>RELEASE</version>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.3.2</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.httpcomponents</groupId>
@@ -146,7 +152,6 @@
 			<version>5.1.6</version>
 		</dependency>
 		<!-- jmzTab -->
-		<!--
 		<dependency>
 			<groupId>uk.ac.ebi.pride</groupId>
 			<artifactId>jmztab-modular-model</artifactId>
@@ -162,6 +167,5 @@
 			<artifactId>jmztab-modular-converters</artifactId>
 			<version>3.0.0</version>
 		</dependency>
-		-->
 	</dependencies>
 </project>
