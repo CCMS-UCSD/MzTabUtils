@@ -151,6 +151,7 @@
 			<version>5.1.6</version>
 		</dependency>
 		<!-- jmzTab -->
+		<!--
 		<dependency>
 			<groupId>uk.ac.ebi.pride</groupId>
 			<artifactId>jmztab-modular-model</artifactId>
@@ -166,5 +167,6 @@
 			<artifactId>jmztab-modular-converters</artifactId>
 			<version>3.0.0</version>
 		</dependency>
+		-->
 	</dependencies>
 </project>
