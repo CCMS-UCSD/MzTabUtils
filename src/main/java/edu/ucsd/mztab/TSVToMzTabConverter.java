@@ -150,7 +150,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 					throw new IllegalArgumentException(String.format(
 						"Error creating PSM record: no registered \"ms_run\" " +
 						"metadata element could be found to match TSV " +
-						"\"Filename\" column value [%s]", filename));
+						"\"filename\" column value [%s]", filename));
 				// then set the proper nativeID key
 				if (params.isScanMode())
 					spectraRef.append("scan=");

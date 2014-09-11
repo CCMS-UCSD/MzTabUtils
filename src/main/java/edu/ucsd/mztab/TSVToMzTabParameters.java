@@ -215,7 +215,7 @@ public class TSVToMzTabParameters
 							filename, column, index, lineNumber,
 							elements.length, line));
 					// get filename and add it to the set of found files
-					else if (column.equals("Filename")) {
+					else if (column.equals("filename")) {
 						String spectrumFilename = elements[index];
 						URL url =
 							TSVToMzTabConverter.getFileURL(spectrumFilename);
