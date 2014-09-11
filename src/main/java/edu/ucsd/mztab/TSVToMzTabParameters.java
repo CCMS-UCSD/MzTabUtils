@@ -124,12 +124,13 @@ public class TSVToMzTabParameters
 						"Unrecognized \"header_line\" value: [%s]", value));
 			}
 			// set whether spectrum IDs in the input file are scans or indices
-			else if (parameter.equalsIgnoreCase("id_type")) {
+			else if (parameter.equalsIgnoreCase("spectrum_id_type")) {
 				if (value.equalsIgnoreCase("scan"))
 					scanMode = true;
 				else if (value.equalsIgnoreCase("index") == false)
 					throw new IllegalArgumentException(String.format(
-						"Unrecognized \"id_type\" value: [%s]", value));
+						"Unrecognized \"spectrum_id_type\" value: [%s]",
+						value));
 			}
 			// add all fixed mods
 			else if (parameter.equalsIgnoreCase("fixed_mods")) {
