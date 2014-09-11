@@ -482,9 +482,16 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 					if (current == '(')
 						parentheses = true;
 				}
+				// if this is the last character in the PSM string, and a
+				// PTM region is still being processed, then this is a
+				// C-terminal mod and needs to be closed out now
+				else if (i == psm.length() - 1)
+					ptms.add(new Modification(
+						aaCount, modifiedAA, psm.substring(start, i + 1)));
 			} else {
-				// if this is a letter, but the region opener was a parenthesis
-				// and no parenthetical amino acid has been seen, then this is it
+				// if this is a letter, but the region opener
+				// was a parenthesis and no parenthetical amino
+				// acid has been seen, then this is it
 				if (parentheses && parentheticalAASeen == false) {
 					parentheticalAASeen = true;
 					modifiedAA = current;
