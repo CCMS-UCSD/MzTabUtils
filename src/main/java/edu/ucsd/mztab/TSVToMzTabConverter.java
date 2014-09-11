@@ -180,7 +180,6 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				// initialize non-required column values to null,
 				// in case any are not specified in the parameters
 				psm.setAccession(null);
-				psm.setUnique((String)null);
 				psm.setDatabase(null);
 				psm.setDatabaseVersion(null);
 				psm.setSearchEngine((String)null);
