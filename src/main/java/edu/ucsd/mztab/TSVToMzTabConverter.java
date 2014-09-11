@@ -2,260 +2,283 @@ package edu.ucsd.mztab;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import uk.ac.ebi.pride.jmztab.model.FixedMod;
+import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
+import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
+import uk.ac.ebi.pride.jmztab.model.Metadata;
+import uk.ac.ebi.pride.jmztab.model.MsRun;
+import uk.ac.ebi.pride.jmztab.model.PSM;
+import uk.ac.ebi.pride.jmztab.model.Section;
+import uk.ac.ebi.pride.jmztab.model.VariableMod;
+import uk.ac.ebi.pride.jmztab.utils.convert.ConvertProvider;
+
 public class TSVToMzTabConverter
+extends ConvertProvider<File, TSVToMzTabParameters>
 {
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
-	private static final String USAGE = "java -jar MzTabUtils.jar" +
-		"\n\t-tool     convertTSV" +
-		"\n\t-tsv      <InputTSVFile>" +
-		"\n\t-mzTab    <OutputMzTabFile>" +
-		"\n\t-header   0,1" +
-			"\n\t\t0 = The input TSV file does not contain a header line. " +
-			"In this case, the arguments to all column parameters must be " +
-			"valid integer indices (0-based)." +
-			"\n\t\t1 = The first line of the input TSV file is a header " +
-			"line, declaring the names of the columns in each subsequent " +
-			"row of the file.  In this case, the arguments to column " +
-			"parameters may be either valid indices, or string names " +
-			"corresponding to the column headers in this header row." +
-		"\n\t-filename <PeakListFilenameColumn> (column name or index)" +
-		"\n\t-id       <SpectrumIDColumn>  (column name or index)" +
-		"\n\t-idType   index,scan" +
-			"\n\t\tindex = The \"-id\" column represents spectrum indices " +
-			"within the referenced peak list file." +
-			"\n\t\tscan = The \"-id\" column represents scan numbers." +
-		"\n\t-psm      <PeptideSpectrumMatchColumn> (column name or index)";
+	private static final String USAGE = "---------- Usage: ----------\n" +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.TSVToMzTabConverter " +
+		"\n\t-tsv    <InputTSVFile>" +
+		"\n\t-params <InputParametersFile>" +
+		"\n\t-mzTab  <OutputMzTabFile>";
 	
 	/*========================================================================
-	 * Public interface methods
+	 * Properties
 	 *========================================================================*/
-	public static void main(String[] args) {
-		TSVToMzTabConversion conversion = null;
+	private Metadata           metadata;
+	private MZTabColumnFactory psmColumnFactory;
+	
+	/*========================================================================
+	 * Constructor
+	 *========================================================================*/
+	public TSVToMzTabConverter(TSVToMzTabParameters parameters) {
+		super(parameters.getTSVFile(), parameters);
+	}
+	
+	/*========================================================================
+	 * ConvertProvider methods
+	 *========================================================================*/
+	@Override
+	protected Metadata convertMetadata() {
+		System.out.println("Converting metadata...");
+		// ensure that metadata is initialized
+		if (metadata == null) {
+			// set mzTab file type and basic parameters
+			String filename = params.getTSVFile().getName();
+			MZTabDescription description = new MZTabDescription(
+				MZTabDescription.Mode.Summary,
+				MZTabDescription.Type.Identification);
+			description.setId(filename);
+			Metadata metadata = new Metadata(description);
+			// set title and description
+			metadata.setTitle(String.format(
+				"MZTab file converted from tab-delimited result file \"%s\"",
+				filename));
+			metadata.setDescription(String.format(
+				"This MZTab file was programmatically converted from " +
+				"tab-delimited result file \"%s\", using conversion software " +
+				"provided by the Center for Computational Mass Spectrometry " +
+				"of UCSD.", filename));
+			// add all fixed and variable mods 
+			for (FixedMod mod : params.getFixedMods())
+				metadata.addFixedMod(mod);
+			for (VariableMod mod : params.getVariableMods())
+				metadata.addVariableMod(mod);
+			// add spectrum file references
+			int index = 1;
+			for (URL spectrumFile : params.getSpectrumFiles()) {
+				metadata.addMsRunLocation(index, spectrumFile);
+				index++;
+			}
+			this.metadata = metadata;
+		}
+		return metadata;
+	}
+	
+	@Override
+	protected MZTabColumnFactory convertProteinColumnFactory() {
+		return null;
+	}
+	
+	@Override
+	protected MZTabColumnFactory convertPeptideColumnFactory() {
+		return null;
+	}
+	
+	@Override
+	protected MZTabColumnFactory convertPSMColumnFactory() {
+		System.out.println("Converting PSM column factory...");
+		// ensure that PSM column factory is initialized
+		if (psmColumnFactory == null)
+			psmColumnFactory =
+				MZTabColumnFactory.getInstance(Section.PSM_Header);
+		return psmColumnFactory;
+	}
+	
+	@Override
+	protected void fillData() {
+		System.out.println("Filling data...");
+		// read all lines in the TSV file and add them to an mzTab PSM record
+		SortedMap<Integer, MsRun> msRunMap = metadata.getMsRunMap();
+		BufferedReader reader = null;
 		try {
-			conversion = extractArguments(args);
-			if (conversion == null)
-				die("---------- Usage: ----------\n" + USAGE);
-			// read all lines in the TSV file and validate them
+			reader = new BufferedReader(new FileReader(source));
 			String line = null;
-			while ((line = conversion.tsvFile.reader.readLine()) != null) {
-				StringBuffer report = new StringBuffer("Line ");
-				report.append(conversion.tsvFile.lineNumber).append(": ");
-				String[] elements = line.split("\t");
-				if (conversion.tsvFile.filenameColumn >= elements.length)
-					throw new IllegalArgumentException(String.format(
-						"Error parsing input TSV file [%s]: the index of the " +
-						"\"-filename\" column was given as %d, but line %d " +
-						"of the file contains only %d elements:\n%s",
-						conversion.tsvFile.filename,
-						conversion.tsvFile.filenameColumn,
-						conversion.tsvFile.lineNumber, elements.length, line));
-				else report.append("filename = [")
-					.append(elements[conversion.tsvFile.filenameColumn])
-					.append("], ");
-				if (conversion.tsvFile.idColumn >= elements.length)
-					throw new IllegalArgumentException(String.format(
-						"Error parsing input TSV file [%s]: the index of the " +
-						"\"-id\" column was given as %d, but line %d " +
-						"of the file contains only %d elements:\n%s",
-						conversion.tsvFile.filename,
-						conversion.tsvFile.idColumn,
-						conversion.tsvFile.lineNumber, elements.length, line));
-				else report.append(conversion.tsvFile.scan ? "scan" : "index")
-					.append(" = [")
-					.append(elements[conversion.tsvFile.idColumn])
-					.append("], ");
-				String psm = null;
-				if (conversion.tsvFile.psmColumn >= elements.length)
-					throw new IllegalArgumentException(String.format(
-						"Error parsing input TSV file [%s]: the index of the " +
-						"\"-psm\" column was given as %d, but line %d " +
-						"of the file contains only %d elements:\n%s",
-						conversion.tsvFile.filename,
-						conversion.tsvFile.psmColumn,
-						conversion.tsvFile.lineNumber, elements.length, line));
-				else {
-					psm = elements[conversion.tsvFile.psmColumn];
-					report.append("PSM = [").append(psm).append("], ");
+			int lineNumber = 1;
+			while ((line = reader.readLine()) != null) {
+				// skip header row, if there is one
+				if (params.hasHeader() && lineNumber == 1) {
+					lineNumber++;
+					continue;
 				}
-				report.append("Peptide = [").append(cleanPSM(psm))
-					.append("], ");
-				// prepare mzTab mods column value
-				report.append("PTMs = [");
-				Collection<Modification> ptms = extractPTMsFromPSM(psm);
-				if (ptms != null)
-					for (Modification ptm : ptms)
-						report.append(
-							ptm.getMzTabFormattedModString()).append(",");
-				// chomp trailing comma, if present
-				if (report.charAt(report.length() - 1) == ',')
-					report.setLength(report.length() - 1);
-				report.append("]");
-				System.out.println(report.toString());
-				conversion.tsvFile.lineNumber++;
+				PSM psm = new PSM(psmColumnFactory, metadata);
+				// set PSM integer ID
+				if (params.hasHeader())
+					psm.setPSM_ID(lineNumber - 1);
+				else psm.setPSM_ID(lineNumber);
+				// formulate "spectra_ref" value for this row
+				String[] elements = line.split("\t");
+				StringBuffer spectraRef = new StringBuffer();
+				// first get the "ms_run" corresponding to the
+				// spectrum filename extracted from this row
+				String filename = elements[params.getColumnIndex("filename")];
+				URL file = getFileURL(filename);
+				for (Integer index : msRunMap.keySet()) {
+					MsRun msRun = msRunMap.get(index);
+					if (msRun.getLocation().equals(file)) {
+						spectraRef.append("ms_run[").append(
+							msRun.getId()).append("]:");
+						break;
+					}
+				}
+				if (spectraRef.length() == 0)
+					throw new IllegalArgumentException(String.format(
+						"Error creating PSM record: no registered \"ms_run\" " +
+						"metadata element could be found to match TSV " +
+						"\"Filename\" column value [%s]", filename));
+				// then set the proper nativeID key
+				if (params.isScanMode())
+					spectraRef.append("scan=");
+				else spectraRef.append("index=");
+				// finally, append the actual ID value extracted from this row
+				spectraRef.append(
+					elements[params.getColumnIndex("spectrum_id")]);
+				psm.setSpectraRef(spectraRef.toString());
+				// set (cleaned) peptide string
+				String modifiedPeptide =
+					elements[params.getColumnIndex("modified_sequence")];
+				psm.setSequence(cleanPSM(modifiedPeptide));
+				// formulate "modifications" value for this row
+				Collection<Modification> mods =
+					extractPTMsFromPSM(modifiedPeptide);
+				if (mods != null && mods.isEmpty() == false) {
+					StringBuffer modifications = new StringBuffer();
+					boolean first = true;
+					for (Modification mod : mods) {
+						if (first == false)
+							modifications.append(",");
+						modifications.append(mod.getMzTabFormattedModString());
+						first = false;
+					}
+					psm.setModifications(modifications.toString());
+				} else psm.setModifications((String)null);
+				// initialize non-required column values to null,
+				// in case any are not specified in the parameters
+				psm.setAccession(null);
+				psm.setUnique((String)null);
+				psm.setDatabase(null);
+				psm.setDatabaseVersion(null);
+				psm.setSearchEngine((String)null);
+				psm.setRetentionTime((String)null);
+				psm.setCharge((String)null);
+				psm.setExpMassToCharge((String)null);
+				psm.setCalcMassToCharge((String)null);
+				psm.setPre(null);
+				psm.setPost(null);
+				psm.setStart((String)null);
+				psm.setEnd((String)null);
+				// set remaining column values
+				for (String column : params.getColumns()) {
+					if (column == null)
+						continue;
+					String value = elements[params.getColumnIndex(column)];
+					if (value == null)
+						continue;
+					if (column.equals("accession"))
+						psm.setAccession(value);
+					else if (column.equals("unique"))
+						psm.setUnique(value);
+					else if (column.equals("database"))
+						psm.setDatabase(value);
+					else if (column.equals("database_version"))
+						psm.setDatabaseVersion(value);
+					// TODO: deal with search engines and scores
+					else if (column.equals("retention_time"))
+						psm.setRetentionTime(value);
+					else if (column.equals("charge"))
+						psm.setCharge(value);
+					else if (column.equals("exp_mass_to_charge"))
+						psm.setExpMassToCharge(value);
+					else if (column.equals("calc_mass_to_charge"))
+						psm.setCalcMassToCharge(value);
+					else if (column.equals("pre"))
+						psm.setPre(value);
+					else if (column.equals("post"))
+						psm.setPost(value);
+					else if (column.equals("start"))
+						psm.setStart(value);
+					else if (column.equals("end"))
+						psm.setEnd(value);
+				}
+				// add fully initialized PSM to collection
+				psms.add(psm);
+				lineNumber++;
 			}
 		} catch (Throwable error) {
-			die(error.getMessage());
+			throw new RuntimeException(error);
 		} finally {
-			if (conversion != null && conversion.tsvFile != null)
-				conversion.tsvFile.close();
+			try { reader.close(); }
+			catch (Throwable error) {}
 		}
+	}
+	
+	/*========================================================================
+	 * Static application methods
+	 *========================================================================*/
+	public static void main(String[] args) {
+		TSVToMzTabConverter converter = null;
+		FileOutputStream output = null;
+		try {
+			// initialize converter from file arguments
+			System.out.println("Initializing converter...");
+			converter = extractArguments(args);
+			if (converter == null)
+				die(USAGE);
+			// run converter, print to stdout
+			output = new FileOutputStream(converter.params.getMzTabFile());
+			System.out.println("Running converter...");
+			converter.getMZTabFile().printMZTab(output);
+			System.out.println("Done.");
+		} catch (Throwable error) {
+			die(null, error);
+		} finally {
+			try { output.close(); }
+			catch (Throwable error) {}
+		}
+	}
+	
+	public static URL getFileURL(String filename) {
+		// try to extract a URL from the filename string
+		URL url = null;
+		try {
+			url = new URL(filename);
+		} catch (MalformedURLException error) {}
+		// if the source string was not a valid URL, create
+		// a new one with just the "file" protocol
+		if (url == null) try {
+			url = new URL("file://" + filename);
+		} catch (MalformedURLException error) {}
+		return url;
 	}
 	
 	/*========================================================================
 	 * Convenience classes
 	 *========================================================================*/
-	/**
-	 * Struct to maintain context data for each TSV to mzTab file conversion
-	 * operation.
-	 */
-	private static class TSVToMzTabConversion {
-		/*====================================================================
-		 * Properties
-		 *====================================================================*/
-		private TSVFile tsvFile;
-		private File    mzTabFile;
-		
-		/*====================================================================
-		 * Constructors
-		 *====================================================================*/
-		public TSVToMzTabConversion(
-			File tsvFile, File mzTabFile, boolean header, boolean scan,
-			String filenameColumn, String idColumn, String psmColumn
-		) throws IOException {
-			// validate input TSV file
-			this.tsvFile = new TSVFile(
-				tsvFile, header, scan, filenameColumn, idColumn, psmColumn);
-			if (this.tsvFile == null)
-				throw new NullPointerException(String.format(
-					"There was an error parsing input tsvFile [%s].",
-					tsvFile != null ? tsvFile.getName() : "null"));
-			// validate output mzTab file
-			if (mzTabFile == null)
-				throw new NullPointerException(
-					"Output mzTab file cannot be null.");
-			else if (mzTabFile.isDirectory())
-				throw new IllegalArgumentException(
-					String.format("Output mzTab file [%s] " +
-						"must be a normal (non-directory) file.",
-						mzTabFile.getName()));
-			else this.mzTabFile = mzTabFile;
-			// attempt to create output file and test its writeability
-			boolean writeable = true;
-			if (mzTabFile.exists())
-				writeable = mzTabFile.delete();
-			if (writeable)
-				writeable = mzTabFile.createNewFile() && mzTabFile.canWrite();
-			if (writeable == false)
-				throw new IllegalArgumentException(
-					String.format("Output mzTab file [%s] must be writable.",
-						mzTabFile.getName()));
-		}
-	}
-	
-	/**
-	 * Struct to maintain context data for a single input TSV file.
-	 */
-	private static class TSVFile {
-		/*====================================================================
-		 * Properties
-		 *====================================================================*/
-		private String         filename;
-		private BufferedReader reader;
-		private boolean        scan;
-		private Integer        filenameColumn;
-		private Integer        idColumn;
-		private Integer        psmColumn;
-		private Integer        lineNumber;
-		
-		/*====================================================================
-		 * Constructors
-		 *====================================================================*/
-		public TSVFile(
-			File tsvFile, Boolean header, Boolean scan,
-			String filenameColumn, String idColumn, String psmColumn
-		) throws IOException {
-			// validate input TSV file
-			if (tsvFile == null)
-				throw new NullPointerException(
-					"Input TSV file cannot be null.");
-			else if (tsvFile.isFile() == false)
-				throw new IllegalArgumentException(
-					String.format("Input TSV file [%s] must be a normal " +
-						"(non-directory) file.", tsvFile.getName()));
-			else if (tsvFile.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("Input TSV file [%s] must be readable.",
-						tsvFile.getName()));
-			else filename = tsvFile.getName();
-			// set up TSV file reader
-			this.reader = new BufferedReader(new FileReader(tsvFile));
-			// set boolean properties
-			if (header == null)
-				throw new NullPointerException("\"-header\" flag should be " +
-					"given a value of either 0 or 1.");
-			if (scan == null)
-				throw new NullPointerException("\"-scan\" flag should be " +
-					"given a value of either 0 or 1.");
-			else this.scan = scan;
-			// read the first line to validate all column IDs
-			reader.mark(10000);
-			String line = reader.readLine();
-			// if the first line is not supposed to be a header line, rewind
-			if (header == false) {
-				reader.reset();
-				lineNumber = 1;
-			} else lineNumber = 2;
-			String[] firstLineElements = line.split("\t");
-			if (firstLineElements == null || firstLineElements.length < 1)
-				throw new IllegalArgumentException(
-					String.format("Could not parse the tab-delimited " +
-						"elements of the first line from input TSV file [%s].",
-						filename));
-			// validate filename column
-			this.filenameColumn = extractColumnIndex(
-				filenameColumn, filename, "-filename", line,
-				header, firstLineElements);
-			if (this.filenameColumn == null)
-				throw new NullPointerException(String.format(
-					"There was an error parsing \"-filename\" column [%s].",
-					filenameColumn != null ? filenameColumn : "null"));
-			// validate spectrum ID column
-			this.idColumn = extractColumnIndex(
-				idColumn, filename, "-id", line, header, firstLineElements);
-			if (this.idColumn == null)
-				throw new NullPointerException(String.format(
-					"There was an error parsing \"-id\" column [%s].",
-					idColumn != null ? idColumn : "null"));
-			// validate PSM column
-			this.psmColumn = extractColumnIndex(
-				psmColumn, filename, "-psm", line, header, firstLineElements);
-			if (this.psmColumn == null)
-				throw new NullPointerException(String.format(
-					"There was an error parsing \"-psm\" column [%s].",
-					psmColumn != null ? psmColumn : "null"));
-		}
-		
-		/*====================================================================
-		 * Public interface methods
-		 *====================================================================*/
-		public void close() {
-			if (reader != null) try {
-				reader.close();
-			} catch (Throwable error) {}
-		}
-	}
-	
 	/**
 	 * Struct to maintain context data for a single parsed PTM.
 	 */
@@ -377,16 +400,13 @@ public class TSVToMzTabConverter
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private static TSVToMzTabConversion extractArguments(String[] args) {
+	private static TSVToMzTabConverter extractArguments(String[] args) {
 		if (args == null || args.length < 1)
 			return null;
+		// extract file arguments
 		File tsvFile = null;
+		File paramsFile = null;
 		File mzTabFile = null;
-		Boolean header = null;
-		Boolean scan = null;
-		String filenameColumn = null;
-		String idColumn = null;
-		String psmColumn = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -394,88 +414,35 @@ public class TSVToMzTabConverter
 			else {
 				i++;
 				if (i >= args.length)
-					throw new IllegalArgumentException(String.format(
-						"Could not parse the argument at index %d for " +
-						"parameter [%s]: if your string value includes any " +
-						"unusual characters, please ensure that it is " +
-						"properly enclosed in quotation marks.", i, argument));
+					return null;
 				String value = args[i];
-				if (argument.equals("-tsv"))
+				if (argument.equalsIgnoreCase("-tsv"))
 					tsvFile = new File(value);
-				else if (argument.equals("-mzTab"))
+				else if (argument.equalsIgnoreCase("-params"))
+					paramsFile = new File(value);
+				else if (argument.equalsIgnoreCase("-mzTab"))
 					mzTabFile = new File(value);
-				else if (argument.equals("-header")) {
-					if (value.trim().equals("0"))
-						header = false;
-					else if (value.trim().equals("1"))
-						header = true;
-				} else if (argument.equals("-idType")) {
-					if (value.trim().equals("index"))
-						scan = false;
-					else if (value.trim().equals("scan"))
-						scan = true;
-				} else if (argument.equals("-filename"))
-					filenameColumn = value;
-				else if (argument.equals("-id"))
-					idColumn = value;
-				else if (argument.equals("-psm"))
-					psmColumn = value;
 				else throw new IllegalArgumentException(String.format(
 					"Unrecognized parameter at index %d: [%s]", i, argument));
 			}
 		}
-		try {
-			return new TSVToMzTabConversion(tsvFile, mzTabFile, header, scan,
-				filenameColumn, idColumn, psmColumn);
-		} catch (Throwable error) {
-			System.err.println(error.getMessage());
-			return null;
+		// validate extracted file arguments
+		if (tsvFile == null) {
+			System.err.println("\"-tsv\" is a required parameter.");
+			die(USAGE);
+		} else if (paramsFile == null) {
+			System.err.println("\"-params\" is a required parameter.");
+			die(USAGE);
+		} else if (mzTabFile == null) {
+			System.err.println("\"-mzTab\" is a required parameter.");
+			die(USAGE);
 		}
-	}
-	
-	private static Integer extractColumnIndex(
-		String columnID, String tsvFilename, String parameterName, String line,
-		boolean header, String[] headers
-	) {
-		if (columnID == null || tsvFilename == null || parameterName == null ||
-			line == null || headers == null)
-			return null;
-		// first try to parse the user-supplied columnID as an integer index
+		// process extracted file arguments into an initialized converter
 		try {
-			int index = Integer.parseInt(columnID);
-			// the specified index must be within the bounds of the header array
-			if (index < 0 || index >= headers.length)
-				throw new IllegalArgumentException(String.format(
-					"Error parsing input TSV file [%s]: the index of the " +
-					"\"%s\" column was given as %s, but the first " +
-					"line of the file contains %d elements:\n%s",
-					tsvFilename, parameterName, columnID,
-					headers.length, line));
-			else return index;
-		}
-		// if the user-supplied value of the column ID was not an
-		// integer, then it must be the string name of a column header
-		catch (NumberFormatException error) {
-			// if there is no header row, then a column ID that cannot be
-			// parsed as an integer is illegal, since it can't be looked up
-			if (header == false)
-				throw new IllegalArgumentException(String.format(
-					"Error parsing input TSV file [%s]: the \"%s\" " +
-					"column header was given as [%s], but yet the argument " +
-					"to the \"-header\" parameter was given as 0, indicating " +
-					"that the file does not contain a header line.",
-					tsvFilename, parameterName, columnID));
-			// otherwise, try to find the index of the specified column header
-			for (int i=0; i<headers.length; i++)
-				if (columnID.equals(headers[i]))
-					return i;
-			// if no matching column header was found, then throw a
-			// NoSuchElementFoundException
-			throw new IllegalArgumentException(String.format(
-				"Error parsing input TSV file [%s]: the \"%s\" " +
-				"column header was given as [%s], but this header could " +
-				"not be found in the first line of the file:\n%s",
-				tsvFilename, parameterName, columnID, line));
+			return new TSVToMzTabConverter(
+				new TSVToMzTabParameters(paramsFile, tsvFile, mzTabFile));
+		} catch (IOException error) {
+			throw new RuntimeException(error);
 		}
 	}
 	
@@ -542,24 +509,6 @@ public class TSVToMzTabConverter
 		if (ptms == null || ptms.isEmpty())
 			return null;
 		else return ptms;
-	}
-	
-	public static void mainy(String[] args) {
-		String test = "+42.011C+57.021NGVL(E,-17)GI[900]R";
-		Collection<Modification> ptms = extractPTMsFromPSM(test);
-		if (ptms == null)
-			System.out.println(String.format(
-				"No PTMs were found in PSM string [%s]", test));
-		else {
-			System.out.println(String.format(
-				"Found a PTM count of %d in PSM string [%s]",
-				ptms.size(), test));
-			for (Modification modification : ptms)
-				System.out.println(String.format("\t%d = %s",
-					modification.getSite(),
-					modification.getMzTabFormattedModString()));
-		}
-		System.out.println(String.format("\tClean = %s", cleanPSM(test)));
 	}
 	
 	private static void die(String message) {
