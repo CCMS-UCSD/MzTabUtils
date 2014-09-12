@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.URL;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -15,7 +16,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.xpath.XPathAPI;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
+import edu.ucsd.util.FileIOUtils;
 import edu.ucsd.util.OntologyUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
@@ -27,6 +33,10 @@ public class TSVToMzTabParameters
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
+	private static final String USAGE = "---------- Usage: ----------\n" +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.TSVToMzTabParameters " +
+		"\n\t-input  <ProteoSAFeParametersFile>" +
+		"\n\t-output <ConverterParametersFile>";
 	private static final Pattern CV_TERM_PATTERN = Pattern.compile(
 		"^\\[([^,]*),\\s*([^,]*),\\s*\"?([^\"]*)\"?,\\s*([^,]*)\\]$");
 	private static final String[] REQUIRED_COLUMNS = {
@@ -297,9 +307,19 @@ public class TSVToMzTabParameters
 		else if (modifications == null)
 			modifications = new LinkedHashMap<Double, Mod>();
 		Mod mod = null;
+		// determine the current counts of fixed and variable mods
+		int fixedCount = 0;
+		int variableCount = 0;
+		for (Mod added : modifications.values()) {
+			if (added instanceof FixedMod)
+				fixedCount++;
+			else if (added instanceof VariableMod)
+				variableCount++;
+			else throw new IllegalStateException();
+		}
 		if (fixed) {
-			mod = new FixedMod(modifications.size() + 1);
-		} else mod = new VariableMod(modifications.size() + 1);
+			mod = new FixedMod(fixedCount + 1);
+		} else mod = new VariableMod(variableCount + 1);
 		// parse CV term from the argument square bracket-enclosed tuple string
 		Matcher matcher = CV_TERM_PATTERN.matcher(cvTerm);
 		if (matcher.matches() == false)
@@ -384,5 +404,204 @@ public class TSVToMzTabParameters
 				"not be found in the first line of the file:\n%s",
 				tsvFilename, columnName, columnID, line));
 		}
+	}
+	
+	/*========================================================================
+	 * Static application methods
+	 *========================================================================*/
+	public static void main(String[] args) {
+		ImmutablePair<File, File> files = extractArguments(args);
+		if (files == null)
+			die(USAGE);
+		// parse params.xml file, convert to TSV converter key=value params file
+		PrintWriter output = null;
+		try {
+			System.out.println(String.format(
+				"Reading input XML parameters file [%s]...",
+				files.getLeft().getName()));
+			// parse input file as an XML document
+			Document document = FileIOUtils.parseXML(files.getLeft());
+			if (document == null)
+				throw new NullPointerException(
+					"Parameters XML document could not be parsed.");
+			// open output file for writing
+			System.out.println(String.format(
+				"Writing output text parameters file [%s]...",
+				files.getRight().getName()));
+			output = new PrintWriter(files.getRight());
+			// extract header line status, and write it to the output file
+			Node parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='header_line']");
+			String name = null;
+			String value = null;
+			if (parameter != null) {
+				value = parameter.getFirstChild().getNodeValue();
+				if (value != null && value.equalsIgnoreCase("on"))
+					output.println("header_line=true");
+				else output.println("header_line=false");
+			}
+			// extract scan/index mode, and write it to the output file
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='spectrum_id_type']");
+			if (parameter != null) {
+				value = parameter.getFirstChild().getNodeValue();
+				if (value != null && value.equalsIgnoreCase("scan"))
+					output.println("spectrum_id_type=scan");
+				else output.println("spectrum_id_type=index");
+			}
+			// extract fixed mods, and write them to the output file
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='fixed_mods']");
+			if (parameter != null) {
+				value = getModCVList(parameter.getFirstChild().getNodeValue());
+				if (value != null)
+					output.println(String.format("fixed_mods=%s", value));
+			}
+			// extract variable mods, and write them to the output file
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='variable_mods']");
+			if (parameter != null) {
+				value = getModCVList(parameter.getFirstChild().getNodeValue());
+				if (value != null)
+					output.println(String.format("variable_mods=%s", value));
+			}
+			// extract all column index identifiers,
+			// and write them to the output file
+			NodeList parameters = XPathAPI.selectNodeList(
+				document, "//parameter[starts-with(@name,'parameter.')]");
+			if (parameters != null && parameters.getLength() > 0) {
+				for (int i=0; i<parameters.getLength(); i++) {
+					parameter = parameters.item(i);
+					name = parameter.getAttributes().getNamedItem("name")
+						.getNodeValue();
+					value = parameter.getFirstChild().getNodeValue();
+					if (name == null || value == null)
+						continue;
+					// extract "parameter." prefix
+					String[] tokens = name.split("\\.");
+					if (tokens == null || tokens.length < 2)
+						continue;
+					else output.println(
+						String.format("%s=%s", tokens[1], value));
+				}
+			}
+			System.out.println("Done.");
+		} catch (Throwable error) {
+			die(null, error);
+		} finally {
+			try { output.close(); }
+			catch (Throwable error) {}
+		}
+	}
+	
+	/*========================================================================
+	 * Static application convenience methods
+	 *========================================================================*/
+	private static ImmutablePair<File, File> extractArguments(String[] args) {
+		if (args == null || args.length < 1)
+			return null;
+		else try {
+			// extract file arguments
+			File inputFile = null;
+			File outputFile = null;
+			for (int i=0; i<args.length; i++) {
+				String argument = args[i];
+				if (argument == null)
+					return null;
+				else {
+					i++;
+					if (i >= args.length)
+						return null;
+					String value = args[i];
+					if (argument.equalsIgnoreCase("-input"))
+						inputFile = new File(value);
+					else if (argument.equalsIgnoreCase("-output"))
+						outputFile = new File(value);
+					else throw new IllegalArgumentException(String.format(
+						"Unrecognized parameter at index %d: [%s]", i, argument));
+				}
+			}
+			// validate extracted file arguments
+			if (inputFile == null)
+				throw new NullPointerException(
+					"Input parameter file cannot be null.");
+			else if (inputFile.isFile() == false)
+				throw new IllegalArgumentException(String.format(
+					"Input parameter file [%s] must be a normal " +
+					"(non-directory) file.", inputFile.getName()));
+			else if (inputFile.canRead() == false)
+				throw new IllegalArgumentException(String.format(
+					"Input parameter file [%s] must be readable.",
+					inputFile.getName()));
+			else if (outputFile == null)
+				throw new NullPointerException(
+					"Output parameter file cannot be null.");
+			else if (outputFile.isDirectory())
+				throw new IllegalArgumentException(String.format(
+					"Output parameter file [%s] must be a normal " +
+					"(non-directory) file.", outputFile.getName()));
+			// attempt to create output file and test its writeability
+			boolean writeable = true;
+			if (outputFile.exists())
+				writeable = outputFile.delete();
+			if (writeable)
+				writeable = outputFile.createNewFile() && outputFile.canWrite();
+			if (writeable == false)
+				throw new IllegalArgumentException(String.format(
+					"Output parameter file [%s] must be writable.",
+					outputFile.getName()));
+			else return new ImmutablePair<File, File>(inputFile, outputFile);
+		} catch (Throwable error) {
+			error.printStackTrace();
+			return null;
+		}
+	}
+	
+	private static String getModCVList(String accessions) {
+		if (accessions == null)
+			return null;
+		StringBuffer cvList = new StringBuffer();
+		boolean first = true;
+		for (String accession : accessions.split(";")) {
+			// split accession into CV label and number
+			String[] tokens = accession.split(":");
+			if (tokens == null || tokens.length < 2)
+				throw new IllegalArgumentException(String.format(
+					"Modification CV accession [%s] does not conform " +
+					"to the expected format:\n%s",
+					accession, "<CV_label>:<accession_number>"));
+			ImmutablePair<Double, String> mod =
+				OntologyUtils.getOntologyModification(accession);
+			if (mod == null)
+				throw new IllegalArgumentException(String.format(
+					"Could not find modification [%s] in the CV.",
+					accession));
+			else if (first == false) {
+				cvList.append("|");
+			} else first = false;
+			cvList.append(String.format("[%s, %s, \"%s\", ]",
+				tokens[0], accession, mod.getValue()));
+		}
+		if (cvList == null || cvList.length() < 1)
+			return null;
+		else return cvList.toString();
+	}
+	
+	private static void die(String message) {
+		die(message, null);
+	}
+	
+	private static void die(String message, Throwable error) {
+		if (message == null)
+			message = "There was an error generating the " +
+				"TSV to mzTab converter parameters file";
+		if (error != null)
+			message += ":";
+		else if (message.endsWith(".") == false)
+			message += ".";
+		System.err.println(message);
+		if (error != null)
+			error.printStackTrace();
+		System.exit(1);
 	}
 }

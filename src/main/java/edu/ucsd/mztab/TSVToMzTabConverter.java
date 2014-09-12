@@ -113,7 +113,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			for (Mod mod : params.getModifications().values()) {
 				if (mod instanceof FixedMod)
 					metadata.addFixedMod((FixedMod)mod);
-				else if (mod instanceof FixedMod)
+				else if (mod instanceof VariableMod)
 					metadata.addVariableMod((VariableMod)mod);
 				// it should be impossible to get to this point, since the
 				// application only instantiates FixedMods and VariableMods
