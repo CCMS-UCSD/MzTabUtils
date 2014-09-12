@@ -24,6 +24,7 @@ import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
+import uk.ac.ebi.pride.jmztab.model.Param;
 import uk.ac.ebi.pride.jmztab.model.Section;
 import uk.ac.ebi.pride.jmztab.model.VariableMod;
 import uk.ac.ebi.pride.jmztab.utils.convert.ConvertProvider;
@@ -276,93 +277,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	}
 	
 	/*========================================================================
-	 * Static application methods
-	 *========================================================================*/
-	public static void main(String[] args) {
-		TSVToMzTabConverter converter = null;
-		FileOutputStream output = null;
-		try {
-			// initialize converter from file arguments
-			System.out.println("Initializing converter...");
-			converter = extractArguments(args);
-			if (converter == null)
-				die(USAGE);
-			// run converter, print to stdout
-			output = new FileOutputStream(converter.params.getMzTabFile());
-			System.out.println("Running converter...");
-			converter.getMZTabFile().printMZTab(output);
-			System.out.println("Done.");
-		} catch (Throwable error) {
-			die(null, error);
-		} finally {
-			try { output.close(); }
-			catch (Throwable error) {}
-		}
-	}
-	
-	public static URL getFileURL(String filename) {
-		// try to extract a URL from the filename string
-		URL url = null;
-		try {
-			url = new URL(filename);
-		} catch (MalformedURLException error) {}
-		// if the source string was not a valid URL, create
-		// a new one with just the "file" protocol
-		if (url == null) try {
-			url = new URL("file://" + filename);
-		} catch (MalformedURLException error) {}
-		return url;
-	}
-	
-	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private static TSVToMzTabConverter extractArguments(String[] args) {
-		if (args == null || args.length < 1)
-			return null;
-		// extract file arguments
-		File tsvFile = null;
-		File paramsFile = null;
-		File mzTabFile = null;
-		for (int i=0; i<args.length; i++) {
-			String argument = args[i];
-			if (argument == null)
-				return null;
-			else {
-				i++;
-				if (i >= args.length)
-					return null;
-				String value = args[i];
-				if (argument.equalsIgnoreCase("-tsv"))
-					tsvFile = new File(value);
-				else if (argument.equalsIgnoreCase("-params"))
-					paramsFile = new File(value);
-				else if (argument.equalsIgnoreCase("-mzTab"))
-					mzTabFile = new File(value);
-				else throw new IllegalArgumentException(String.format(
-					"Unrecognized parameter at index %d: [%s]", i, argument));
-			}
-		}
-		// validate extracted file arguments
-		if (tsvFile == null) {
-			System.err.println("\"-tsv\" is a required parameter.");
-			die(USAGE);
-		} else if (paramsFile == null) {
-			System.err.println("\"-params\" is a required parameter.");
-			die(USAGE);
-		} else if (mzTabFile == null) {
-			System.err.println("\"-mzTab\" is a required parameter.");
-			die(USAGE);
-		}
-		// process extracted file arguments into an initialized converter
-		try {
-			return new TSVToMzTabConverter(
-				new TSVToMzTabParameters(paramsFile, tsvFile, mzTabFile));
-		} catch (IOException error) {
-			throw new RuntimeException(error);
-		}
-	}
-	
 	private String cleanPSM(String psm) {
 		if (psm == null)
 			return null;
@@ -429,8 +345,9 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		Type type = null;
 		Mod mod = getBestMatchingMod(mass);
 		if (mod != null) {
-			accession = mod.getParam().getAccession();
-			String cvLabel = mod.getParam().getCvLabel();
+			Param param = mod.getParam();
+			accession = param.getAccession();
+			String cvLabel = param.getCvLabel();
 			// anything we don't recognize is a CHEMMOD, since we know the mass
 			if (cvLabel == null)
 				type = Type.CHEMMOD;
@@ -441,16 +358,34 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			else if (cvLabel.equalsIgnoreCase("MS")) {
 				if (accession != null &&
 					accession.equalsIgnoreCase(UNKNOWN_MODIFICATION_ACCESSION))
-					type = Type.UNKNOWN;
-				else type = Type.CHEMMOD;
+					type = Type.CHEMMOD;
+				else throw new IllegalArgumentException(String.format(
+					"Unrecognized modification from the \"MS\" CV: [%s].",
+					param.toString()));
 			} else type = Type.CHEMMOD;
 		}
-		// if no good match was found, then it's an unknown mod
-		else {
-			accession = UNKNOWN_MODIFICATION_ACCESSION;
-			type = Type.CHEMMOD;
-		}
-		Modification modification = new Modification(section, type, accession);
+		// if no good match was found, then it's a CHEMMOD
+		else type = Type.CHEMMOD;
+		// if this mod is a CHEMMOD, then its value needs to be its mass
+		String value = null;
+		if (type.equals(Type.CHEMMOD))
+			value = Double.toString(mass);
+		// otherwise, try to extract the numerical portion of the CV accession
+		else if (accession != null) {
+			String[] tokens = accession.split(":");
+			if (tokens == null || tokens.length < 1)
+				throw new IllegalArgumentException(String.format(
+					"Unrecognized modification CV accession: [%s].",
+					accession));
+			else if (tokens.length > 1)
+				value = tokens[1];
+			else value = accession;
+	 	}
+		// this should be impossible, since the accession
+		// should be set for any mod that is not a CHEMMOD
+		else throw new IllegalStateException();
+		// create and return the mod, with its proper value and position
+		Modification modification = new Modification(section, type, value);
 		modification.addPosition(site, null);
 		return modification;
 	}
@@ -538,6 +473,45 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		else return ptms;
 	}
 	
+	/*========================================================================
+	 * Static application methods
+	 *========================================================================*/
+	public static void main(String[] args) {
+		TSVToMzTabConverter converter = null;
+		FileOutputStream output = null;
+		try {
+			// initialize converter from file arguments
+			System.out.println("Initializing converter...");
+			converter = extractArguments(args);
+			if (converter == null)
+				die(USAGE);
+			// run converter, print to stdout
+			output = new FileOutputStream(converter.params.getMzTabFile());
+			System.out.println("Running converter...");
+			converter.getMZTabFile().printMZTab(output);
+			System.out.println("Done.");
+		} catch (Throwable error) {
+			die(null, error);
+		} finally {
+			try { output.close(); }
+			catch (Throwable error) {}
+		}
+	}
+	
+	public static URL getFileURL(String filename) {
+		// try to extract a URL from the filename string
+		URL url = null;
+		try {
+			url = new URL(filename);
+		} catch (MalformedURLException error) {}
+		// if the source string was not a valid URL, create
+		// a new one with just the "file" protocol
+		if (url == null) try {
+			url = new URL("file://" + filename);
+		} catch (MalformedURLException error) {}
+		return url;
+	}
+	
 	public static String getMass(double mass) {
 		String formattedMass;
 		if (mass == (int)mass)
@@ -551,6 +525,55 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	
 	public static String getMzTabFormattedModString(int site, double mass) {
 		return String.format("%d-CHEMMOD:%s", site, getMass(mass));
+	}
+	
+	/*========================================================================
+	 * Static application convenience methods
+	 *========================================================================*/
+	private static TSVToMzTabConverter extractArguments(String[] args) {
+		if (args == null || args.length < 1)
+			return null;
+		// extract file arguments
+		File tsvFile = null;
+		File paramsFile = null;
+		File mzTabFile = null;
+		for (int i=0; i<args.length; i++) {
+			String argument = args[i];
+			if (argument == null)
+				return null;
+			else {
+				i++;
+				if (i >= args.length)
+					return null;
+				String value = args[i];
+				if (argument.equalsIgnoreCase("-tsv"))
+					tsvFile = new File(value);
+				else if (argument.equalsIgnoreCase("-params"))
+					paramsFile = new File(value);
+				else if (argument.equalsIgnoreCase("-mzTab"))
+					mzTabFile = new File(value);
+				else throw new IllegalArgumentException(String.format(
+					"Unrecognized parameter at index %d: [%s]", i, argument));
+			}
+		}
+		// validate extracted file arguments
+		if (tsvFile == null) {
+			System.err.println("\"-tsv\" is a required parameter.");
+			die(USAGE);
+		} else if (paramsFile == null) {
+			System.err.println("\"-params\" is a required parameter.");
+			die(USAGE);
+		} else if (mzTabFile == null) {
+			System.err.println("\"-mzTab\" is a required parameter.");
+			die(USAGE);
+		}
+		// process extracted file arguments into an initialized converter
+		try {
+			return new TSVToMzTabConverter(
+				new TSVToMzTabParameters(paramsFile, tsvFile, mzTabFile));
+		} catch (IOException error) {
+			throw new RuntimeException(error);
+		}
 	}
 	
 	private static void die(String message) {
