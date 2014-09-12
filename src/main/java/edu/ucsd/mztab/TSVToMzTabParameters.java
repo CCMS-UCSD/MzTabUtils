@@ -14,6 +14,9 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
+import edu.ucsd.util.OntologyUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.Mod;
@@ -33,14 +36,13 @@ public class TSVToMzTabParameters
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
-	private File                    tsvFile;
-	private File                    mzTabFile;
-	private boolean                 hasHeader;
-	private boolean                 scanMode;
-	private Map<String, Integer>    columnIndices;
-	private Collection<FixedMod>    fixedMods;
-	private Collection<VariableMod> variableMods;
-	private Collection<URL>         spectrumFiles;
+	private File                 tsvFile;
+	private File                 mzTabFile;
+	private boolean              hasHeader;
+	private boolean              scanMode;
+	private Map<String, Integer> columnIndices;
+	private Map<Double, Mod>     modifications;
+	private Collection<URL>      spectrumFiles;
 	
 	/*========================================================================
 	 * Constructors
@@ -94,9 +96,8 @@ public class TSVToMzTabParameters
 			throw new IllegalArgumentException(
 				String.format("Output mzTab file [%s] must be writable.",
 					mzTabFile.getName()));
-		// initialize mod collections
-		fixedMods = new LinkedHashSet<FixedMod>();
-		variableMods = new LinkedHashSet<VariableMod>();
+		// initialize mod collection
+		modifications = new LinkedHashMap<Double, Mod>();
 		// initialize tab-delimited content parameters
 		hasHeader = false;
 		scanMode = false;
@@ -257,8 +258,12 @@ public class TSVToMzTabParameters
 		return scanMode;
 	}
 	
-	public Collection<FixedMod> getFixedMods() {
-		return fixedMods;
+	public Map<Double, Mod> getModifications() {
+		return modifications;
+	}
+	
+	public Mod getModification(double mass) {
+		return modifications.get(mass);
 	}
 	
 	public void addFixedMod(String cvTerm) {
@@ -267,10 +272,6 @@ public class TSVToMzTabParameters
 	
 	public void addVariableMod(String cvTerm) {
 		addMod(cvTerm, false);
-	}
-	
-	public Collection<VariableMod> getVariableMods() {
-		return variableMods;
 	}
 	
 	public Collection<URL> getSpectrumFiles() {
@@ -293,14 +294,12 @@ public class TSVToMzTabParameters
 	private void addMod(String cvTerm, boolean fixed) {
 		if (cvTerm == null)
 			return;
-		else if (fixed && fixedMods == null)
-			fixedMods = new LinkedHashSet<FixedMod>();
-		else if (fixed == false && variableMods == null)
-			variableMods = new LinkedHashSet<VariableMod>();
+		else if (modifications == null)
+			modifications = new LinkedHashMap<Double, Mod>();
 		Mod mod = null;
 		if (fixed) {
-			mod = new FixedMod(fixedMods.size() + 1);
-		} else mod = new VariableMod(variableMods.size() + 1);
+			mod = new FixedMod(modifications.size() + 1);
+		} else mod = new VariableMod(modifications.size() + 1);
 		// parse CV term from the argument square bracket-enclosed tuple string
 		Matcher matcher = CV_TERM_PATTERN.matcher(cvTerm);
 		if (matcher.matches() == false)
@@ -308,15 +307,40 @@ public class TSVToMzTabParameters
 				"Argument CV term [%s] does not conform to the required " +
 				"string format of a square bracket-enclosed (\"[]\") " +
 				"CV tuple:\n%s", cvTerm, "[cvLabel, accession, name, value]"));
-		// ensure that the "value" is null, if nothing was specified
-		String value = matcher.group(4);
-		if (value != null && value.trim().isEmpty())
-			value = null;
+		// try to determine this mod's mass
+		// by looking it up in the ontology
+		Double mass = null;
+		String value = null;
+		ImmutablePair<Double, String> ontologyEntry =
+			OntologyUtils.getOntologyModification(matcher.group(2));
+		if (ontologyEntry != null)
+			mass = ontologyEntry.getKey();
+		// if this mod was not found in the ontology,
+		// try to extract and parse its "value" field
+		else try {
+			// record the "value" field in the transferred CV parameter
+			// if it cannot be looked up in the ontology
+			value = matcher.group(4);
+			mass = Double.parseDouble(value);
+		} catch (NumberFormatException error) {}
+		if (mass == null)
+			throw new IllegalArgumentException(String.format(
+				"No valid mass offset could be determined for the " +
+				"modification represented by CV term [%s]. Therefore, adding " +
+				"this term to the output mzTab file would introduce " +
+				"irreconcilable ambiguity.", cvTerm));
 		mod.setParam(new CVParam(
 			matcher.group(1), matcher.group(2), matcher.group(3), value));
-		if (fixed)
-			fixedMods.add((FixedMod)mod);
-		else variableMods.add((VariableMod)mod);
+		// ensure that a mod with this mass is not already in this map
+		if (modifications.containsKey(mass)) {
+			Mod existing = modifications.get(mass);
+			throw new IllegalArgumentException(String.format(
+				"A mass offset of %s was already found in the modifications " +
+				"map, representing CV term [%s]. Therefore, adding another " +
+				"term with the exact same mass offset [%s] to the output " +
+				"mzTab file would introduce irreconcilable ambiguity.", mass,
+				existing.getParam().toString(), mod.getParam().toString()));
+		} else modifications.put(mass, mod);
 	}
 	
 	private Integer extractColumnIndex(

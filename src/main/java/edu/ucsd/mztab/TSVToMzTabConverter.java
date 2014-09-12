@@ -19,6 +19,9 @@ import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
 import uk.ac.ebi.pride.jmztab.model.Metadata;
+import uk.ac.ebi.pride.jmztab.model.Mod;
+import uk.ac.ebi.pride.jmztab.model.Modification;
+import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
 import uk.ac.ebi.pride.jmztab.model.Section;
@@ -36,6 +39,37 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		"\n\t-tsv    <InputTSVFile>" +
 		"\n\t-params <InputParametersFile>" +
 		"\n\t-mzTab  <OutputMzTabFile>";
+	public static final Pattern[] PTM_PATTERNS = {
+		Pattern.compile("^([+-]?\\d*\\.?\\d*)$"),
+		Pattern.compile("^\\(\\w,([+-]?\\d*\\.?\\d*)\\)$"),
+		Pattern.compile("^\\[([+-]?\\d*\\.?\\d*)\\]$")
+	};
+	public static final String UNKNOWN_MODIFICATION_ACCESSION = "MS:1001460";
+	public static final Double MAXIMUM_MASS_TOLERANCE = 0.001;
+	public static final Map<Character, Double> AMINO_ACID_MASSES =
+		new TreeMap<Character, Double>();
+	static {
+		AMINO_ACID_MASSES.put('A', 71.037113787);
+		AMINO_ACID_MASSES.put('R', 156.101111026);
+		AMINO_ACID_MASSES.put('D', 115.026943031);
+		AMINO_ACID_MASSES.put('N', 114.042927446);
+		AMINO_ACID_MASSES.put('C', 103.009184477);
+		AMINO_ACID_MASSES.put('E', 129.042593095);
+		AMINO_ACID_MASSES.put('Q', 128.058577510);
+		AMINO_ACID_MASSES.put('G', 57.021463723);
+		AMINO_ACID_MASSES.put('H', 137.058911861);
+		AMINO_ACID_MASSES.put('I', 113.084063979);
+		AMINO_ACID_MASSES.put('L', 113.084063979);
+		AMINO_ACID_MASSES.put('K', 128.094963016);
+		AMINO_ACID_MASSES.put('M', 131.040484605);
+		AMINO_ACID_MASSES.put('F', 147.068413915);
+		AMINO_ACID_MASSES.put('P', 97.052763851);
+		AMINO_ACID_MASSES.put('S', 87.032028409);
+		AMINO_ACID_MASSES.put('T', 101.047678473);
+		AMINO_ACID_MASSES.put('W', 186.079312952);
+		AMINO_ACID_MASSES.put('Y', 163.063328537);
+		AMINO_ACID_MASSES.put('V', 99.068413915);
+	}
 	
 	/*========================================================================
 	 * Properties
@@ -75,10 +109,15 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				"provided by the Center for Computational Mass Spectrometry " +
 				"of UCSD.", filename));
 			// add all fixed and variable mods 
-			for (FixedMod mod : params.getFixedMods())
-				metadata.addFixedMod(mod);
-			for (VariableMod mod : params.getVariableMods())
-				metadata.addVariableMod(mod);
+			for (Mod mod : params.getModifications().values()) {
+				if (mod instanceof FixedMod)
+					metadata.addFixedMod((FixedMod)mod);
+				else if (mod instanceof FixedMod)
+					metadata.addVariableMod((VariableMod)mod);
+				// it should be impossible to get to this point, since the
+				// application only instantiates FixedMods and VariableMods
+				else throw new IllegalStateException();
+			}
 			// add spectrum file references
 			int index = 1;
 			for (URL spectrumFile : params.getSpectrumFiles()) {
@@ -172,7 +211,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 					for (Modification mod : mods) {
 						if (first == false)
 							modifications.append(",");
-						modifications.append(mod.getMzTabFormattedModString());
+						modifications.append(mod.toString());
 						first = false;
 					}
 					psm.setModifications(modifications.toString());
@@ -276,127 +315,6 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	}
 	
 	/*========================================================================
-	 * Convenience classes
-	 *========================================================================*/
-	/**
-	 * Struct to maintain context data for a single parsed PTM.
-	 */
-	private static class Modification {
-		/*====================================================================
-		 * Constants
-		 *====================================================================*/
-		public static final Pattern[] PTM_PATTERNS = {
-			Pattern.compile("^([+-]?\\d*\\.?\\d*)$"),
-			Pattern.compile("^\\(\\w,([+-]?\\d*\\.?\\d*)\\)$"),
-			Pattern.compile("^\\[([+-]?\\d*\\.?\\d*)\\]$")
-		};
-		public static final Map<Character, Double> AMINO_ACID_MASSES =
-			new TreeMap<Character, Double>();
-		static {
-			AMINO_ACID_MASSES.put('A', 71.037113787);
-			AMINO_ACID_MASSES.put('R', 156.101111026);
-			AMINO_ACID_MASSES.put('D', 115.026943031);
-			AMINO_ACID_MASSES.put('N', 114.042927446);
-			AMINO_ACID_MASSES.put('C', 103.009184477);
-			AMINO_ACID_MASSES.put('E', 129.042593095);
-			AMINO_ACID_MASSES.put('Q', 128.058577510);
-			AMINO_ACID_MASSES.put('G', 57.021463723);
-			AMINO_ACID_MASSES.put('H', 137.058911861);
-			AMINO_ACID_MASSES.put('I', 113.084063979);
-			AMINO_ACID_MASSES.put('L', 113.084063979);
-			AMINO_ACID_MASSES.put('K', 128.094963016);
-			AMINO_ACID_MASSES.put('M', 131.040484605);
-			AMINO_ACID_MASSES.put('F', 147.068413915);
-			AMINO_ACID_MASSES.put('P', 97.052763851);
-			AMINO_ACID_MASSES.put('S', 87.032028409);
-			AMINO_ACID_MASSES.put('T', 101.047678473);
-			AMINO_ACID_MASSES.put('W', 186.079312952);
-			AMINO_ACID_MASSES.put('Y', 163.063328537);
-			AMINO_ACID_MASSES.put('V', 99.068413915);
-		}
-		
-		/*====================================================================
-		 * Properties
-		 *====================================================================*/
-		private int site;
-		private double mass;
-		
-		/*====================================================================
-		 * Constructor
-		 *====================================================================*/
-		public Modification(
-			int site, char aminoAcid, String massDescriptor
-		) {
-			// validate site
-			if (site < 0)
-				throw new IllegalArgumentException(
-					"A modification site index cannot be negative.");
-			else this.site = site;
-			// validate amino acid
-			Double aaMass = AMINO_ACID_MASSES.get(aminoAcid);
-			if (aaMass == null && aminoAcid != '*')
-				throw new IllegalArgumentException(String.format(
-					"Unrecognized amino acid: [%c].", aminoAcid));
-			// try all known PTM patterns to extract this PTM's mass
-			String mass = null;
-			boolean squareBracketFormat = false;
-			for (int i=0; i<PTM_PATTERNS.length; i++) {
-				Pattern pattern = PTM_PATTERNS[i];
-				Matcher matcher = pattern.matcher(massDescriptor);
-				if (matcher.matches()) {
-					mass = matcher.group(1);
-					// note the special case of "[]" mod formats
-					if (i == 2) {
-						if (aminoAcid == '*')
-							throw new IllegalArgumentException(String.format(
-								"PTM \"%s\", specified using the " +
-								"square-bracket ([]) syntax, cannot be " +
-								"applied to an N-terminal amino acid. This " +
-								"syntax necessarily implies a sum of " +
-								"the modification mass and that of its " +
-								"preceding amino acid.", massDescriptor));
-						else squareBracketFormat = true;
-					}
-					break;
-				}
-			}
-			// try to extract the mass from the parsed string
-			try {
-				this.mass = Double.parseDouble(mass);
-				// in the case of "[]" mod formats,
-				// we need to subtract the AA mass
-				if (squareBracketFormat)
-					this.mass -= aaMass;
-			} catch (NumberFormatException error) {
-				throw new IllegalArgumentException(String.format(
-					"Unrecognized PTM mass format: [%s].", massDescriptor));
-			}
-		}
-		
-		/*====================================================================
-		 * Property accessor methods
-		 *====================================================================*/
-		public int getSite() {
-			return site;
-		}
-		
-		public String getMass() {
-			String formattedMass;
-			if (mass == (int)mass)
-				formattedMass = String.format("%d", (int)mass);
-			else formattedMass = String.format("%s", mass);
-			// prepend a "+" if this is a non-negative mass offset
-			if (mass >= 0.0 && formattedMass.startsWith("+") == false)
-				formattedMass = "+" + formattedMass;
-			return formattedMass;
-		}
-		
-		public String getMzTabFormattedModString() {
-			return String.format("%d-CHEMMOD:%s", getSite(), getMass());
-		}
-	}
-	
-	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
 	private static TSVToMzTabConverter extractArguments(String[] args) {
@@ -445,7 +363,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		}
 	}
 	
-	private static String cleanPSM(String psm) {
+	private String cleanPSM(String psm) {
 		if (psm == null)
 			return null;
 		StringBuffer clean = new StringBuffer();
@@ -457,7 +375,110 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		return clean.toString();
 	}
 	
-	private static Collection<Modification> extractPTMsFromPSM(String psm) {
+	private Modification getModification(
+		int site, char aminoAcid, String massDescriptor, Section section
+	) {
+		if (massDescriptor == null || section == null)
+			return null;
+		// validate site
+		if (site < 0)
+			throw new IllegalArgumentException(
+				"A modification site index cannot be negative.");
+		// validate amino acid
+		Double aaMass = AMINO_ACID_MASSES.get(aminoAcid);
+		if (aaMass == null && aminoAcid != '*')
+			throw new IllegalArgumentException(String.format(
+				"Unrecognized amino acid: [%c].", aminoAcid));
+		// try all known PTM patterns to extract this PTM's mass
+		String massValue = null;
+		boolean squareBracketFormat = false;
+		for (int i=0; i<PTM_PATTERNS.length; i++) {
+			Pattern pattern = PTM_PATTERNS[i];
+			Matcher matcher = pattern.matcher(massDescriptor);
+			if (matcher.matches()) {
+				massValue = matcher.group(1);
+				// note the special case of "[]" mod formats
+				if (i == 2) {
+					if (aminoAcid == '*')
+						throw new IllegalArgumentException(String.format(
+							"PTM \"%s\", specified using the " +
+							"square-bracket ([]) syntax, cannot be " +
+							"applied to an N-terminal amino acid. This " +
+							"syntax necessarily implies a sum of " +
+							"the modification mass and that of its " +
+							"preceding amino acid.", massDescriptor));
+					else squareBracketFormat = true;
+				}
+				break;
+			}
+		}
+		// try to extract the mass from the parsed string
+		Double mass = null;
+		try {
+			mass = Double.parseDouble(massValue);
+		} catch (NumberFormatException error) {
+			throw new IllegalArgumentException(String.format(
+				"Unrecognized PTM mass format: [%s].", massDescriptor));
+		}
+		// in the case of "[]" mod formats,
+		// we need to subtract the AA mass
+		if (squareBracketFormat)
+			mass -= aaMass;
+		// try to get the registered mod CV param for this mass
+		String accession = null;
+		Type type = null;
+		Mod mod = getBestMatchingMod(mass);
+		if (mod != null) {
+			accession = mod.getParam().getAccession();
+			String cvLabel = mod.getParam().getCvLabel();
+			// anything we don't recognize is a CHEMMOD, since we know the mass
+			if (cvLabel == null)
+				type = Type.CHEMMOD;
+			else if (cvLabel.equalsIgnoreCase("MOD"))
+				type = Type.MOD;
+			else if (cvLabel.equalsIgnoreCase("UNIMOD"))
+				type = Type.UNIMOD;
+			else if (cvLabel.equalsIgnoreCase("MS")) {
+				if (accession != null &&
+					accession.equalsIgnoreCase(UNKNOWN_MODIFICATION_ACCESSION))
+					type = Type.UNKNOWN;
+				else type = Type.CHEMMOD;
+			} else type = Type.CHEMMOD;
+		}
+		// if no good match was found, then it's an unknown mod
+		else {
+			accession = UNKNOWN_MODIFICATION_ACCESSION;
+			type = Type.CHEMMOD;
+		}
+		Modification modification = new Modification(section, type, accession);
+		modification.addPosition(site, null);
+		return modification;
+	}
+	
+	private Mod getBestMatchingMod(double mass) {
+		// first try to get a mod directly from the map
+		Mod mod = params.getModification(mass);
+		if (mod != null)
+			return mod;
+		// if no exact match was found, look for the closest match
+		Double closest = null;
+		for (Double registeredMass : params.getModifications().keySet()) {
+			if (registeredMass == null)
+				continue;
+			double difference = Math.abs(registeredMass - mass);
+			if (closest == null || closest > difference) {
+				closest = difference;
+				mod = params.getModification(registeredMass);
+			}
+		}
+		if (closest == null | mod == null)
+			return null;
+		else if (closest > MAXIMUM_MASS_TOLERANCE)
+			return null;
+		else return mod;
+	}
+	
+	private Collection<Modification> extractPTMsFromPSM(String psm) {
 		if (psm == null)
 			return null;
 		Collection<Modification> ptms = new ArrayList<Modification>();
@@ -486,8 +507,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				// PTM region is still being processed, then this is a
 				// C-terminal mod and needs to be closed out now
 				else if (i == psm.length() - 1)
-					ptms.add(new Modification(
-						aaCount, modifiedAA, psm.substring(start, i + 1)));
+					ptms.add(getModification(aaCount, modifiedAA,
+						psm.substring(start, i + 1), Section.PSM));
 			} else {
 				// if this is a letter, but the region opener
 				// was a parenthesis and no parenthetical amino
@@ -499,8 +520,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				// otherwise, if a PTM region has started, then
 				// this letter marks the end of that region
 				else if (start >= 0) try {
-					ptms.add(new Modification(
-						aaCount, modifiedAA, psm.substring(start, i)));
+					ptms.add(getModification(aaCount, modifiedAA,
+						psm.substring(start, i), Section.PSM));
 					start = -1;
 					modifiedAA = '*';
 					parentheses = false;
@@ -515,6 +536,21 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (ptms == null || ptms.isEmpty())
 			return null;
 		else return ptms;
+	}
+	
+	public static String getMass(double mass) {
+		String formattedMass;
+		if (mass == (int)mass)
+			formattedMass = String.format("%d", (int)mass);
+		else formattedMass = String.format("%s", mass);
+		// prepend a "+" if this is a non-negative mass offset
+		if (mass >= 0.0 && formattedMass.startsWith("+") == false)
+			formattedMass = "+" + formattedMass;
+		return formattedMass;
+	}
+	
+	public static String getMzTabFormattedModString(int site, double mass) {
+		return String.format("%d-CHEMMOD:%s", site, getMass(mass));
 	}
 	
 	private static void die(String message) {
