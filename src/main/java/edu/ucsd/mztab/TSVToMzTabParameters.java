@@ -468,7 +468,7 @@ public class TSVToMzTabParameters
 			// extract all column index identifiers,
 			// and write them to the output file
 			NodeList parameters = XPathAPI.selectNodeList(
-				document, "//parameter[starts-with(@name,'parameter.')]");
+				document, "//parameter[starts-with(@name,'column.')]");
 			if (parameters != null && parameters.getLength() > 0) {
 				for (int i=0; i<parameters.getLength(); i++) {
 					parameter = parameters.item(i);
@@ -477,7 +477,7 @@ public class TSVToMzTabParameters
 					value = parameter.getFirstChild().getNodeValue();
 					if (name == null || value == null)
 						continue;
-					// extract "parameter." prefix
+					// extract "column." prefix
 					String[] tokens = name.split("\\.");
 					if (tokens == null || tokens.length < 2)
 						continue;
