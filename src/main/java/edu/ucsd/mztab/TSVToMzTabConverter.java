@@ -369,7 +369,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// if this mod is a CHEMMOD, then its value needs to be its mass
 		String value = null;
 		if (type.equals(Type.CHEMMOD))
-			value = Double.toString(mass);
+			value = getFormattedMassString(mass);
 		// otherwise, try to extract the numerical portion of the CV accession
 		else if (accession != null) {
 			String[] tokens = accession.split(":");
@@ -473,6 +473,17 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		else return ptms;
 	}
 	
+	private String getFormattedMassString(double mass) {
+		String formattedMass;
+		if (mass == (int)mass)
+			formattedMass = String.format("%d", (int)mass);
+		else formattedMass = String.format("%s", mass);
+		// prepend a "+" if this is a non-negative mass offset
+		if (mass >= 0.0 && formattedMass.startsWith("+") == false)
+			formattedMass = "+" + formattedMass;
+		return formattedMass;
+	}
+	
 	/*========================================================================
 	 * Static application methods
 	 *========================================================================*/
@@ -510,21 +521,6 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			url = new URL("file://" + filename);
 		} catch (MalformedURLException error) {}
 		return url;
-	}
-	
-	public static String getMass(double mass) {
-		String formattedMass;
-		if (mass == (int)mass)
-			formattedMass = String.format("%d", (int)mass);
-		else formattedMass = String.format("%s", mass);
-		// prepend a "+" if this is a non-negative mass offset
-		if (mass >= 0.0 && formattedMass.startsWith("+") == false)
-			formattedMass = "+" + formattedMass;
-		return formattedMass;
-	}
-	
-	public static String getMzTabFormattedModString(int site, double mass) {
-		return String.format("%d-CHEMMOD:%s", site, getMass(mass));
 	}
 	
 	/*========================================================================
