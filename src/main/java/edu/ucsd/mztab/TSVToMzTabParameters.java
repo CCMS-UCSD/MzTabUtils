@@ -12,8 +12,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.xpath.XPathAPI;
@@ -42,6 +45,30 @@ public class TSVToMzTabParameters
 	private static final String[] REQUIRED_COLUMNS = {
 		"filename", "spectrum_id", "modified_sequence"
 	};
+	public static final Map<Character, Double> AMINO_ACID_MASSES =
+		new TreeMap<Character, Double>();
+	static {
+		AMINO_ACID_MASSES.put('A', 71.037113787);
+		AMINO_ACID_MASSES.put('R', 156.101111026);
+		AMINO_ACID_MASSES.put('D', 115.026943031);
+		AMINO_ACID_MASSES.put('N', 114.042927446);
+		AMINO_ACID_MASSES.put('C', 103.009184477);
+		AMINO_ACID_MASSES.put('E', 129.042593095);
+		AMINO_ACID_MASSES.put('Q', 128.058577510);
+		AMINO_ACID_MASSES.put('G', 57.021463723);
+		AMINO_ACID_MASSES.put('H', 137.058911861);
+		AMINO_ACID_MASSES.put('I', 113.084063979);
+		AMINO_ACID_MASSES.put('L', 113.084063979);
+		AMINO_ACID_MASSES.put('K', 128.094963016);
+		AMINO_ACID_MASSES.put('M', 131.040484605);
+		AMINO_ACID_MASSES.put('F', 147.068413915);
+		AMINO_ACID_MASSES.put('P', 97.052763851);
+		AMINO_ACID_MASSES.put('S', 87.032028409);
+		AMINO_ACID_MASSES.put('T', 101.047678473);
+		AMINO_ACID_MASSES.put('W', 186.079312952);
+		AMINO_ACID_MASSES.put('Y', 163.063328537);
+		AMINO_ACID_MASSES.put('V', 99.068413915);
+	}
 	
 	/*========================================================================
 	 * Properties
@@ -409,7 +436,7 @@ public class TSVToMzTabParameters
 	/*========================================================================
 	 * Static application methods
 	 *========================================================================*/
-	public static void main(String[] args) {
+	public static void mainy(String[] args) {
 		ImmutablePair<File, File> files = extractArguments(args);
 		if (files == null)
 			die(USAGE);
@@ -453,7 +480,7 @@ public class TSVToMzTabParameters
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='fixed_mods']");
 			if (parameter != null) {
-				value = getModCVList(parameter.getFirstChild().getNodeValue());
+				value = parameter.getFirstChild().getNodeValue();
 				if (value != null)
 					output.println(String.format("fixed_mods=%s", value));
 			}
@@ -461,7 +488,7 @@ public class TSVToMzTabParameters
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='variable_mods']");
 			if (parameter != null) {
-				value = getModCVList(parameter.getFirstChild().getNodeValue());
+				value = parameter.getFirstChild().getNodeValue();
 				if (value != null)
 					output.println(String.format("variable_mods=%s", value));
 			}
@@ -492,6 +519,139 @@ public class TSVToMzTabParameters
 			try { output.close(); }
 			catch (Throwable error) {}
 		}
+	}
+	
+	public static void main(String[] args) {
+		String[] testModIDs = {"STY+80", "(*,-17)", "+40"};
+		Pattern[] patterns = new Pattern[testModIDs.length];
+		for (int i=0; i<testModIDs.length; i++)
+			patterns[i] = parseModIDString(testModIDs[i]);
+		String testPSM = "PE+40PT+80I(D,-17)ES+80";
+		Matcher matcher = null;
+		String cleaned = testPSM;
+		for (Pattern pattern : patterns) {
+			matcher = pattern.matcher(testPSM);
+			while (matcher.find()) {
+				System.out.println(String.format("%d-%s",
+					findModIndex(testPSM, matcher.group(), matcher.start()),
+					pattern.pattern()));
+				cleaned = extractMod(cleaned, matcher.group());
+				System.out.println(
+					String.format("Cleaned string = %s", cleaned));
+			}
+		}
+	}
+	
+	public static Pattern parseModIDString(String modID)
+	throws PatternSyntaxException {
+		if (modID == null)
+			return null;
+		StringBuffer pattern = new StringBuffer();
+		Set<Character> foundAminoAcids = null;
+		for (int i=0; i<modID.length(); i++) {
+			char current = modID.charAt(i);
+			// if the current character is an asterisk ("*"), then add all
+			// known amino acids to the regular expression for this region
+			if (current == '*') {
+				if (foundAminoAcids == null)
+					foundAminoAcids = new LinkedHashSet<Character>();
+				for (char aminoAcid : AMINO_ACID_MASSES.keySet())
+					foundAminoAcids.add(aminoAcid);
+				continue;
+			}
+			// if the current character is a standalone amino acid,
+			// then add it to the regular expression for this region
+			boolean isAminoAcid = AMINO_ACID_MASSES.containsKey(current);
+			if (isAminoAcid) {
+				if (foundAminoAcids == null)
+					foundAminoAcids = new LinkedHashSet<Character>();
+				foundAminoAcids.add(current);
+				continue;
+			}
+			// if the current character is not an amino acid, then add any
+			// recently found amino acids to the regular expression
+			if (foundAminoAcids != null) {
+				pattern.append("[");
+				for (char aminoAcid : foundAminoAcids)
+					pattern.append(aminoAcid);
+				pattern.append("]");
+				foundAminoAcids = null;
+			}
+			// add the regex-escaped character to the pattern
+			pattern.append(Pattern.quote(Character.toString(current)));
+		}
+		// if the ID string ended in an amino acid pattern, add it now
+		if (foundAminoAcids != null) {
+			pattern.append("[");
+			for (char aminoAcid : foundAminoAcids)
+				pattern.append(aminoAcid);
+			pattern.append("]");
+		}
+		return Pattern.compile(pattern.toString());
+	}
+	
+	public static int findModIndex(String psm, String mod, int start) {
+		if (psm == null || mod == null || start < 0 || start >= psm.length())
+			return -1;
+		// determine if the captured mod contains any amino acids;
+		// if not, then we'll have to match the affected site to the
+		// amino acid seen most recently before reaching the mod
+		// region (or perhaps after, in the case of N-terminal mods).
+		boolean aaMissing = true;
+		for (int i=0; i<mod.length(); i++) {
+			if (AMINO_ACID_MASSES.containsKey(mod.charAt(i))) {
+				aaMissing = false;
+				break;
+			}
+		}
+		// iterate over the modified peptide string, counting only amino
+		// acids until we get to the index of the mod in question
+		int index = 0;
+		boolean aminoAcidFound = false;
+		for (int i=0; i<psm.length(); i++) {
+			char current = psm.charAt(i);
+			boolean isAminoAcid = AMINO_ACID_MASSES.containsKey(current);
+			// increment the index only if we see an amino acid, since we're
+			// counting indices only for the clean (unmodified) peptide
+			if (isAminoAcid) {
+				aminoAcidFound = true;
+				index++;
+			}
+			// if we've reached the mod's start position, then
+			// the correct index should be coming up soon
+			if (i >= start) {
+				// if the mod string contains an amino acid, then this is the
+				// affected site; otherwise, if we know that the mod string
+				// contains no amino acids, but one has already been seen in
+				// the PSM string, then that was the affected site
+				if (isAminoAcid || (aaMissing && aminoAcidFound))
+					return index;
+			}
+		}
+		// if no matching amino acid could be found, then that must mean that
+		// the PSM string was not well-formed, e.g. it contained no amino acid
+		// characters at all.  In that case, return -1 to indicate failure.
+		return -1;
+	}
+	
+	public static String extractMod(String psm, String mod) {
+		if (psm == null|| mod == null)
+			return psm;
+		// determine mod substring's indices
+		int start = psm.indexOf(mod);
+		if (start < 0)
+			return psm;
+		int end = start + mod.length();
+		// clean the substring by removing all non-amino acid characters
+		StringBuffer cleaned = new StringBuffer();
+		for (int i=0; i<mod.length(); i++) {
+			char current = mod.charAt(i);
+			if (AMINO_ACID_MASSES.containsKey(current))
+				cleaned.append(current);
+		}
+		// splice the cleaned substring into the original string
+		return String.format("%s%s%s",
+			psm.substring(0, start), cleaned.toString(), psm.substring(end));
 	}
 	
 	/*========================================================================
@@ -555,36 +715,6 @@ public class TSVToMzTabParameters
 			error.printStackTrace();
 			return null;
 		}
-	}
-	
-	private static String getModCVList(String accessions) {
-		if (accessions == null)
-			return null;
-		StringBuffer cvList = new StringBuffer();
-		boolean first = true;
-		for (String accession : accessions.split(";")) {
-			// split accession into CV label and number
-			String[] tokens = accession.split(":");
-			if (tokens == null || tokens.length < 2)
-				throw new IllegalArgumentException(String.format(
-					"Modification CV accession [%s] does not conform " +
-					"to the expected format:\n%s",
-					accession, "<CV_label>:<accession_number>"));
-			ImmutablePair<Double, String> mod =
-				OntologyUtils.getOntologyModification(accession);
-			if (mod == null)
-				throw new IllegalArgumentException(String.format(
-					"Could not find modification [%s] in the CV.",
-					accession));
-			else if (first == false) {
-				cvList.append("|");
-			} else first = false;
-			cvList.append(String.format("[%s, %s, \"%s\", ]",
-				tokens[0], accession, mod.getValue()));
-		}
-		if (cvList == null || cvList.length() < 1)
-			return null;
-		else return cvList.toString();
 	}
 	
 	private static void die(String message) {
