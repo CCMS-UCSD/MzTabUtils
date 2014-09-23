@@ -10,8 +10,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.SortedMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
@@ -22,7 +22,6 @@ import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
-import uk.ac.ebi.pride.jmztab.model.Param;
 import uk.ac.ebi.pride.jmztab.model.Section;
 import uk.ac.ebi.pride.jmztab.model.VariableMod;
 import uk.ac.ebi.pride.jmztab.utils.convert.ConvertProvider;
@@ -38,13 +37,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		"\n\t-tsv    <InputTSVFile>" +
 		"\n\t-params <InputParametersFile>" +
 		"\n\t-mzTab  <OutputMzTabFile>";
-	public static final Pattern[] PTM_PATTERNS = {
-		Pattern.compile("^([+-]?\\d*\\.?\\d*)$"),
-		Pattern.compile("^\\(\\w,([+-]?\\d*\\.?\\d*)\\)$"),
-		Pattern.compile("^\\[([+-]?\\d*\\.?\\d*)\\]$")
-	};
 	public static final String UNKNOWN_MODIFICATION_ACCESSION = "MS:1001460";
-	public static final Double MAXIMUM_MASS_TOLERANCE = 0.001;
 	
 	/*========================================================================
 	 * Properties
@@ -83,22 +76,20 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				"tab-delimited result file \"%s\", using conversion software " +
 				"provided by the Center for Computational Mass Spectrometry " +
 				"of UCSD.", filename));
-			// add all fixed and variable mods 
-			for (Mod mod : params.getModifications().values()) {
-				if (mod instanceof FixedMod)
-					metadata.addFixedMod((FixedMod)mod);
-				else if (mod instanceof VariableMod)
-					metadata.addVariableMod((VariableMod)mod);
-				// it should be impossible to get to this point, since the
-				// application only instantiates FixedMods and VariableMods
-				else throw new IllegalStateException();
+			// add all fixed and variable mods
+			int fixedCount = 0;
+			int variableCount = 0;
+			for (ModRecord record : params.getModifications()) {
+				Mod mod = null;
+				if (record.isFixed())
+					mod = new FixedMod(++fixedCount);
+				else mod = new VariableMod(++variableCount);
+				mod.setParam(record.getParam());
 			}
 			// add spectrum file references
-			int index = 1;
-			for (URL spectrumFile : params.getSpectrumFiles()) {
-				metadata.addMsRunLocation(index, spectrumFile);
-				index++;
-			}
+			int index = 0;
+			for (URL spectrumFile : params.getSpectrumFiles())
+				metadata.addMsRunLocation(++index, spectrumFile);
 			this.metadata = metadata;
 		}
 		return metadata;
@@ -265,197 +256,52 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		return clean.toString();
 	}
 	
-	private Modification getModification(
-		int site, char aminoAcid, String massDescriptor, Section section
-	) {
-		if (massDescriptor == null || section == null)
-			return null;
-		// validate site
-		if (site < 0)
-			throw new IllegalArgumentException(
-				"A modification site index cannot be negative.");
-		// validate amino acid
-		Double aaMass = TSVToMzTabParameters.AMINO_ACID_MASSES.get(aminoAcid);
-		if (aaMass == null && aminoAcid != '*')
-			throw new IllegalArgumentException(String.format(
-				"Unrecognized amino acid: [%c].", aminoAcid));
-		// try all known PTM patterns to extract this PTM's mass
-		String massValue = null;
-		boolean squareBracketFormat = false;
-		for (int i=0; i<PTM_PATTERNS.length; i++) {
-			Pattern pattern = PTM_PATTERNS[i];
-			Matcher matcher = pattern.matcher(massDescriptor);
-			if (matcher.matches()) {
-				massValue = matcher.group(1);
-				// note the special case of "[]" mod formats
-				if (i == 2) {
-					if (aminoAcid == '*')
-						throw new IllegalArgumentException(String.format(
-							"PTM \"%s\", specified using the " +
-							"square-bracket ([]) syntax, cannot be " +
-							"applied to an N-terminal amino acid. This " +
-							"syntax necessarily implies a sum of " +
-							"the modification mass and that of its " +
-							"preceding amino acid.", massDescriptor));
-					else squareBracketFormat = true;
-				}
-				break;
-			}
-		}
-		// try to extract the mass from the parsed string
-		Double mass = null;
-		try {
-			mass = Double.parseDouble(massValue);
-		} catch (NumberFormatException error) {
-			throw new IllegalArgumentException(String.format(
-				"Unrecognized PTM mass format: [%s].", massDescriptor));
-		}
-		// in the case of "[]" mod formats,
-		// we need to subtract the AA mass
-		if (squareBracketFormat)
-			mass -= aaMass;
-		// try to get the registered mod CV param for this mass
-		String accession = null;
-		Type type = null;
-		Mod mod = getBestMatchingMod(mass);
-		if (mod != null) {
-			Param param = mod.getParam();
-			accession = param.getAccession();
-			String cvLabel = param.getCvLabel();
-			// anything we don't recognize is a CHEMMOD, since we know the mass
-			if (cvLabel == null)
-				type = Type.CHEMMOD;
-			else if (cvLabel.equalsIgnoreCase("MOD"))
-				type = Type.MOD;
-			else if (cvLabel.equalsIgnoreCase("UNIMOD"))
-				type = Type.UNIMOD;
-			else if (cvLabel.equalsIgnoreCase("MS")) {
-				if (accession != null &&
-					accession.equalsIgnoreCase(UNKNOWN_MODIFICATION_ACCESSION))
-					type = Type.CHEMMOD;
-				else throw new IllegalArgumentException(String.format(
-					"Unrecognized modification from the \"MS\" CV: [%s].",
-					param.toString()));
-			} else type = Type.CHEMMOD;
-		}
-		// if no good match was found, then it's a CHEMMOD
-		else type = Type.CHEMMOD;
-		// if this mod is a CHEMMOD, then its value needs to be its mass
-		String value = null;
-		if (type.equals(Type.CHEMMOD))
-			value = getFormattedMassString(mass);
-		// otherwise, try to extract the numerical portion of the CV accession
-		else if (accession != null) {
-			String[] tokens = accession.split(":");
-			if (tokens == null || tokens.length < 1)
-				throw new IllegalArgumentException(String.format(
-					"Unrecognized modification CV accession: [%s].",
-					accession));
-			else if (tokens.length > 1)
-				value = tokens[1];
-			else value = accession;
-	 	}
-		// this should be impossible, since the accession
-		// should be set for any mod that is not a CHEMMOD
-		else throw new IllegalStateException();
-		// create and return the mod, with its proper value and position
-		Modification modification = new Modification(section, type, value);
-		modification.addPosition(site, null);
-		return modification;
-	}
-	
-	private Mod getBestMatchingMod(double mass) {
-		// first try to get a mod directly from the map
-		Mod mod = params.getModification(mass);
-		if (mod != null)
-			return mod;
-		// if no exact match was found, look for the closest match
-		Double closest = null;
-		for (Double registeredMass : params.getModifications().keySet()) {
-			if (registeredMass == null)
-				continue;
-			double difference = Math.abs(registeredMass - mass);
-			if (closest == null || closest > difference) {
-				closest = difference;
-				mod = params.getModification(registeredMass);
-			}
-		}
-		if (closest == null | mod == null)
-			return null;
-		else if (closest > MAXIMUM_MASS_TOLERANCE)
-			return null;
-		else return mod;
-	}
-	
 	private Collection<Modification> extractPTMsFromPSM(String psm) {
 		if (psm == null)
 			return null;
-		Collection<Modification> ptms = new ArrayList<Modification>();
-		int aaCount = 0;
-		int start = -1;
-		char modifiedAA = '*';
-		boolean parentheses = false;
-		boolean parentheticalAASeen = false;
-		for (int i=0; i<psm.length(); i++) {
-			char current = psm.charAt(i);
-			// if this is not a letter, then it must be part of a PTM region
-			if (Character.isLetter(current) == false) {
-				// if no start index has been noted, then
-				// this is the beginning of a PTM region
-				if (start < 0) {
-					start = i;
-					// note the previous amino acid, unless there is none,
-					// since this might be an N-term mod
-					if (i >= 1)
-						modifiedAA = psm.charAt(i - 1);
-					// note if the start character is an opening parenthesis
-					if (current == '(')
-						parentheses = true;
-				}
-				// if this is the last character in the PSM string, and a
-				// PTM region is still being processed, then this is a
-				// C-terminal mod and needs to be closed out now
-				else if (i == psm.length() - 1)
-					ptms.add(getModification(aaCount, modifiedAA,
-						psm.substring(start, i + 1), Section.PSM));
-			} else {
-				// if this is a letter, but the region opener
-				// was a parenthesis and no parenthetical amino
-				// acid has been seen, then this is it
-				if (parentheses && parentheticalAASeen == false) {
-					parentheticalAASeen = true;
-					modifiedAA = current;
-				}
-				// otherwise, if a PTM region has started, then
-				// this letter marks the end of that region
-				else if (start >= 0) try {
-					ptms.add(getModification(aaCount, modifiedAA,
-						psm.substring(start, i), Section.PSM));
-					start = -1;
-					modifiedAA = '*';
-					parentheses = false;
-					parentheticalAASeen = false;
-				} catch (Throwable error) {
-					die(error.getMessage());
-				}
-				// keep track of the actual position within the peptide
-				aaCount++;
+		Collection<Modification> mods = new ArrayList<Modification>();
+		for (ModRecord record : params.getModifications()) {
+			ImmutablePair<String, Collection<Integer>> occurrences =
+				record.parsePSM(psm);
+			if (occurrences == null)
+				continue;
+			Collection<Integer> indices = occurrences.getRight();
+			if (indices == null || indices.isEmpty())
+				continue;
+			Type type = record.getType();
+			String accession = record.getAccession();
+			for (int index : indices) {
+				// if this mod is a CHEMMOD, then its value needs to be its mass
+				String value = null;
+				if (type.equals(Type.CHEMMOD))
+					value = record.getFormattedMass();
+				// otherwise, try to extract the numerical
+				// portion of the CV accession
+				else if (accession != null) {
+					String[] tokens = accession.split(":");
+					if (tokens == null || tokens.length < 1)
+						throw new IllegalArgumentException(String.format(
+							"Unrecognized modification CV accession: [%s].",
+							accession));
+					else if (tokens.length > 1)
+						value = tokens[1];
+					else value = accession;
+			 	}
+				// the mod's value should not be null
+				if (value == null)
+					throw new IllegalArgumentException(String.format(
+						"Could not determine a valid mod value to " +
+						"write into the mzTab PSM row, for mod [%s] " +
+						"at position %d of input PSM string [%s].",
+						record.toString(), index, psm));
+				Modification mod = new Modification(Section.PSM, type, value);
+				mod.addPosition(index, null);
+				mods.add(mod);
 			}
 		}
-		if (ptms == null || ptms.isEmpty())
+		if (mods == null || mods.isEmpty())
 			return null;
-		else return ptms;
-	}
-	
-	private String getFormattedMassString(double mass) {
-		String formattedMass;
-		if (mass == (int)mass)
-			formattedMass = String.format("%d", (int)mass);
-		else formattedMass = String.format("%s", mass);
-		// prepend a "+" if this is a non-negative mass offset
-		if (mass >= 0.0 && formattedMass.startsWith("+") == false)
-			formattedMass = "+" + formattedMass;
-		return formattedMass;
+		else return mods;
 	}
 	
 	/*========================================================================

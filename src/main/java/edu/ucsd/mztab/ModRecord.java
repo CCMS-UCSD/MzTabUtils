@@ -13,6 +13,8 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.util.OntologyUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
+import uk.ac.ebi.pride.jmztab.model.Modification;
+import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.Param;
 import uk.ac.ebi.pride.jmztab.model.UserParam;
 
@@ -182,32 +184,22 @@ System.out.println(String.format("Captured = [%s]", captured));
 		return psm;
 	}
 	
-	public String printModOccurrences(Collection<Integer> occurrences) {
-		if (occurrences == null)
-			return null;
-		StringBuffer list = new StringBuffer();
-		for (int index : occurrences)
-			list.append(index).append("-").append(toString()).append(",");
-		if (list == null || list.length() < 1)
-			return null;
-		// chomp trailing comma
-		else if (list.charAt(list.length() - 1) == ',')
-			list.setLength(list.length() - 1);
-		return list.toString();
-	}
-	
 	@Override
 	public String toString() {
 		String accession = getAccession();
 		if (accession == null || accession.trim().equals("") ||
 			accession.equals("MS:1001460"))
-			return "CHEMMOD:" + getMass();
+			return "CHEMMOD:" + getFormattedMass();
 		else return accession;
 	}
 	
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
+	public Param getParam() {
+		return param;
+	}
+	
 	public String getCVLabel() {
 		return param.getCvLabel();
 	}
@@ -224,11 +216,32 @@ System.out.println(String.format("Captured = [%s]", captured));
 		return param.getValue();
 	}
 	
+	public Modification.Type getType() {
+		// generic and non-ontology mods are always reported as CHEMMODs
+		String accession = getAccession();
+		if (accession == null || accession.trim().equals("") ||
+			accession.equals("MS:1001460"))
+			return Type.CHEMMOD;
+		// "MOD" and "UNIMOD" are the only supported PTM ontologies
+		String label = getCVLabel();
+		if (label == null)
+			return Type.UNKNOWN;
+		else if (label.equals("MOD"))
+			return Type.MOD;
+		else if (label.equals("UNIMOD"))
+			return Type.UNIMOD;
+		else return Type.UNKNOWN;
+	}
+	
 	public String getModIDString() {
 		return modID;
 	}
 	
-	public String getMass() {
+	public Double getMass() {
+		return mass;
+	}
+	
+	public String getFormattedMass() {
 		if (mass == null)
 			return null;
 		String formattedMass;
@@ -245,6 +258,12 @@ System.out.println(String.format("Captured = [%s]", captured));
 		if (sites == null || sites.isEmpty())
 			return null;
 		else return new LinkedHashSet<Character>(sites);
+	}
+	
+	public String getPattern() {
+		if (pattern == null)
+			return null;
+		else return pattern.pattern();
 	}
 	
 	public boolean isFixed() {
@@ -272,10 +291,10 @@ System.out.println(String.format("Captured = [%s]", captured));
 		// if the mod is unknown or a user param, set the mass as its value
 		String accession = param.getAccession();
 		if (accession == null || accession.trim().equals(""))
-			this.param = new UserParam(param.getName(), getMass());
+			this.param = new UserParam(param.getName(), getFormattedMass());
 		else if (accession.equals("MS:1001460"))
 			this.param = new CVParam(
-				param.getCvLabel(), accession, param.getName(), getMass());
+				param.getCvLabel(), accession, param.getName(), getFormattedMass());
 		// set site collection and pattern
 		setModIDProperties(getModIDString());
 	}
