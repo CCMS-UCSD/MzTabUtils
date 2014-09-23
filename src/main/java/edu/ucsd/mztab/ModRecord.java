@@ -138,9 +138,6 @@ public class ModRecord
 			if (matcher.find() == false)
 				break;
 			String captured = matcher.group();
-//
-System.out.println(String.format("Captured = [%s]", captured));
-//
 			// if the captured region contains no mod-indicating
 			// characters, then break to avoid an infinite loop
 			if (captured == null || captured.trim().isEmpty() ||
