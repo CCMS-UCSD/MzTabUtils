@@ -19,7 +19,6 @@ import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
 import uk.ac.ebi.pride.jmztab.model.Metadata;
-import uk.ac.ebi.pride.jmztab.model.Mod;
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
@@ -84,11 +83,15 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			int fixedCount = 0;
 			int variableCount = 0;
 			for (ModRecord record : params.getModifications()) {
-				Mod mod = null;
-				if (record.isFixed())
-					mod = new FixedMod(++fixedCount);
-				else mod = new VariableMod(++variableCount);
-				mod.setParam(record.getParam());
+				if (record.isFixed()) {
+					FixedMod mod = new FixedMod(++fixedCount);
+					mod.setParam(record.getParam());
+					metadata.addFixedMod(mod);
+				} else {
+					VariableMod mod = new VariableMod(++variableCount);
+					mod.setParam(record.getParam());
+					metadata.addVariableMod(mod);
+				}
 			}
 			// add spectrum file references
 			int index = 0;
