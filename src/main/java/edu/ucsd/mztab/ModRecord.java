@@ -154,7 +154,7 @@ public class ModRecord
 			ImmutablePair<Integer, String> extracted =
 				extractMod(cleaned, captured);
 			if (extracted != null) {
-				cleaned = extracted.getValue();
+				cleaned = extracted.getRight();
 				occurrences.add(extracted.getLeft());
 			}
 			// it should be impossible for the extraction operation to fail,
@@ -196,6 +196,16 @@ public class ModRecord
 			accession.equals("MS:1001460"))
 			return "CHEMMOD:" + getFormattedMass();
 		else return accession;
+	}
+	
+	public static void main(String[] args) {
+		//String mod = "[UNIMOD,UNIMOD:35,Oxidation,\"(M,15.995)\"]";
+		String mod = "[UNIMOD,UNIMOD:1,Acetyl,[42.011]]";
+		String psm = "-.[42.011]VSELELGVTEPLGVYDPLGWLETQPESFERR.R";
+		ModRecord record = new ModRecord(mod, false);
+		ImmutablePair<String, Collection<Integer>> parsed =
+			record.parsePSM(psm);
+		System.out.println(parsed.getLeft());
 	}
 	
 	/*========================================================================

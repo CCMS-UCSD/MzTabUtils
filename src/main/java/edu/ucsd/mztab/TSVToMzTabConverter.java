@@ -22,6 +22,7 @@ import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
+import uk.ac.ebi.pride.jmztab.model.PSMColumn;
 import uk.ac.ebi.pride.jmztab.model.Section;
 import uk.ac.ebi.pride.jmztab.model.VariableMod;
 import uk.ac.ebi.pride.jmztab.utils.convert.ConvertProvider;
@@ -116,6 +117,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (psmColumnFactory == null)
 			psmColumnFactory =
 				MZTabColumnFactory.getInstance(Section.PSM_Header);
+		psmColumnFactory.addOptionalColumn("opt_global_valid", PSMColumn.class);
 		return psmColumnFactory;
 	}
 	
@@ -204,7 +206,22 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		psm.setPre(getPre(peptide));
 		psm.setPost(getPost(peptide));
 		// formulate "modifications" value for this row
-		Collection<Modification> mods = extractPTMsFromPSM(peptide);
+		ImmutablePair<String, Collection<Modification>> extracted =
+			extractPTMsFromPSM(peptide);
+		// mark this row as "INVALID" if any mods were
+		// left unparsed from the peptide string
+		String cleaned = extracted.getLeft();
+		if (isPeptideClean(cleaned))
+			psm.setOptionColumnValue("opt_global_valid", "VALID");
+		else {
+			psm.setOptionColumnValue("opt_global_valid", "INVALID");
+			System.out.println(String.format("WARNING: PSM row %d [%s] was " +
+				"marked as \"INVALID\", because its parsed peptide string " +
+				"[%s] was still found to contain non-amino acid characters " +
+				"after extracting all known modifications.",
+				id, spectraRef.toString(), cleaned));
+		}
+		Collection<Modification> mods = extracted.getRight();
 		if (mods != null && mods.isEmpty() == false) {
 			StringBuffer modifications = new StringBuffer();
 			boolean first = true;
@@ -291,7 +308,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// therefore whether or not this processing should even be done
 		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
-			return matcher.group(1);
+			return getAminoAcid(matcher.group(1));
 		else return null;
 	}
 	
@@ -302,26 +319,37 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// therefore whether or not this processing should even be done
 		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
-			return matcher.group(3);
+			return getAminoAcid(matcher.group(3));
 		else return null;
 	}
 	
-	private Collection<Modification> extractPTMsFromPSM(String psm) {
+	private String getAminoAcid(String peptide) {
+		if (peptide == null || peptide.length() != 1)
+			return null;
+		char residue = peptide.charAt(0);
+		if (residue == '-' || ModRecord.AMINO_ACID_MASSES.containsKey(residue))
+			return peptide;
+		else return null;
+	}
+	
+	private ImmutablePair<String, Collection<Modification>> extractPTMsFromPSM(
+		String psm
+	) {
 		if (psm == null)
 			return null;
 		Collection<Modification> mods = new ArrayList<Modification>();
+		String current = psm;
+		// check the psm string for occurrences of all registered mods
 		for (ModRecord record : params.getModifications()) {
 			ImmutablePair<String, Collection<Integer>> parsedPSM =
-				record.parsePSM(psm);
+				record.parsePSM(current);
 			if (parsedPSM == null)
 				continue;
-			// set this PSM as invalid if not all the mods were extracted
-			else if (isPeptideClean(parsedPSM.getLeft()) == false) {
-				// TODO: do something
-				System.out.println(String.format("WARNING: Cleaned PSM " +
-					"string [%s] still contains non-amino acid characters!",
-					parsedPSM.getLeft()));
-			}
+			// keep track of the iteratively cleaned PSM string
+			String cleaned = parsedPSM.getLeft();
+			if (cleaned != null)
+				current = cleaned;
+			// if no mods of this type were found, continue
 			Collection<Integer> indices = parsedPSM.getRight();
 			if (indices == null || indices.isEmpty())
 				continue;
@@ -357,8 +385,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			}
 		}
 		if (mods == null || mods.isEmpty())
-			return null;
-		else return mods;
+			return new ImmutablePair<String, Collection<Modification>>(
+				current, null);
+		else return new ImmutablePair<String, Collection<Modification>>(
+			current, mods);
 	}
 	
 	private boolean isPeptideClean(String peptide) {
