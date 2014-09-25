@@ -31,6 +31,8 @@ public class ModRecord
 		"\\s*\\]$");
 	private static final Pattern FLOAT_PATTERN = Pattern.compile(
 		"((?:[+-]?\\d+\\.?\\d*)|(?:[+-]?\\d*\\.?\\d+))");
+	public static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
+		"^(.?)\\.(.*)\\.(.?)$");
 	public static final Map<Character, Double> AMINO_ACID_MASSES =
 		new TreeMap<Character, Double>();
 	static {
@@ -128,13 +130,19 @@ public class ModRecord
 	public ImmutablePair<String, Collection<Integer>> parsePSM(String psm) {
 		if (psm == null)
 			return null;
+		// first, check for the typical "enclosing dot" syntax
+		// TODO: the user should specify if this syntax is present, and
+		// therefore whether or not this processing should even be done
+		Matcher matcher = PEPTIDE_STRING_PATTERN.matcher(psm);
+		if (matcher.matches())
+			psm = matcher.group(2);
 		// iteratively apply this mod's regular expression, to extract any
 		// occurrences of this mod, and return the cleaned PSM string with
 		// all such occurrences removed
 		String cleaned = psm;
 		Collection<Integer> occurrences = new LinkedHashSet<Integer>();
 		while (true) {
-			Matcher matcher = pattern.matcher(cleaned);
+			matcher = pattern.matcher(cleaned);
 			if (matcher.find() == false)
 				break;
 			String captured = matcher.group();

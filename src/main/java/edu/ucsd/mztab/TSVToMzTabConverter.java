@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.SortedMap;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -38,8 +37,6 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		"\n\t-tsv    <InputTSVFile>" +
 		"\n\t-params <InputParametersFile>" +
 		"\n\t-mzTab  <OutputMzTabFile>";
-	private static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
-		"^(.?)\\.(.*)\\.(.?)$");
 	public static final String UNKNOWN_MODIFICATION_ACCESSION = "MS:1001460";
 	
 	/*========================================================================
@@ -274,7 +271,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// first, check for the typical "enclosing dot" syntax
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			psm = matcher.group(2);
 		// then remove all non-amino acid characters from the sequence
@@ -292,7 +289,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return matcher.group(1);
 		else return null;
@@ -303,7 +300,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return matcher.group(3);
 		else return null;
