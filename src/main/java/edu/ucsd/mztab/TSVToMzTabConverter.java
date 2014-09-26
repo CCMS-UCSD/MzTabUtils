@@ -7,8 +7,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.SortedMap;
 import java.util.regex.Matcher;
 
@@ -116,7 +116,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (psmColumnFactory == null)
 			psmColumnFactory =
 				MZTabColumnFactory.getInstance(Section.PSM_Header);
-		psmColumnFactory.addOptionalColumn("opt_global_valid", PSMColumn.class);
+		psmColumnFactory.addOptionalColumn("valid", PSMColumn.class);
 		return psmColumnFactory;
 	}
 	
@@ -211,9 +211,9 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// left unparsed from the peptide string
 		String cleaned = extracted.getLeft();
 		if (isPeptideClean(cleaned))
-			psm.setOptionColumnValue("opt_global_valid", "VALID");
+			psm.setOptionColumnValue("valid", "VALID");
 		else {
-			psm.setOptionColumnValue("opt_global_valid", "INVALID");
+			psm.setOptionColumnValue("valid", "INVALID");
 			System.out.println(String.format("WARNING: PSM row %d [%s] was " +
 				"marked as \"INVALID\", because its parsed peptide string " +
 				"[%s] was still found to contain non-amino acid characters " +
@@ -221,17 +221,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				id, spectraRef.toString(), cleaned));
 		}
 		Collection<Modification> mods = extracted.getRight();
-		if (mods != null && mods.isEmpty() == false) {
-			StringBuffer modifications = new StringBuffer();
-			boolean first = true;
-			for (Modification mod : mods) {
-				if (first == false)
-					modifications.append(",");
-				modifications.append(mod.toString());
-				first = false;
-			}
-			psm.setModifications(modifications.toString());
-		} else psm.setModifications((String)null);
+		if (mods != null && mods.isEmpty() == false)
+			for (Modification mod : mods)
+				psm.addModification(mod);
+		else psm.setModifications((String)null);
 		// initialize non-required column values to null,
 		// in case any are not specified in the parameters
 		psm.setAccession(null);
@@ -336,7 +329,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	) {
 		if (psm == null)
 			return null;
-		Collection<Modification> mods = new ArrayList<Modification>();
+		Collection<Modification> mods = new LinkedHashSet<Modification>();
 		String current = psm;
 		// check the psm string for occurrences of all registered mods
 		for (ModRecord record : params.getModifications()) {
@@ -350,9 +343,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				current = cleaned;
 			// if no mods of this type were found, continue
 			Collection<Modification> theseMods = parsedPSM.getRight();
-			if (theseMods == null || theseMods.isEmpty())
-				continue;
-			else mods.addAll(theseMods);
+			if (theseMods != null && theseMods.isEmpty() == false)
+				mods.addAll(theseMods);
 		}
 		if (mods == null || mods.isEmpty())
 			return new ImmutablePair<String, Collection<Modification>>(

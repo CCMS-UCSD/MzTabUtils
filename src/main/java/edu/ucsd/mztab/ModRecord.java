@@ -156,6 +156,11 @@ public class ModRecord
 			if (matcher.find() == false)
 				break;
 			String captured = matcher.group();
+			// if the captured region contains no mod-indicating
+			// characters, then break to avoid an infinite loop
+			if (captured == null || captured.trim().isEmpty() ||
+				captured.matches("^[ARDNCEQGHILKMFPSTWYV]+$"))
+				break;
 			// if this is a generic mod, then try to extract the mass
 			if (isGeneric()) try {
 				this.mass = Double.parseDouble(matcher.group(1));
@@ -165,11 +170,6 @@ public class ModRecord
 					"reference [%s] at position %d of input PSM string [%s].",
 					captured, matcher.start(), psm));
 			}
-			// if the captured region contains no mod-indicating
-			// characters, then break to avoid an infinite loop
-			if (captured == null || captured.trim().isEmpty() ||
-				captured.matches("^[ARDNCEQGHILKMFPSTWYV]+$"))
-				break;
 			ImmutablePair<Integer, String> extracted =
 				extractMod(cleaned, captured);
 			if (extracted != null) {
