@@ -19,7 +19,6 @@ import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
 import uk.ac.ebi.pride.jmztab.model.Metadata;
 import uk.ac.ebi.pride.jmztab.model.Modification;
-import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
 import uk.ac.ebi.pride.jmztab.model.PSMColumn;
@@ -341,7 +340,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		String current = psm;
 		// check the psm string for occurrences of all registered mods
 		for (ModRecord record : params.getModifications()) {
-			ImmutablePair<String, Collection<Integer>> parsedPSM =
+			ImmutablePair<String, Collection<Modification>> parsedPSM =
 				record.parsePSM(current);
 			if (parsedPSM == null)
 				continue;
@@ -350,39 +349,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			if (cleaned != null)
 				current = cleaned;
 			// if no mods of this type were found, continue
-			Collection<Integer> indices = parsedPSM.getRight();
-			if (indices == null || indices.isEmpty())
+			Collection<Modification> theseMods = parsedPSM.getRight();
+			if (theseMods == null || theseMods.isEmpty())
 				continue;
-			Type type = record.getType();
-			String accession = record.getAccession();
-			for (int index : indices) {
-				// if this mod is a CHEMMOD, then its value needs to be its mass
-				String value = null;
-				if (type.equals(Type.CHEMMOD))
-					value = record.getFormattedMass();
-				// otherwise, try to extract the numerical
-				// portion of the CV accession
-				else if (accession != null) {
-					String[] tokens = accession.split(":");
-					if (tokens == null || tokens.length < 1)
-						throw new IllegalArgumentException(String.format(
-							"Unrecognized modification CV accession: [%s].",
-							accession));
-					else if (tokens.length > 1)
-						value = tokens[1];
-					else value = accession;
-			 	}
-				// the mod's value should not be null
-				if (value == null)
-					throw new IllegalArgumentException(String.format(
-						"Could not determine a valid mod value to " +
-						"write into the mzTab PSM row, for mod [%s] " +
-						"at position %d of input PSM string [%s].",
-						record.toString(), index, psm));
-				Modification mod = new Modification(Section.PSM, type, value);
-				mod.addPosition(index, null);
-				mods.add(mod);
-			}
+			else mods.addAll(theseMods);
 		}
 		if (mods == null || mods.isEmpty())
 			return new ImmutablePair<String, Collection<Modification>>(

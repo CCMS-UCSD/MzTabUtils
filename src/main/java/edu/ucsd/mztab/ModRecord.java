@@ -14,6 +14,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import edu.ucsd.util.OntologyUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.Modification;
+import uk.ac.ebi.pride.jmztab.model.Section;
 import uk.ac.ebi.pride.jmztab.model.Modification.Type;
 import uk.ac.ebi.pride.jmztab.model.Param;
 import uk.ac.ebi.pride.jmztab.model.UserParam;
@@ -29,8 +30,10 @@ public class ModRecord
 		"\\s*\"?([^\"]*)\"?," +			// name
 		"\\s*\"?([^\"]*)\"?" +			// value
 		"\\s*\\]$");
+	private static final String FLOAT_PATTERN_STRING = 
+		"((?:[+-]?\\d+\\.?\\d*)|(?:[+-]?\\d*\\.?\\d+))";
 	private static final Pattern FLOAT_PATTERN = Pattern.compile(
-		"((?:[+-]?\\d+\\.?\\d*)|(?:[+-]?\\d*\\.?\\d+))");
+		FLOAT_PATTERN_STRING);
 	public static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
 		"^(.?)\\.(.*)\\.(.?)$");
 	public static final Map<Character, Double> AMINO_ACID_MASSES =
@@ -67,11 +70,15 @@ public class ModRecord
 	private Collection<Character> sites;
 	private Pattern               pattern;
 	private boolean               fixed;
+	private boolean               generic;
 	
 	/*========================================================================
 	 * Constructors
 	 *========================================================================*/
 	public ModRecord(String paramDescriptor, boolean fixed) {
+		// set default status as a non-generic mod; if the mod is in fact
+		// generic, then this will be overwritten when the ID string is parsed
+		this.generic = false;
 		// validate param descriptor string
 		if (paramDescriptor == null)
 			throw new IllegalArgumentException(
@@ -127,7 +134,9 @@ public class ModRecord
 	/*========================================================================
 	 * Public interface methods
 	 *========================================================================*/
-	public ImmutablePair<String, Collection<Integer>> parsePSM(String psm) {
+	public ImmutablePair<String, Collection<Modification>> parsePSM(
+		String psm
+	) {
 		if (psm == null)
 			return null;
 		// first, check for the typical "enclosing dot" syntax
@@ -140,12 +149,22 @@ public class ModRecord
 		// occurrences of this mod, and return the cleaned PSM string with
 		// all such occurrences removed
 		String cleaned = psm;
-		Collection<Integer> occurrences = new LinkedHashSet<Integer>();
+		Collection<Modification> occurrences =
+			new LinkedHashSet<Modification>();
 		while (true) {
 			matcher = pattern.matcher(cleaned);
 			if (matcher.find() == false)
 				break;
 			String captured = matcher.group();
+			// if this is a generic mod, then try to extract the mass
+			if (isGeneric()) try {
+				this.mass = Double.parseDouble(matcher.group(1));
+			} catch (Throwable error) {
+				throw new IllegalArgumentException(String.format(
+					"Could not extract a valid mod mass from generic mod " +
+					"reference [%s] at position %d of input PSM string [%s].",
+					captured, matcher.start(), psm));
+			}
 			// if the captured region contains no mod-indicating
 			// characters, then break to avoid an infinite loop
 			if (captured == null || captured.trim().isEmpty() ||
@@ -155,7 +174,7 @@ public class ModRecord
 				extractMod(cleaned, captured);
 			if (extracted != null) {
 				cleaned = extracted.getRight();
-				occurrences.add(extracted.getLeft());
+				occurrences.add(getModification(extracted.getLeft(), psm));
 			}
 			// it should be impossible for the extraction operation to fail,
 			// since the matcher ensures that the mod is present in the PSM
@@ -174,12 +193,12 @@ public class ModRecord
 					index++;
 				// if this is a site affected by this fixed mod, then add it
 				if (sites.contains(current))
-					occurrences.add(index);
+					occurrences.add(getModification(index, psm));
 			}
 		}
 		if (occurrences != null && occurrences.isEmpty())
 			occurrences = null;
-		return new ImmutablePair<String, Collection<Integer>>(
+		return new ImmutablePair<String, Collection<Modification>>(
 			cleaned, occurrences);
 	}
 	
@@ -196,16 +215,6 @@ public class ModRecord
 			accession.equals("MS:1001460"))
 			return "CHEMMOD:" + getFormattedMass();
 		else return accession;
-	}
-	
-	public static void main(String[] args) {
-		//String mod = "[UNIMOD,UNIMOD:35,Oxidation,\"(M,15.995)\"]";
-		String mod = "[UNIMOD,UNIMOD:1,Acetyl,[42.011]]";
-		String psm = "-.[42.011]VSELELGVTEPLGVYDPLGWLETQPESFERR.R";
-		ModRecord record = new ModRecord(mod, false);
-		ImmutablePair<String, Collection<Integer>> parsed =
-			record.parsePSM(psm);
-		System.out.println(parsed.getLeft());
 	}
 	
 	/*========================================================================
@@ -289,6 +298,10 @@ public class ModRecord
 		return fixed == false;
 	}
 	
+	public boolean isGeneric() {
+		return generic;
+	}
+	
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
@@ -297,6 +310,8 @@ public class ModRecord
 			throw new IllegalArgumentException(
 				"Modification parameter argument cannot be null.");
 		else this.param = param;
+		// set site collection and pattern
+		setModIDProperties(getModIDString());
 		// try to get mass from the CV accession
 		mass = OntologyUtils.getOntologyModificationMass(param.getAccession());
 		// if the mass could not be found in the ontology,
@@ -308,31 +323,8 @@ public class ModRecord
 		if (accession == null || accession.trim().equals(""))
 			this.param = new UserParam(param.getName(), getFormattedMass());
 		else if (accession.equals("MS:1001460"))
-			this.param = new CVParam(
-				param.getCvLabel(), accession, param.getName(), getFormattedMass());
-		// set site collection and pattern
-		setModIDProperties(getModIDString());
-	}
-	
-	private void setModIDMass(String modID) {
-		if (modID == null)
-			throw new NullPointerException(
-				"Mod ID string argument cannot be null.");
-		// initialize mass
-		mass = null;
-		// try to extract the mass value from this string
-		Matcher matcher = FLOAT_PATTERN.matcher(modID);
-		if (matcher.find() == false)
-			throw new IllegalArgumentException(String.format(
-				"No numerical mass value could be extracted " +
-				"from mod ID string [%s].", modID));
-		mass = Double.parseDouble(matcher.group(1));
-		// if the string contains more than one mass value,
-		// then it's ambiguous which one to pick
-		if (matcher.find())
-			throw new IllegalArgumentException(String.format(
-				"Multiple numerical mass values were extracted " +
-				"from mod ID string [%s].", modID));
+			this.param = new CVParam(param.getCvLabel(), accession,
+				param.getName(), getFormattedMass());
 	}
 	
 	private void setModIDProperties(String modID)
@@ -347,6 +339,7 @@ public class ModRecord
 		// a regular expression pattern to detect this mod in PSM strings
 		Set<Character> foundAminoAcids = new LinkedHashSet<Character>();
 		StringBuffer pattern = new StringBuffer();
+		boolean foundHash = false;
 		for (int i=0; i<modID.length(); i++) {
 			char current = modID.charAt(i);
 			// if the current character is an asterisk ("*"), then add all
@@ -361,6 +354,20 @@ public class ModRecord
 						"already been found in the same string.", i, modID));
 				for (char aminoAcid : AMINO_ACID_MASSES.keySet())
 					foundAminoAcids.add(aminoAcid);
+				continue;
+			}
+			// if the current character is a hash ("#"), then add a
+			// generic mass value extractor to the pattern string
+			else if (current == '#') {
+				if (foundHash)
+					throw new IllegalArgumentException(String.format(
+						"Found a hash (\"#\") at position %d in mod ID " +
+						"string [%s], even though other generic mass " +
+						"references had already been found in the same " +
+						"string.", i, modID));
+				else foundHash = true;
+				pattern.append(FLOAT_PATTERN_STRING);
+				this.generic = true;
 				continue;
 			}
 			// if the current character is a standalone amino acid,
@@ -429,6 +436,31 @@ public class ModRecord
 		this.pattern = Pattern.compile(pattern.toString());
 	}
 	
+	private void setModIDMass(String modID) {
+		if (modID == null)
+			throw new NullPointerException(
+				"Mod ID string argument cannot be null.");
+		// initialize mass
+		mass = null;
+		// don't bother trying to find the mass if this is a generic mod;
+		// in this case, the mass will be set at runtime when parsing the PSM
+		if (isGeneric())
+			return;
+		// try to extract the mass value from this string
+		Matcher matcher = FLOAT_PATTERN.matcher(modID);
+		if (matcher.find() == false)
+			throw new IllegalArgumentException(String.format(
+				"No numerical mass value could be extracted " +
+				"from mod ID string [%s].", modID));
+		mass = Double.parseDouble(matcher.group(1));
+		// if the string contains more than one mass value,
+		// then it's ambiguous which one to pick
+		if (matcher.find())
+			throw new IllegalArgumentException(String.format(
+				"Multiple numerical mass values were extracted " +
+				"from mod ID string [%s].", modID));
+	}
+	
 	private void setSites(Collection<Character> sites, String modID) {
 		if (sites == null)
 			throw new NullPointerException(
@@ -472,5 +504,36 @@ public class ModRecord
 		// splice the cleaned substring into the original string
 		return new ImmutablePair<Integer, String>(index, String.format("%s%s%s",
 			psm.substring(0, start), cleaned.toString(), psm.substring(end)));
+	}
+	
+	private Modification getModification(int index, String psm) {
+		Type type = getType();
+		String accession = getAccession();
+		// if this mod is a CHEMMOD, then its value needs to be its mass
+		String value = null;
+		if (type.equals(Type.CHEMMOD))
+			value = getFormattedMass();
+		// otherwise, try to extract the numerical
+		// portion of the CV accession
+		else if (accession != null) {
+			String[] tokens = accession.split(":");
+			if (tokens == null || tokens.length < 1)
+				throw new IllegalArgumentException(String.format(
+					"Unrecognized modification CV accession: [%s].",
+					accession));
+			else if (tokens.length > 1)
+				value = tokens[1];
+			else value = accession;
+	 	}
+		// the mod's value should not be null
+		if (value == null)
+			throw new IllegalArgumentException(String.format(
+				"Could not determine a valid mod value to " +
+				"write into the mzTab PSM row, for mod [%s] " +
+				"at position %d of input PSM string [%s].",
+				toString(), index, psm));
+		Modification mod = new Modification(Section.PSM, type, value);
+		mod.addPosition(index, null);
+		return mod;
 	}
 }
