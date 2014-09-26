@@ -318,13 +318,21 @@ public class ModRecord
 		// then try to extract it from the mod ID string
 		if (mass == null)
 			setModIDMass(getModIDString());
-		// if the mod is unknown or a user param, set the mass as its value
+		// if the mod is unknown or a user param, set the mass as its value;
+		// if the mass is unknown since this mod is generic, use the ID string
+		String value = getFormattedMass();
+		if (value == null)
+			value = getModIDString();
+		// ensure that the value is enclosed in quotation marks
+		// if it contains any special CV param characters
+		if (value.contains("[") || value.contains("]") || value.contains(","))
+			value = String.format("\"%s\"", value);
 		String accession = param.getAccession();
 		if (accession == null || accession.trim().equals(""))
-			this.param = new UserParam(param.getName(), getFormattedMass());
+			this.param = new UserParam(param.getName(), value);
 		else if (accession.equals("MS:1001460"))
-			this.param = new CVParam(param.getCvLabel(), accession,
-				param.getName(), getFormattedMass());
+			this.param = new CVParam(
+				param.getCvLabel(), accession, param.getName(), value);
 	}
 	
 	private void setModIDProperties(String modID)

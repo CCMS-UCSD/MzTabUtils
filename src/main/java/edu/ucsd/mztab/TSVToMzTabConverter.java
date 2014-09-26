@@ -21,7 +21,6 @@ import uk.ac.ebi.pride.jmztab.model.Metadata;
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
-import uk.ac.ebi.pride.jmztab.model.PSMColumn;
 import uk.ac.ebi.pride.jmztab.model.Section;
 import uk.ac.ebi.pride.jmztab.model.VariableMod;
 import uk.ac.ebi.pride.jmztab.utils.convert.ConvertProvider;
@@ -116,7 +115,11 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (psmColumnFactory == null)
 			psmColumnFactory =
 				MZTabColumnFactory.getInstance(Section.PSM_Header);
-		psmColumnFactory.addOptionalColumn("valid", PSMColumn.class);
+		// add optional columns
+		psmColumnFactory.addOptionalColumn("valid", String.class);
+		psmColumnFactory.addOptionalColumn("invalid_reason", String.class);
+		// TODO: gather all original TSV columns in the params object,
+		// and then iterate over those columns to add them here
 		return psmColumnFactory;
 	}
 	
@@ -214,11 +217,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			psm.setOptionColumnValue("valid", "VALID");
 		else {
 			psm.setOptionColumnValue("valid", "INVALID");
-			System.out.println(String.format("WARNING: PSM row %d [%s] was " +
-				"marked as \"INVALID\", because its parsed peptide string " +
-				"[%s] was still found to contain non-amino acid characters " +
-				"after extracting all known modifications.",
-				id, spectraRef.toString(), cleaned));
+			psm.setOptionColumnValue("invalid_reason", String.format(
+				"The parsed peptide string [%s] for this row was still " +
+				"found to contain non-amino acid characters, even after " +
+				"extracting all expected modifications.", cleaned));
 		}
 		Collection<Modification> mods = extracted.getRight();
 		if (mods != null && mods.isEmpty() == false)
@@ -321,6 +323,9 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		char residue = peptide.charAt(0);
 		if (residue == '-' || ModRecord.AMINO_ACID_MASSES.containsKey(residue))
 			return peptide;
+		// sometimes, underscores ("_") are used to indicate terminal residues
+		else if (residue == '_')
+			return "-";
 		else return null;
 	}
 	
