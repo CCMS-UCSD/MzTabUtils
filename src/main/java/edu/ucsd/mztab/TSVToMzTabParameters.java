@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
@@ -49,7 +50,7 @@ public class TSVToMzTabParameters
 	 * Constructors
 	 *========================================================================*/
 	public TSVToMzTabParameters(
-		File paramsFile, File tsvFile, File mzTabFile
+		File paramsFile, File tsvFile, File mzTabDirectory
 	) throws IOException {
 		// validate input parameter file
 		if (paramsFile == null)
@@ -77,16 +78,17 @@ public class TSVToMzTabParameters
 				tsvFile.getName()));
 		else this.tsvFile = tsvFile;
 		String filename = this.tsvFile.getName();
-		// validate output mzTab file
-		if (mzTabFile == null)
+		// validate output mzTab directory
+		if (mzTabDirectory == null)
 			throw new NullPointerException(
-				"Output mzTab file cannot be null.");
-		else if (mzTabFile.isDirectory())
-			throw new IllegalArgumentException(
-				String.format("Output mzTab file [%s] " +
-					"must be a normal (non-directory) file.",
-					mzTabFile.getName()));
-		else this.mzTabFile = mzTabFile;
+				"Output mzTab directory cannot be null.");
+		else if (mzTabDirectory.isDirectory() == false)
+			throw new IllegalArgumentException(String.format(
+				"Output mzTab directory [%s] must be a directory.",
+				mzTabDirectory.getName()));
+		// generate output mzTab file
+		mzTabFile = new File(mzTabDirectory,
+			String.format("%s.mzTab", FilenameUtils.getBaseName(filename)));
 		// attempt to create output file and test its writeability
 		boolean writeable = true;
 		if (mzTabFile.exists())

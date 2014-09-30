@@ -35,7 +35,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.TSVToMzTabConverter " +
 		"\n\t-tsv    <InputTSVFile>" +
 		"\n\t-params <InputParametersFile>" +
-		"\n\t-mzTab  <OutputMzTabFile>";
+		"\n\t-mzTab  <OutputMzTabDirectory>";
 	public static final String UNKNOWN_MODIFICATION_ACCESSION = "MS:1001460";
 	
 	/*========================================================================
@@ -416,7 +416,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// extract file arguments
 		File tsvFile = null;
 		File paramsFile = null;
-		File mzTabFile = null;
+		File mzTabDirectory = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -431,7 +431,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				else if (argument.equalsIgnoreCase("-params"))
 					paramsFile = new File(value);
 				else if (argument.equalsIgnoreCase("-mzTab"))
-					mzTabFile = new File(value);
+					mzTabDirectory = new File(value);
 				else throw new IllegalArgumentException(String.format(
 					"Unrecognized parameter at index %d: [%s]", i, argument));
 			}
@@ -443,14 +443,14 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		} else if (paramsFile == null) {
 			System.err.println("\"-params\" is a required parameter.");
 			die(USAGE);
-		} else if (mzTabFile == null) {
+		} else if (mzTabDirectory == null) {
 			System.err.println("\"-mzTab\" is a required parameter.");
 			die(USAGE);
 		}
 		// process extracted file arguments into an initialized converter
 		try {
 			return new TSVToMzTabConverter(
-				new TSVToMzTabParameters(paramsFile, tsvFile, mzTabFile));
+				new TSVToMzTabParameters(paramsFile, tsvFile, mzTabDirectory));
 		} catch (IOException error) {
 			throw new RuntimeException(error);
 		}
