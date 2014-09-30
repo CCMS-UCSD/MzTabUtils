@@ -151,9 +151,9 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				// a separate mzTab PSM for each matched peptide
 				String[] peptides = modifiedPeptide.split("!");
 				if (peptides == null || peptides.length < 2)
-					processPSM(modifiedPeptide, line, id);
+					processPSM(modifiedPeptide, elements, -1, id);
 				else for (int i=0; i<peptides.length; i++)
-					processPSM(peptides[i], line, id + i);
+					processPSM(peptides[i], elements, i, id + i);
 				lineNumber++;
 			}
 		} catch (Throwable error) {
@@ -167,22 +167,24 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private void processPSM(String peptide, String line, int id) {
-		if (peptide == null || line == null)
+	private void processPSM(
+		String peptide, String[] elements, int index, int id
+	) {
+		if (peptide == null || elements == null)
 			return;
 		PSM psm = new PSM(psmColumnFactory, metadata);
 		// set PSM integer ID
 		psm.setPSM_ID(id);
 		// formulate "spectra_ref" value for this row
-		String[] elements = line.split("\t");
 		StringBuffer spectraRef = new StringBuffer();
 		// first get the "ms_run" corresponding to the
 		// spectrum filename extracted from this row
 		SortedMap<Integer, MsRun> msRunMap = metadata.getMsRunMap();
-		String filename = elements[params.getColumnIndex("filename")];
+		String filename = extractMixtureElement(
+			elements[params.getColumnIndex("filename")], index);
 		URL file = getFileURL(filename);
-		for (Integer index : msRunMap.keySet()) {
-			MsRun msRun = msRunMap.get(index);
+		for (Integer fileIndex : msRunMap.keySet()) {
+			MsRun msRun = msRunMap.get(fileIndex);
 			if (msRun.getLocation().equals(file)) {
 				spectraRef.append("ms_run[").append(
 					msRun.getId()).append("]:");
@@ -199,8 +201,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			spectraRef.append("scan=");
 		else spectraRef.append("index=");
 		// finally, append the actual ID value extracted from this row
-		spectraRef.append(
-			elements[params.getColumnIndex("spectrum_id")]);
+		spectraRef.append(extractMixtureElement(
+			elements[params.getColumnIndex("spectrum_id")], index));
 		psm.setSpectraRef(spectraRef.toString());
 		// set (cleaned) peptide string
 		psm.setSequence(cleanPeptide(peptide));
@@ -243,7 +245,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		for (String column : params.getColumns()) {
 			if (column == null)
 				continue;
-			String value = elements[params.getColumnIndex(column)];
+			String value = extractMixtureElement(
+				elements[params.getColumnIndex(column)], index);
 			if (value == null)
 				continue;
 			if (column.equals("accession"))
@@ -274,6 +277,17 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		}
 		// add fully initialized PSM to collection
 		psms.add(psm);
+	}
+	
+	private String extractMixtureElement(String value, int index) {
+		if (value == null)
+			return null;
+		else if (index < 0)
+			return value;
+		String[] tokens = value.split("!");
+		if (tokens == null || index >= tokens.length)
+			return value;
+		else return tokens[index];
 	}
 	
 	private String cleanPeptide(String psm) {
