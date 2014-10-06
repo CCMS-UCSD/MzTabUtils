@@ -35,7 +35,7 @@ public class ModRecord
 	private static final Pattern FLOAT_PATTERN = Pattern.compile(
 		FLOAT_PATTERN_STRING);
 	public static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
-		"^(.?)\\.(.*)\\.(.?)$");
+		"^\"?(.)\\.(.*)\\.(.)\"?$");
 	public static final Map<Character, Double> AMINO_ACID_MASSES =
 		new TreeMap<Character, Double>();
 	static {
@@ -200,12 +200,6 @@ public class ModRecord
 			occurrences = null;
 		return new ImmutablePair<String, Collection<Modification>>(
 			cleaned, occurrences);
-	}
-	
-	public String modifyPSM(String psm) {
-		if (psm == null)
-			return null;
-		return psm;
 	}
 	
 	@Override
