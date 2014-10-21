@@ -8,12 +8,13 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collection;
-import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.regex.Matcher;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.util.PeptideUtils;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
@@ -21,6 +22,7 @@ import uk.ac.ebi.pride.jmztab.model.Metadata;
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
+import uk.ac.ebi.pride.jmztab.model.Protein;
 import uk.ac.ebi.pride.jmztab.model.Section;
 import uk.ac.ebi.pride.jmztab.model.VariableMod;
 import uk.ac.ebi.pride.jmztab.utils.convert.ConvertProvider;
@@ -100,7 +102,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	
 	@Override
 	protected MZTabColumnFactory convertProteinColumnFactory() {
-		return null;
+		System.out.println("Converting PSM column factory...");
+		return MZTabColumnFactory.getInstance(Section.Protein_Header);
 	}
 	
 	@Override
@@ -126,6 +129,29 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	@Override
 	protected void fillData() {
 		System.out.println("Filling data...");
+		// instantiate all protein records into the mzTab file
+		Map<String, ProteinRecord> records = params.getProteins();
+		for (String accession : records.keySet()) {
+			ProteinRecord record = records.get(accession);
+			Protein protein = new Protein();
+			protein.setAccession(accession);
+			// set PSM counts
+			SortedMap<Integer, MsRun> msRunMap = metadata.getMsRunMap();
+			for (int msRun : msRunMap.keySet())
+				protein.setNumPSMs(
+					msRunMap.get(msRun), record.getPSMCount(msRun));
+			// set peptide counts
+			for (int msRun : msRunMap.keySet())
+				protein.setNumPeptidesDistinct(
+					msRunMap.get(msRun), record.getPeptideCount(msRun));
+			// TODO: count unique peptides for this protein
+			// set modifications
+			Collection<Modification> modifications = record.getModifications();
+			if (modifications != null)
+				for (Modification modification : modifications)
+					protein.addModification(modification);
+			proteins.add(protein);
+		}
 		// read all lines in the TSV file and add them to an mzTab PSM record
 		BufferedReader reader = null;
 		try {
@@ -205,13 +231,13 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			elements[params.getColumnIndex("spectrum_id")], index));
 		psm.setSpectraRef(spectraRef.toString());
 		// set (cleaned) peptide string
-		psm.setSequence(cleanPeptide(peptide));
+		psm.setSequence(PeptideUtils.cleanPeptide(peptide));
 		// try to extract "pre" and "post" values from the peptide sequence
 		psm.setPre(getPre(peptide));
 		psm.setPost(getPost(peptide));
 		// formulate "modifications" value for this row
 		ImmutablePair<String, Collection<Modification>> extracted =
-			extractPTMsFromPSM(peptide);
+			PeptideUtils.extractPTMsFromPSM(peptide, params.getModifications());
 		// mark this row as "INVALID" if any mods were
 		// left unparsed from the peptide string
 		String cleaned = extracted.getLeft();
@@ -290,25 +316,6 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		else return tokens[index];
 	}
 	
-	private String cleanPeptide(String psm) {
-		if (psm == null)
-			return null;
-		// first, check for the typical "enclosing dot" syntax
-		// TODO: the user should specify if this syntax is present, and
-		// therefore whether or not this processing should even be done
-		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
-		if (matcher.matches())
-			psm = matcher.group(2);
-		// then remove all non-amino acid characters from the sequence
-		StringBuffer clean = new StringBuffer();
-		for (int i=0; i<psm.length(); i++) {
-			char current = psm.charAt(i);
-			if (ModRecord.AMINO_ACID_MASSES.containsKey(current))
-				clean.append(current);
-		}
-		return clean.toString();
-	}
-	
 	private String getPre(String psm) {
 		if (psm == null)
 			return null;
@@ -341,35 +348,6 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		else if (residue == '_')
 			return "-";
 		else return null;
-	}
-	
-	private ImmutablePair<String, Collection<Modification>> extractPTMsFromPSM(
-		String psm
-	) {
-		if (psm == null)
-			return null;
-		Collection<Modification> mods = new LinkedHashSet<Modification>();
-		String current = psm;
-		// check the psm string for occurrences of all registered mods
-		for (ModRecord record : params.getModifications()) {
-			ImmutablePair<String, Collection<Modification>> parsedPSM =
-				record.parsePSM(current);
-			if (parsedPSM == null)
-				continue;
-			// keep track of the iteratively cleaned PSM string
-			String cleaned = parsedPSM.getLeft();
-			if (cleaned != null)
-				current = cleaned;
-			// if no mods of this type were found, continue
-			Collection<Modification> theseMods = parsedPSM.getRight();
-			if (theseMods != null && theseMods.isEmpty() == false)
-				mods.addAll(theseMods);
-		}
-		if (mods == null || mods.isEmpty())
-			return new ImmutablePair<String, Collection<Modification>>(
-				current, null);
-		else return new ImmutablePair<String, Collection<Modification>>(
-			current, mods);
 	}
 	
 	private boolean isPeptideClean(String peptide) {

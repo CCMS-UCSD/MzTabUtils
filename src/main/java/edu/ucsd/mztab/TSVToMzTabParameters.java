@@ -20,7 +20,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import uk.ac.ebi.pride.jmztab.model.Modification;
 import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.util.PeptideUtils;
 
 public class TSVToMzTabParameters
 {
@@ -38,13 +40,14 @@ public class TSVToMzTabParameters
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
-	private File                  tsvFile;
-	private File                  mzTabFile;
-	private boolean               hasHeader;
-	private boolean               scanMode;
-	private Map<String, Integer>  columnIndices;
-	private Collection<ModRecord> modifications;
-	private Collection<URL>       spectrumFiles;
+	private File                       tsvFile;
+	private File                       mzTabFile;
+	private boolean                    hasHeader;
+	private boolean                    scanMode;
+	private Map<String, Integer>       columnIndices;
+	private Collection<ModRecord>      modifications;
+	private Collection<URL>            spectrumFiles;
+	private Map<String, ProteinRecord> proteins;
 	
 	/*========================================================================
 	 * Constructors
@@ -198,6 +201,17 @@ public class TSVToMzTabParameters
 			// read all PSM rows, to collect spectrum filenames and to validate
 			// each row for complete inclusion of all registered column indices
 			spectrumFiles = new LinkedHashSet<URL>();
+			Integer accessionIndex = columnIndices.get("accession");
+			if (accessionIndex != null) {
+				proteins = new LinkedHashMap<String, ProteinRecord>();
+				if (accessionIndex >= elements.length)
+					throw new IllegalArgumentException(String.format(
+						"Error parsing input TSV file [%s]: the index " +
+						"of the \"%s\" column was given as %d, but line " +
+						"%d of the file contains only %d elements:\n%s",
+						filename, "accession", accessionIndex, lineNumber,
+						elements.length, line));
+			}
 			while ((line = reader.readLine()) != null) {
 				// parse out the elements of the line
 				elements = line.split("\t");
@@ -206,7 +220,9 @@ public class TSVToMzTabParameters
 						String.format("Could not parse the tab-delimited " +
 							"elements of line %d from input TSV file [%s].",
 							lineNumber, filename));
-				// validate this line against the registered column indices
+				// validate this line against the registered column
+				// indices and determine its "ms_run" index
+				Integer msRun = null;
 				for (String column : columnIndices.keySet()) {
 					// the specified index must be within the bounds
 					// of the elements array
@@ -227,8 +243,46 @@ public class TSVToMzTabParameters
 							throw new RuntimeException(String.format(
 								"Could not generate a valid file URL for " +
 								"spectrum file [%s].", spectrumFilename));
-						else spectrumFiles.add(url);
+						else {
+							spectrumFiles.add(url);
+							// determine the "ms_run" index of this file
+							int i = 0;
+							for (URL file : spectrumFiles) {
+								i++;
+								if (file.equals(url)) {
+									msRun = i;
+									break;
+								}
+							}
+						}
 					}
+				}
+				// update statistics for this row's protein accession
+				if (accessionIndex != null) {
+					// every row should have a filename column value
+					if (msRun == null)
+						throw new IllegalStateException();
+					// get protein record for this accession
+					String accession = elements[accessionIndex];
+					ProteinRecord record = proteins.get(accession);
+					if (record == null)
+						record = new ProteinRecord(accession);
+					// add this PSM to this protein
+					record.addPSM(msRun);
+					// get this row's peptide and add it to this protein
+					String peptide =
+						elements[columnIndices.get("modified_sequence")];
+					record.addPeptide(
+						msRun, PeptideUtils.cleanPeptide(peptide));
+					// get this row's modifications and add them to this protein
+					ImmutablePair<String, Collection<Modification>> extracted =
+						PeptideUtils.extractPTMsFromPSM(
+							peptide, getModifications());
+					Collection<Modification> mods = extracted.getRight();
+					if (mods != null)
+						for (Modification mod : mods)
+							record.addModification(mod);
+					proteins.put(accession, record);
 				}
 				lineNumber++;
 			}
@@ -284,6 +338,10 @@ public class TSVToMzTabParameters
 	
 	public Collection<URL> getSpectrumFiles() {
 		return spectrumFiles;
+	}
+	
+	public Map<String, ProteinRecord> getProteins() {
+		return proteins;
 	}
 	
 	public Collection<String> getColumns() {
