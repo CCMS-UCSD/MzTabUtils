@@ -22,6 +22,7 @@ import uk.ac.ebi.pride.jmztab.model.Metadata;
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.MsRun;
 import uk.ac.ebi.pride.jmztab.model.PSM;
+import uk.ac.ebi.pride.jmztab.model.Peptide;
 import uk.ac.ebi.pride.jmztab.model.Protein;
 import uk.ac.ebi.pride.jmztab.model.Section;
 import uk.ac.ebi.pride.jmztab.model.VariableMod;
@@ -102,13 +103,14 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	
 	@Override
 	protected MZTabColumnFactory convertProteinColumnFactory() {
-		System.out.println("Converting PSM column factory...");
+		System.out.println("Converting Protein column factory...");
 		return MZTabColumnFactory.getInstance(Section.Protein_Header);
 	}
 	
 	@Override
 	protected MZTabColumnFactory convertPeptideColumnFactory() {
-		return null;
+		System.out.println("Converting Peptide column factory...");
+		return MZTabColumnFactory.getInstance(Section.Peptide_Header);
 	}
 	
 	@Override
@@ -130,9 +132,9 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	protected void fillData() {
 		System.out.println("Filling data...");
 		// instantiate all protein records into the mzTab file
-		Map<String, ProteinRecord> records = params.getProteins();
-		for (String accession : records.keySet()) {
-			ProteinRecord record = records.get(accession);
+		Map<String, ProteinRecord> proteinRecords = params.getProteins();
+		for (String accession : proteinRecords.keySet()) {
+			ProteinRecord record = proteinRecords.get(accession);
 			Protein protein = new Protein();
 			protein.setAccession(accession);
 			// set PSM counts
@@ -146,11 +148,30 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 					msRunMap.get(msRun), record.getPeptideCount(msRun));
 			// TODO: count unique peptides for this protein
 			// set modifications
-			Collection<Modification> modifications = record.getModifications();
-			if (modifications != null)
-				for (Modification modification : modifications)
-					protein.addModification(modification);
+			// TODO: deal with the fact that these modifications are taken
+			// directly from the PSMs, and therefore their "position" elements
+			// are PSM indices, whereas the mzTab format expects protein mods
+			// to be labeled with the position of the mod within the protein;
+			// presumably this requires knowing the protein sequence, or at
+			// least the start index of the PSM peptide within the protein
+//			Collection<Modification> modifications = record.getModifications();
+//			if (modifications != null)
+//				for (Modification modification : modifications)
+//					protein.addModification(modification);
 			proteins.add(protein);
+		}
+		// instantiate all peptide records into the mzTab file
+		Map<String, PeptideRecord> peptideRecords = params.getPeptides();
+		for (String sequence : peptideRecords.keySet()) {
+			PeptideRecord record = peptideRecords.get(sequence);
+			Collection<String> accessions = record.getAccessions();
+			if (accessions == null || accessions.isEmpty()) {
+				Peptide peptide = new Peptide(metadata);
+				peptide.setSequence(sequence);
+			} else for (String accession : record.getAccessions()) {
+				Peptide peptide = new Peptide(metadata);
+				peptide.setSequence(sequence);
+			}
 		}
 		// read all lines in the TSV file and add them to an mzTab PSM record
 		BufferedReader reader = null;
@@ -303,6 +324,16 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		}
 		// add fully initialized PSM to collection
 		psms.add(psm);
+	}
+	
+	private void processPeptide(PeptideRecord record, String accession) {
+		if (record == null)
+			return;
+		Peptide peptide = new Peptide(metadata);
+		peptide.setSequence(record.getSequence());
+		if (accession != null)
+			peptide.setAccession(accession);
+		Collection<String> spectraRefs = record.getSpectraRefs(accession);
 	}
 	
 	private String extractMixtureElement(String value, int index) {

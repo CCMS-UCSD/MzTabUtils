@@ -48,6 +48,7 @@ public class TSVToMzTabParameters
 	private Collection<ModRecord>      modifications;
 	private Collection<URL>            spectrumFiles;
 	private Map<String, ProteinRecord> proteins;
+	private Map<String, PeptideRecord> peptides;
 	
 	/*========================================================================
 	 * Constructors
@@ -342,6 +343,10 @@ public class TSVToMzTabParameters
 	
 	public Map<String, ProteinRecord> getProteins() {
 		return proteins;
+	}
+	
+	public Map<String, PeptideRecord> getPeptides() {
+		return peptides;
 	}
 	
 	public Collection<String> getColumns() {
