@@ -109,6 +109,32 @@ public class MassIVEMzTabContext
 	/*========================================================================
 	 * Public interface methods
 	 *========================================================================*/
+	public Collection<PeakListFileMapping> getPeakListFileMappings(
+		String mzTabFilename
+	) {
+		if (mzTabFilename == null || filenameMap == null)
+			return null;
+		else return filenameMap.get(mzTabFilename);
+	}
+	
+	public String getScanFilename(String mzTabFilename, String msRunLocation) {
+		if (mzTabFilename == null || msRunLocation == null)
+			return null;
+		Collection<PeakListFileMapping> mappings =
+			getPeakListFileMappings(mzTabFilename);
+		if (mappings == null || mappings.isEmpty())
+			return null;
+		else for (PeakListFileMapping mapping : mappings) {
+			String location = mapping.mzTabPeakListFilename;
+			if (location != null && location.equals(msRunLocation)) {
+				String mangled = mapping.mangledPeakListFilename;
+				if (mangled != null)
+					return FilenameUtils.getBaseName(mangled) + ".scans";
+			}
+		}
+		return null;
+	}
+	
 	public String toJSON() {
 		if (filenameMap == null)
 			return null;
