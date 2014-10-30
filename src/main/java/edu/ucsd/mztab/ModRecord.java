@@ -12,6 +12,7 @@ import java.util.regex.PatternSyntaxException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.util.OntologyUtils;
+import edu.ucsd.util.PeptideUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.Section;
@@ -34,32 +35,6 @@ public class ModRecord
 		"((?:[+-]?\\d+\\.?\\d*)|(?:[+-]?\\d*\\.?\\d+))";
 	private static final Pattern FLOAT_PATTERN = Pattern.compile(
 		FLOAT_PATTERN_STRING);
-	public static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
-		"^\"?(.)\\.(.*)\\.(.)\"?$");
-	public static final Map<Character, Double> AMINO_ACID_MASSES =
-		new TreeMap<Character, Double>();
-	static {
-		AMINO_ACID_MASSES.put('A', 71.037113787);
-		AMINO_ACID_MASSES.put('R', 156.101111026);
-		AMINO_ACID_MASSES.put('D', 115.026943031);
-		AMINO_ACID_MASSES.put('N', 114.042927446);
-		AMINO_ACID_MASSES.put('C', 103.009184477);
-		AMINO_ACID_MASSES.put('E', 129.042593095);
-		AMINO_ACID_MASSES.put('Q', 128.058577510);
-		AMINO_ACID_MASSES.put('G', 57.021463723);
-		AMINO_ACID_MASSES.put('H', 137.058911861);
-		AMINO_ACID_MASSES.put('I', 113.084063979);
-		AMINO_ACID_MASSES.put('L', 113.084063979);
-		AMINO_ACID_MASSES.put('K', 128.094963016);
-		AMINO_ACID_MASSES.put('M', 131.040484605);
-		AMINO_ACID_MASSES.put('F', 147.068413915);
-		AMINO_ACID_MASSES.put('P', 97.052763851);
-		AMINO_ACID_MASSES.put('S', 87.032028409);
-		AMINO_ACID_MASSES.put('T', 101.047678473);
-		AMINO_ACID_MASSES.put('W', 186.079312952);
-		AMINO_ACID_MASSES.put('Y', 163.063328537);
-		AMINO_ACID_MASSES.put('V', 99.068413915);
-	}
 	
 	/*========================================================================
 	 * Properties
@@ -142,7 +117,7 @@ public class ModRecord
 		// first, check for the typical "enclosing dot" syntax
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			psm = matcher.group(2);
 		// iteratively apply this mod's regular expression, to extract any
@@ -189,7 +164,7 @@ public class ModRecord
 				// only count amino acid characters to
 				// keep track of the unmodified index
 				char current = cleaned.charAt(i);
-				if (AMINO_ACID_MASSES.containsKey(current))
+				if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current))
 					index++;
 				// if this is a site affected by this fixed mod, then add it
 				if (sites.contains(current))
@@ -354,7 +329,7 @@ public class ModRecord
 						"Found an asterisk (\"*\") at position %d in mod ID " +
 						"string [%s], even though other site references had " +
 						"already been found in the same string.", i, modID));
-				for (char aminoAcid : AMINO_ACID_MASSES.keySet())
+				for (char aminoAcid : PeptideUtils.AMINO_ACID_MASSES.keySet())
 					foundAminoAcids.add(aminoAcid);
 				continue;
 			}
@@ -374,7 +349,7 @@ public class ModRecord
 			}
 			// if the current character is a standalone amino acid,
 			// then add it to the regular expression for this region
-			else if (AMINO_ACID_MASSES.containsKey(current)) {
+			else if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current)) {
 				// redundant amino acids are not allowed
 				if (foundAminoAcids.contains(current))
 					throw new IllegalArgumentException(String.format(
@@ -417,7 +392,7 @@ public class ModRecord
 					// add any amino acid site found from the ontology lookup
 					char residue = site.charAt(0);
 					if (site.length() == 1 &&
-						AMINO_ACID_MASSES.containsKey(residue))
+						PeptideUtils.AMINO_ACID_MASSES.containsKey(residue))
 						foundAminoAcids.add(residue);
 					// otherwise, the value must represent a generic site
 					// like N-term, so clear the found amino acids to trigger
@@ -431,7 +406,7 @@ public class ModRecord
 			// if the found amino acids set is still empty, then it's a generic
 			// site, and all known amino acids should be added just like a "*"
 			if (foundAminoAcids.isEmpty())
-				for (char aminoAcid : AMINO_ACID_MASSES.keySet())
+				for (char aminoAcid : PeptideUtils.AMINO_ACID_MASSES.keySet())
 					foundAminoAcids.add(aminoAcid);
 			setSites(foundAminoAcids, modID);
 		}
@@ -488,7 +463,7 @@ public class ModRecord
 		// to generate the correct index within the unmodified peptide string
 		int index = 0;
 		for (int i=0; i<end; i++) {
-			if (AMINO_ACID_MASSES.containsKey(psm.charAt(i))) {
+			if (PeptideUtils.AMINO_ACID_MASSES.containsKey(psm.charAt(i))) {
 				index++;
 				// if we've already reached the mod region, then the
 				// first amino acid we find is the affected site
@@ -500,7 +475,7 @@ public class ModRecord
 		StringBuffer cleaned = new StringBuffer();
 		for (int i=0; i<mod.length(); i++) {
 			char current = mod.charAt(i);
-			if (AMINO_ACID_MASSES.containsKey(current))
+			if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current))
 				cleaned.append(current);
 		}
 		// splice the cleaned substring into the original string

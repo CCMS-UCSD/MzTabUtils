@@ -352,7 +352,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return getAminoAcid(matcher.group(1));
 		else return null;
@@ -363,7 +363,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = ModRecord.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return getAminoAcid(matcher.group(3));
 		else return null;
@@ -373,7 +373,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (peptide == null || peptide.length() != 1)
 			return null;
 		char residue = peptide.charAt(0);
-		if (residue == '-' || ModRecord.AMINO_ACID_MASSES.containsKey(residue))
+		if (residue == '-' ||
+			PeptideUtils.AMINO_ACID_MASSES.containsKey(residue))
 			return peptide;
 		// sometimes, underscores ("_") are used to indicate terminal residues
 		else if (residue == '_')
@@ -385,7 +386,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (peptide == null)
 			return false;
 		else for (int i=0; i<peptide.length(); i++)
-			if (ModRecord.AMINO_ACID_MASSES.containsKey(peptide.charAt(i))
+			if (PeptideUtils.AMINO_ACID_MASSES.containsKey(peptide.charAt(i))
 				== false)
 				return false;
 		return true;
