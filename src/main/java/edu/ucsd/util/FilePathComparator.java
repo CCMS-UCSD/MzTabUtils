@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.Collection;
 import java.util.Comparator;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 
 /**
@@ -18,10 +19,10 @@ implements Comparator<String>
 	 *====================================================================*/
 	public int compare(String path1, String path2) {
 		// first split paths into arrays of path elements
-		String[] elements1 =
-			path1.split(StringEscapeUtils.escapeJava(File.separator));
-		String[] elements2 =
-			path2.split(StringEscapeUtils.escapeJava(File.separator));
+		String[] elements1 = FilenameUtils.separatorsToSystem(path1)
+			.split(StringEscapeUtils.escapeJava(File.separator));
+		String[] elements2 = FilenameUtils.separatorsToSystem(path2)
+			.split(StringEscapeUtils.escapeJava(File.separator));
 		// then traverse paths in reverse order,
 		// differentiating only when a path element differs
 		int steps = 0;
