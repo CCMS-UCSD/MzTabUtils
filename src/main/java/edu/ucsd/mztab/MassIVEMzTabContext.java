@@ -109,6 +109,18 @@ public class MassIVEMzTabContext
 	/*========================================================================
 	 * Public interface methods
 	 *========================================================================*/
+	public Collection<File> getMzTabFiles() {
+		if (mzTabFiles == null || mzTabFiles.isEmpty())
+			return null;
+		else return new LinkedHashSet<File>(mzTabFiles);
+	}
+	
+	public Collection<File> getScansFiles() {
+		if (scansFiles == null || scansFiles.isEmpty())
+			return null;
+		else return new LinkedHashSet<File>(scansFiles);
+	}
+	
 	public Collection<PeakListFileMapping> getPeakListFileMappings(
 		String mzTabFilename
 	) {
@@ -133,6 +145,21 @@ public class MassIVEMzTabContext
 			}
 		}
 		return null;
+	}
+	
+	public String getUploadedMzTabFilename(String mangledMzTabFilename) {
+		if (mangledMzTabFilename == null)
+			return null;
+		Collection<PeakListFileMapping> mappings =
+			getPeakListFileMappings(mangledMzTabFilename);
+		if (mappings == null || mappings.isEmpty())
+			return null;
+		else for (PeakListFileMapping mapping : mappings) {
+			String mzTabFilename = mapping.uploadedMzTabFilename;
+			if (mzTabFilename != null)
+				return mzTabFilename;
+		}
+		return mangledMzTabFilename;
 	}
 	
 	public String toJSON() {
@@ -306,6 +333,28 @@ public class MassIVEMzTabContext
 						mapping.mangledMzTabFilename = mangledFilename;
 				}
 			}
+			// finally, duplicate each entry in the filename map
+			// by keying it also to the mangled result filename
+			Map<String, Collection<PeakListFileMapping>> mangledMap =
+				new LinkedHashMap<String, Collection<PeakListFileMapping>>();
+			for (String mzTabFilename : filenameMap.keySet()) {
+				Collection<PeakListFileMapping> mzTabMappings =
+					filenameMap.get(mzTabFilename);
+				if (mzTabMappings == null || mzTabMappings.isEmpty())
+					continue;
+				for (PeakListFileMapping mapping : mzTabMappings) {
+					if (mapping.mangledMzTabFilename == null)
+						continue;
+					// don't add this entry to the map if it's already there
+					else if (mangledMap.containsKey(
+						mapping.mangledMzTabFilename))
+						continue;
+					else mangledMap.put(
+						mapping.mangledMzTabFilename, mzTabMappings);
+				}
+			}
+			if (mangledMap != null && mangledMap.isEmpty() == false)
+				filenameMap.putAll(mangledMap);
 		} catch (Throwable error) {
 			String errorMessage = "There was an error parsing params.xml to " +
 				"build the user-specified filename map.";
