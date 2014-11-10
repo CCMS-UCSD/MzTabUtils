@@ -1,8 +1,12 @@
 package edu.ucsd.mztab;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -11,6 +15,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
+
+import edu.ucsd.util.FileIOUtils;
 
 public class MzTabValidator
 {
@@ -22,6 +28,8 @@ public class MzTabValidator
 		"\n\t<ParameterFile>" +
 		"\n\t<MzTabDirectory>" +
 		"\n\t<ScansDirectory>";
+	private static final String TEMPORARY_MZTAB_FILE =
+		"temp_modified_result.mzTab";
 	private static final Pattern FILE_REFERENCE_PATTERN =
 		Pattern.compile("ms_run\\[(\\d+)\\]");
 	private static final Pattern FILE_LINE_PATTERN =
@@ -86,7 +94,7 @@ public class MzTabValidator
 						mzTabFilename, percentage));
 			}
 		} catch (Throwable error) {
-			die(error.getMessage());
+			die(getRootCause(error).getMessage());
 		}
 	}
 	
@@ -192,13 +200,19 @@ public class MzTabValidator
 		int psmCount = 0;
 		int invalidCount = 0;
 		BufferedReader reader = null;
+		PrintWriter writer = null;
+		File output = new File(TEMPORARY_MZTAB_FILE);
 		try {
 			reader = new BufferedReader(new FileReader(mzTabFile));
+			writer = new PrintWriter(new BufferedWriter(
+				new FileWriter(output, false)));
 			String line = null;
 			int lineCount = 0;
 			// read PSM rows, ensure that all "spectra_ref" elements correspond
 			// to spectra that were actually found in the peak list files
 			int spectraRefIndex = -1;
+			int validIndex = -1;
+			int invalidReasonIndex = -1;
 			while (true) {
 				line = reader.readLine();
 				if (line == null)
@@ -208,19 +222,24 @@ public class MzTabValidator
 				// the "spectra_ref" column index
 				if (line.startsWith("PSH")) {
 					String[] headers = line.split("\\t");
-					if (headers == null || headers.length < 1)
+					int headerCount = headers.length;
+					if (headers == null || headerCount < 1)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo tab-delimited " +
 							"column header elements were found.",
 							lineCount, mzTabFilename, line));
-					else for (int i=0; i<headers.length; i++) {
+					else for (int i=0; i<headerCount; i++) {
 						String header = headers[i];
-						if (header != null &&
-							header.equalsIgnoreCase("spectra_ref")) {
+						if (header == null)
+							continue;
+						else if (header.equalsIgnoreCase("spectra_ref"))
 							spectraRefIndex = i;
-							break;
-						}
+						else if (header.equalsIgnoreCase("opt_global_valid"))
+							validIndex = i;
+						else if (header.equalsIgnoreCase(
+							"opt_global_invalid_reason"))
+							invalidReasonIndex = i;
 					}
 					if (spectraRefIndex < 0)
 						throw new IllegalArgumentException(String.format(
@@ -228,34 +247,94 @@ public class MzTabValidator
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
 							"column header element was found.",
 							lineCount, mzTabFilename, line));
+					// add extra validity optional columns, if necessary
+					if (validIndex < 0) {
+						line = line.trim() + "\topt_global_valid";
+						validIndex = headerCount;
+						headerCount++;
+					}
+					if (invalidReasonIndex < 0) {
+						line = line.trim() + "\topt_global_invalid_reason";
+						invalidReasonIndex = headerCount;
+						headerCount++;
+					}
+					writer.println(line);
 					continue;
 				}
 				// only process PSM rows
-				else if (line.startsWith("PSM") == false)
+				else if (line.startsWith("PSM") == false) {
+					writer.println(line);
 					continue;
+				}
 				// ensure that a "spectra_ref" column index was found
-				if (spectraRefIndex < 0)
+				if (spectraRefIndex < 0 || validIndex < 0 ||
+					invalidReasonIndex < 0)
 					throw new IllegalArgumentException(String.format(
 						"A \"PSM\" row (line %d) was found before the " +
 						"\"PSH\" row in mzTab file [%s].",
 						lineCount, mzTabFilename));
 				// validate this PSM row
+				String[] columns = line.split("\\t");
 				try {
 					psmCount++;
-					String[] columns = line.split("\\t");
 					if (columns == null || columns.length < 1 ||
 						columns.length <= spectraRefIndex)
-						throw new InvalidPSMException(String.format(
+						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
 							"column element was found (expected at index %d).",
 							lineCount, mzTabFilename, line,
 							spectraRefIndex));
+					// check existing validity status, if any
+					if (validIndex < columns.length) {
+						String validity = columns[validIndex];
+						if (validity.equalsIgnoreCase("INVALID")) {
+							invalidCount++;
+							// ensure that a reason was provided
+							if (invalidReasonIndex >= columns.length)
+								line = line.trim() + "\tThis PSM was marked " +
+									"as invalid by its source.";
+							writer.println(line);
+							continue;
+						}
+					}
 					validatePSMRow(columns[spectraRefIndex], context, spectra,
 						peakListFiles, lineCount, mzTabFilename);
+					// if we got this far, then the row is valid,
+					// so mark it as such if it isn't already
+					if (validIndex >= columns.length)
+						line = line.trim() + "\tVALID";
+					if (invalidReasonIndex >= columns.length)
+						line = line.trim() + "\tnull";
+					writer.println(line);
 				} catch (InvalidPSMException error) {
 					invalidCount++;
-					// TODO: do something with the error message
+					// mark the row as invalid
+					if (validIndex < columns.length) {
+						columns[validIndex] = "INVALID";
+						// reconstruct the line with the updated validity
+						line = "";
+						for (String value : columns)
+							line += value + "\t";
+						// chomp trailing comma
+						if (line.endsWith("\t"))
+							line = line.substring(0, line.length() - 1);
+					} else line = line.trim() + "\tINVALID";
+					columns = line.split("\\t");
+					// provide the reason why this row is invalid
+					if (invalidReasonIndex < columns.length) {
+						columns[invalidReasonIndex] =
+							getRootCause(error).getMessage();
+						// reconstruct the line with the updated reason
+						line = "";
+						for (String value : columns)
+							line += value + "\t";
+						// chomp trailing comma
+						if (line.endsWith("\t"))
+							line = line.substring(0, line.length() - 1);
+					} else line = line.trim() + "\t" +
+						getRootCause(error).getMessage();
+					writer.println(line);
 				} catch (Throwable error) {
 					throw error;
 				}
@@ -265,7 +344,15 @@ public class MzTabValidator
 		} finally {
 			try { reader.close(); }
 			catch (Throwable error) {}
+			try { writer.close(); }
+			catch (Throwable error) {}
 		}
+		// overwrite input mzTab file with updated temporary file
+		FileIOUtils.copyFile(output, mzTabFile);
+		if (output.delete() == false)
+			throw new IOException(String.format(
+				"Could not delete temporary mzTab file [%s]",
+				output.getAbsolutePath()));
 		return new ImmutablePair<Integer, Integer>(psmCount, invalidCount);
 	}
 	
@@ -335,49 +422,38 @@ public class MzTabValidator
 		String[] tokens = spectraRef.split(":");
 		if (tokens == null || tokens.length != 2)
 			throw new InvalidPSMException(String.format(
-				"Line %d of mzTab file [%s] contains an invalid " +
-				"\"spectra_ref\" column element [%s]: this element " +
-				"is expected to conform to string format [%s].",
-				lineNumber, mzTabFilename, spectraRef,
+				"Invalid \"spectra_ref\" column value [%s]: this value " +
+				"is expected to conform to string format [%s].", spectraRef,
 				"ms_run[1-n]:<nativeID-formatted identifier string>"));
 		Matcher matcher = FILE_REFERENCE_PATTERN.matcher(tokens[0]);
 		if (matcher.matches() == false)
 			throw new InvalidPSMException(String.format(
-				"Line %d of mzTab file [%s] contains an invalid " +
-				"\"ms_run\" reference [%s]: this element " +
-				"is expected to conform to string format [%s].",
-				lineNumber, mzTabFilename, tokens[0],
-				"ms_run[1-n]"));
+				"Invalid \"ms_run\" reference [%s]: this value is expected " +
+				"to conform to string format [%s].", tokens[0], "ms_run[1-n]"));
 		int msRun = Integer.parseInt(matcher.group(1));
 		String msRunLocation = peakListFiles.get(msRun);
 		if (msRunLocation == null)
 			throw new InvalidPSMException(String.format(
-				"Line %d of mzTab file [%s] contains an invalid " +
-				"\"ms_run\" reference [%s]: a file location for " +
-				"\"ms_run\" index %d was not found in the metadata " +
-				"section of the mzTab file.",
-				lineNumber, mzTabFilename, tokens[0], msRun));
+				"Invalid \"ms_run\" reference [%s]: a file location for " +
+				"\"ms_run\" index %d was not found in the metadata section " +
+				"of this file.", tokens[0], msRun));
 		String scanFilename =
 			context.getScanFilename(mzTabFilename, msRunLocation);
 		if (scanFilename == null)
 			throw new InvalidPSMException(String.format(
-				"Could not validate line %d of mzTab file [%s]: " +
 				"\"ms_run\" reference [%s], corresponding to file " +
 				"location [%s], could not be mapped back to any " +
 				"submitted peak list file that was parsed for " +
 				"validation against its spectra contents.",
-				lineNumber, mzTabFilename, tokens[0],
-				msRunLocation));
+				tokens[0], msRunLocation));
 		ImmutablePair<Collection<Integer>, Collection<Integer>> scans =
 			spectra.get(scanFilename);
 		if (scans == null)
 			throw new InvalidPSMException(String.format(
-				"Could not validate line %d of mzTab file [%s]: " +
-				"no spectra were found for \"ms_run\" reference " +
+				"No spectra were found for \"ms_run\" reference " +
 				"[%s], corresponding to file location [%s] (parsed " +
 				"into spectra summary file [%s]).",
-				lineNumber, mzTabFilename, tokens[0],
-				msRunLocation, scanFilename));
+				tokens[0], msRunLocation, scanFilename));
 		else validateSpectraRef(tokens[1], scans, lineNumber,
 			mzTabFilename, resolveFilename(msRunLocation));
 	}
@@ -423,22 +499,20 @@ public class MzTabValidator
 		// string was of an unrecognized type
 		if (value == null)
 			throw new InvalidPSMException(String.format(
-				"Line %d of mzTab file [%s] contains an invalid " +
-				"NativeID-formatted spectrum identifier [%s]: either an " +
-				"index or a scan number must be provided in order to find " +
+				"Invalid NativeID-formatted spectrum identifier [%s]: either " +
+				"an index or a scan number must be provided in order to find " +
 				"the referenced spectrum within the submitted peak list file.",
-				lineNumber, mzTabFilename, nativeID));
+				nativeID));
 		Collection<Integer> ids = null;
 		if (scan)
 			ids = scans.getLeft();
 		else ids = scans.getRight();
 		if (ids == null || ids.contains(value) == false)
 			throw new InvalidPSMException(String.format(
-				"Line %d of mzTab file [%s] contains an invalid " +
-				"NativeID-formatted spectrum identifier [%s]: spectrum %s %d " +
-				"could not be found within the submitted peak list file.",
-				lineNumber, mzTabFilename, nativeID,
-				scan ? "scan number" : "index", value));
+				"Invalid NativeID-formatted spectrum identifier " +
+				"[%s]: spectrum %s %d could not be found within " +
+				"the submitted peak list file.",
+				nativeID, scan ? "scan number" : "index", value));
 	}
 	
 	private static String resolveFilename(String filename) {
@@ -477,5 +551,14 @@ public class MzTabValidator
 		if (error != null)
 			error.printStackTrace();
 		System.exit(1);
+	}
+	
+	private static Throwable getRootCause(Throwable error) {
+		if (error == null)
+			return null;
+		Throwable cause = error.getCause();
+		if (cause == null)
+			return error;
+		else return getRootCause(cause);
 	}
 }
