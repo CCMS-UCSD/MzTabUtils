@@ -27,7 +27,8 @@ public class MzTabValidator
 		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabValidator" +
 		"\n\t<ParameterFile>" +
 		"\n\t<MzTabDirectory>" +
-		"\n\t<ScansDirectory>";
+		"\n\t<ScansDirectory>" +
+		"\n\t<OutputFile>";
 	private static final String TEMPORARY_MZTAB_FILE =
 		"temp_modified_result.mzTab";
 	private static final Pattern FILE_REFERENCE_PATTERN =
@@ -45,12 +46,27 @@ public class MzTabValidator
 	 * Public interface methods
 	 *========================================================================*/
 	public static void main(String[] args) {
-		if (args == null || args.length < 3)
+		if (args == null || args.length < 4)
 			die(USAGE);
+		PrintWriter writer = null;
 		try {
 			// build mzTab file context
 			MassIVEMzTabContext context = new MassIVEMzTabContext(
 				new File(args[0]), new File(args[1]), new File(args[2]));
+			// verify output file
+			// validate output file
+			File output = new File(args[3]);
+			if (output.isDirectory())
+				throw new IllegalArgumentException(
+					String.format("Output file [%s] " +
+						"must be a normal (non-directory) file.",
+						output.getAbsolutePath()));
+			// set up output file writer
+			if (output.exists() == false && output.createNewFile() == false)
+				die(String.format("Could not create output file [%s]",
+					output.getAbsolutePath()));
+			writer = new PrintWriter(
+				new BufferedWriter(new FileWriter(output, false)));
 			// Read all scans files
 			Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
 				scans = new LinkedHashMap<String,
@@ -81,20 +97,26 @@ public class MzTabValidator
 				int total = counts.getLeft();
 				int invalid = counts.getRight();
 				double percentage = (double)invalid / (double)total * 100.0;
-				String mzTabFilename =
-					context.getUploadedMzTabFilename(mzTabFile.getName());
-				System.out.println(String.format("Validating MzTab file " +
-					"[%s]: %d PSM rows, %d of which were invalid (%.2f%%)",
-					mzTabFilename, total, invalid, percentage));
+				String mzTabFilename = mzTabFile.getName();
+				writer.println(String.format("%s.totalPSMs=%d",
+					mzTabFilename, total));
+				writer.println(String.format("%s.invalidPSMs=%d",
+					mzTabFilename, invalid));
+				writer.println(String.format("%s.invalidPercent=%.2f%%",
+					mzTabFilename, percentage));
 				if (percentage > 10)
-					die(String.format("MzTab file [%s] contains %.2f%% " +
-						"invalid PSM rows.  Please correct the file and " +
-						"ensure that its referenced spectra are accessible " +
-						"within linked peak list files, and then re-submit.",
-						mzTabFilename, percentage));
+					die(String.format("MzTab file [%s] contains %s%% invalid " +
+						"PSM rows.  Please correct the file and ensure that " +
+						"its referenced spectra are accessible within linked " +
+						"peak list files, and then re-submit.",
+						context.getUploadedMzTabFilename(mzTabFilename),
+						percentage));
 			}
 		} catch (Throwable error) {
 			die(getRootCause(error).getMessage());
+		} finally {
+			try { writer.close(); }
+			catch (Throwable error) {}
 		}
 	}
 	
