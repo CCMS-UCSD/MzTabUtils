@@ -102,7 +102,7 @@ public class MzTabValidator
 					mzTabFilename, total));
 				writer.println(String.format("%s.invalidPSMs=%d",
 					mzTabFilename, invalid));
-				writer.println(String.format("%s.invalidPercent=%.2f%%",
+				writer.println(String.format("%s.invalidPercent=%.2f",
 					mzTabFilename, percentage));
 				if (percentage > 10)
 					die(String.format("MzTab file [%s] contains %s%% invalid " +
