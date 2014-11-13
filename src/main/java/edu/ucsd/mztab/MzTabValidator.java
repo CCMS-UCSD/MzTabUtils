@@ -67,7 +67,8 @@ public class MzTabValidator
 					output.getAbsolutePath()));
 			writer = new PrintWriter(
 				new BufferedWriter(new FileWriter(output, false)));
-			// Read all scans files
+			// read all scans files
+			boolean complete = true;
 			Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
 				scans = new LinkedHashMap<String,
 					ImmutablePair<Collection<Integer>, Collection<Integer>>>();
@@ -76,7 +77,7 @@ public class MzTabValidator
 				System.out.println("No files were submitted in the \"PEAK\" " +
 					"category for this dataset, so it will be marked as an " +
 					"unsupported (i.e. partial) submission.");
-				// TODO: actually mark the dataset as not complete
+				complete = false;
 			} else for (File scansFile : scansFiles) {
 				ImmutablePair<Collection<Integer>, Collection<Integer>>
 					spectra = readScansFile(scansFile);
@@ -90,7 +91,7 @@ public class MzTabValidator
 				System.out.println("No files were submitted in the " +
 					"\"RESULT\" category for this dataset, so it will be " +
 					"marked as an unsupported (i.e. partial) submission.");
-				// TODO: actually mark the dataset as not complete
+				complete = false;
 			} else for (File mzTabFile : mzTabFiles) {
 				ImmutablePair<Integer, Integer> counts =
 					validateMzTabFile(mzTabFile, context, scans);
@@ -112,6 +113,8 @@ public class MzTabValidator
 						context.getUploadedMzTabFilename(mzTabFilename),
 						percentage));
 			}
+			// write validated submission status into the output file
+			writer.println(String.format("submission.complete=%b", complete));
 		} catch (Throwable error) {
 			die(getRootCause(error).getMessage());
 		} finally {
