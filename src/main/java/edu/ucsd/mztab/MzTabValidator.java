@@ -73,16 +73,13 @@ public class MzTabValidator
 				scans = new LinkedHashMap<String,
 					ImmutablePair<Collection<Integer>, Collection<Integer>>>();
 			Collection<File> scansFiles = context.getScansFiles();
-			if (scansFiles == null || scansFiles.isEmpty()) {
-				System.out.println("No files were submitted in the \"PEAK\" " +
-					"category for this dataset, so it will be marked as an " +
-					"unsupported (i.e. partial) submission.");
-				complete = false;
-			} else for (File scansFile : scansFiles) {
-				ImmutablePair<Collection<Integer>, Collection<Integer>>
-					spectra = readScansFile(scansFile);
-				if (scansFile != null)
-					scans.put(scansFile.getName(), spectra);
+			if (scansFiles != null) {
+				for (File scansFile : scansFiles) {
+					ImmutablePair<Collection<Integer>, Collection<Integer>>
+						spectra = readScansFile(scansFile);
+					if (scansFile != null)
+						scans.put(scansFile.getName(), spectra);
+				}
 			}
 			// read all mzTab files, ensure that all referenced spectra
 			// are present in the provided peak list files
@@ -93,25 +90,34 @@ public class MzTabValidator
 					"marked as an unsupported (i.e. partial) submission.");
 				complete = false;
 			} else for (File mzTabFile : mzTabFiles) {
-				ImmutablePair<Integer, Integer> counts =
-					validateMzTabFile(mzTabFile, context, scans);
-				int total = counts.getLeft();
-				int invalid = counts.getRight();
-				double percentage = (double)invalid / (double)total * 100.0;
+				// extract counts for PSMs, invalid PSMs, proteins and peptides
+				int[] counts = validateMzTabFile(mzTabFile, context, scans);
 				String mzTabFilename = mzTabFile.getName();
-				writer.println(String.format("%s.totalPSMs=%d",
-					mzTabFilename, total));
-				writer.println(String.format("%s.invalidPSMs=%d",
-					mzTabFilename, invalid));
-				writer.println(String.format("%s.invalidPercent=%.2f",
-					mzTabFilename, percentage));
+				String uploadedMzTabFilename =
+					context.getUploadedMzTabFilename(mzTabFilename);
+				if (counts == null || counts.length != 4)
+					die(String.format(
+						"MzTab file [%s] could not be parsed for validation.",
+						uploadedMzTabFilename));
+				int psms = counts[0];
+				int invalid = counts[1];
+				// if this mzTab file has more than 10% invalid PSMs, it's bad
+				double percentage = (double)invalid / (double)psms * 100.0;
 				if (percentage > 10)
 					die(String.format("MzTab file [%s] contains %s%% invalid " +
 						"PSM rows.  Please correct the file and ensure that " +
 						"its referenced spectra are accessible within linked " +
 						"peak list files, and then re-submit.",
-						context.getUploadedMzTabFilename(mzTabFilename),
-						percentage));
+						uploadedMzTabFilename, percentage));
+				// if it's good, write this mzTab file's row counts to the file
+				writer.println(String.format("%s.totalPSMs=%d",
+					mzTabFilename, psms));
+				writer.println(String.format("%s.invalidPSMs=%d",
+					mzTabFilename, invalid));
+				writer.println(String.format("%s.proteins=%d",
+					mzTabFilename, counts[2]));
+				writer.println(String.format("%s.peptides=%d",
+					mzTabFilename, counts[3]));
 			}
 			// write validated submission status into the output file
 			writer.println(String.format("submission.complete=%b", complete));
@@ -191,7 +197,7 @@ public class MzTabValidator
 			scans, indices);
 	}
 	
-	private static ImmutablePair<Integer, Integer> validateMzTabFile(
+	private static int[] validateMzTabFile(
 		File mzTabFile, MassIVEMzTabContext context,
 		Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
 		spectra
@@ -224,6 +230,8 @@ public class MzTabValidator
 		// validate mzTab file's PSMs
 		int psmCount = 0;
 		int invalidCount = 0;
+		int proteinCount = 0;
+		int peptideCount = 0;
 		BufferedReader reader = null;
 		PrintWriter writer = null;
 		File output = new File(TEMPORARY_MZTAB_FILE);
@@ -286,8 +294,12 @@ public class MzTabValidator
 					writer.println(line);
 					continue;
 				}
-				// only process PSM rows
+				// only validate PSM rows, but count PRT and PEP rows
 				else if (line.startsWith("PSM") == false) {
+					if (line.startsWith("PRT"))
+						proteinCount++;
+					else if (line.startsWith("PEP"))
+						peptideCount++;
 					writer.println(line);
 					continue;
 				}
@@ -378,7 +390,7 @@ public class MzTabValidator
 			throw new IOException(String.format(
 				"Could not delete temporary mzTab file [%s]",
 				output.getAbsolutePath()));
-		return new ImmutablePair<Integer, Integer>(psmCount, invalidCount);
+		return new int[] { psmCount, invalidCount, proteinCount, peptideCount };
 	}
 	
 	private static Map<Integer, String> extractMsRunFilenames(File mzTabFile)
