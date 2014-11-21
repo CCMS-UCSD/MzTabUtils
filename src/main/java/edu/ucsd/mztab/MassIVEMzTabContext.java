@@ -7,6 +7,8 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.xpath.XPathAPI;
@@ -23,6 +25,8 @@ public class MassIVEMzTabContext
 	 *========================================================================*/
 	private static final FilePathComparator FILE_PATH_COMPARATOR =
 		new FilePathComparator();
+	private static final Pattern FILE_URI_PATTERN =
+		Pattern.compile("[^/]+://(.*)");
 	
 	/*========================================================================
 	 * Properties
@@ -138,7 +142,13 @@ public class MassIVEMzTabContext
 			return null;
 		else for (PeakListFileMapping mapping : mappings) {
 			String location = mapping.mzTabPeakListFilename;
-			if (location != null && location.equals(msRunLocation)) {
+			if (location == null)
+				continue;
+			// if the raw "ms_run" location does not match,
+			// try stripping off the protocol part of the URL
+			else if (location.equals(msRunLocation) == false)
+				msRunLocation = resolveFilename(msRunLocation);
+			if (location.equals(msRunLocation)) {
 				String mangled = mapping.mangledPeakListFilename;
 				if (mangled != null)
 					return FilenameUtils.getBaseName(mangled) + ".scans";
@@ -362,6 +372,24 @@ public class MassIVEMzTabContext
 			error.printStackTrace();
 			throw new RuntimeException(errorMessage, error);
 		}
+	}
+	
+	private static String resolveFilename(String filename) {
+		if (filename == null)
+			return null;
+		// account for buggy mzidentml-lib implementation
+		Pattern pattern = Pattern.compile("^[^:/]+:/{2,3}([^:/]+://.*)$");
+		Matcher matcher = pattern.matcher(filename);
+		if (matcher.matches())
+			filename = matcher.group(1);
+		// if this is a file URI, clean it
+		matcher = FILE_URI_PATTERN.matcher(filename);
+		if (matcher.matches())
+			filename = matcher.group(1);
+		// account for buggy jmzTab file URLs
+		if (filename.startsWith("file:"))
+			filename = filename.substring(5);
+		return filename;
 	}
 	
 	/*========================================================================
