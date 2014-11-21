@@ -434,9 +434,6 @@ public class MzTabValidator
 		else return peakListFiles;
 	}
 	
-//
-static String checked = null;
-//
 	private static void validatePSMRow(
 		String spectraRef, MassIVEMzTabContext context,
 		Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
@@ -479,22 +476,6 @@ static String checked = null;
 				"of this file.", tokens[0], msRun));
 		String scanFilename =
 			context.getScanFilename(mzTabFilename, msRunLocation);
-//
-if (scanFilename == null &&
-	(checked == null || checked.equals(mzTabFilename) == false)) {
-	checked = mzTabFilename;
-	System.out.println("----------");
-	System.out.println(String.format(
-		"Attempting to validate PSM row at line %d of mzTab file [%s]:",
-		lineNumber, mzTabFilename));
-	System.out.println(String.format(
-		"Could not find scans file for \"ms_run\" location [%s].",
-		msRunLocation));
-	System.out.println("----------");
-	System.out.println(context.toString());
-	System.out.println("----------");
-}
-//
 		if (scanFilename == null)
 			throw new InvalidPSMException(String.format(
 				"\"ms_run\" reference [%s], corresponding to file " +
