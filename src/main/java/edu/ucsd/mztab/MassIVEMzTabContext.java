@@ -7,14 +7,13 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
+import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.FileIOUtils;
 import edu.ucsd.util.FilePathComparator;
 
@@ -25,8 +24,6 @@ public class MassIVEMzTabContext
 	 *========================================================================*/
 	private static final FilePathComparator FILE_PATH_COMPARATOR =
 		new FilePathComparator();
-	private static final Pattern FILE_URI_PATTERN =
-		Pattern.compile("[^/]+://(.*)");
 	
 	/*========================================================================
 	 * Properties
@@ -147,7 +144,11 @@ public class MassIVEMzTabContext
 			// if the raw "ms_run" location does not match,
 			// try stripping off the protocol part of the URL
 			else if (location.equals(msRunLocation) == false)
-				msRunLocation = resolveFilename(msRunLocation);
+				msRunLocation = CommonUtils.cleanFileURL(msRunLocation);
+			// as a last-ditch effort, try stripping off a leading "/"
+			if (location.equals(msRunLocation) == false &&
+				msRunLocation.startsWith("/"))
+				msRunLocation = msRunLocation.substring(1);
 			if (location.equals(msRunLocation)) {
 				String mangled = mapping.mangledPeakListFilename;
 				if (mangled != null)
@@ -372,24 +373,6 @@ public class MassIVEMzTabContext
 			error.printStackTrace();
 			throw new RuntimeException(errorMessage, error);
 		}
-	}
-	
-	private static String resolveFilename(String filename) {
-		if (filename == null)
-			return null;
-		// account for buggy mzidentml-lib implementation
-		Pattern pattern = Pattern.compile("^[^:/]+:/{2,3}([^:/]+://.*)$");
-		Matcher matcher = pattern.matcher(filename);
-		if (matcher.matches())
-			filename = matcher.group(1);
-		// if this is a file URI, clean it
-		matcher = FILE_URI_PATTERN.matcher(filename);
-		if (matcher.matches())
-			filename = matcher.group(1);
-		// account for buggy jmzTab file URLs
-		if (filename.startsWith("file:"))
-			filename = filename.substring(5);
-		return filename;
 	}
 	
 	/*========================================================================

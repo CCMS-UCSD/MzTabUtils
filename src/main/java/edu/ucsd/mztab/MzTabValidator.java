@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.FileIOUtils;
 
 public class MzTabValidator
@@ -39,8 +40,6 @@ public class MzTabValidator
 	private static final Pattern INDEX_PATTERN =
 		Pattern.compile("index=(\\d+)");
 	private static final Pattern FILE_PATTERN = Pattern.compile("file=(.+)");
-	private static final Pattern FILE_URI_PATTERN =
-		Pattern.compile("[^/]+://(.*)");
 	
 	/*========================================================================
 	 * Public interface methods
@@ -492,7 +491,7 @@ public class MzTabValidator
 				"into spectra summary file [%s]).",
 				tokens[0], msRunLocation, scanFilename));
 		else validateSpectraRef(tokens[1], scans, lineNumber,
-			mzTabFilename, resolveFilename(msRunLocation));
+			mzTabFilename, CommonUtils.cleanFileURL(msRunLocation));
 	}
 	
 	private static void validateSpectraRef(String nativeID,
@@ -514,22 +513,27 @@ public class MzTabValidator
 		Integer value = null;
 		// first try to extract a scan number
 		Matcher matcher = SCAN_PATTERN.matcher(nativeID);
-		if (matcher.matches())
+		if (matcher.find())
 			value = Integer.parseInt(matcher.group(1));
 		else {
 			// then try to extract an index
 			matcher = INDEX_PATTERN.matcher(nativeID);
-			if (matcher.matches()) {
+			if (matcher.find()) {
 				scan = false;
 				value = Integer.parseInt(matcher.group(1));
 			} else {
 				// if it's a file specifier, and no index was also specified,
 				// then assume that it's just a 1-spectrum file
 				matcher = FILE_PATTERN.matcher(nativeID);
-				if (matcher.matches()) {
+				if (matcher.find()) {
 					scan = false;
 					value = Integer.parseInt(matcher.group(1));
 				}
+				// if it's just an integer, then by default
+				// we process it as a spectrum index
+				else try {
+					value = Integer.parseInt(nativeID);
+				} catch (NumberFormatException error) {}
 			}
 		}
 		// if nothing was found, then the nativeID
@@ -550,24 +554,6 @@ public class MzTabValidator
 				"[%s]: spectrum %s %d could not be found within " +
 				"the submitted peak list file.",
 				nativeID, scan ? "scan number" : "index", value));
-	}
-	
-	private static String resolveFilename(String filename) {
-		if (filename == null)
-			return null;
-		// account for buggy mzidentml-lib implementation
-		Pattern pattern = Pattern.compile("^[^:/]+:/{2,3}([^:/]+://.*)$");
-		Matcher matcher = pattern.matcher(filename);
-		if (matcher.matches())
-			filename = matcher.group(1);
-		// if this is a file URI, clean it
-		matcher = FILE_URI_PATTERN.matcher(filename);
-		if (matcher.matches())
-			filename = matcher.group(1);
-		// account for buggy jmzTab file URLs
-		if (filename.startsWith("file:"))
-			filename = filename.substring(5);
-		return filename;
 	}
 	
 	private static void die(String message) {
