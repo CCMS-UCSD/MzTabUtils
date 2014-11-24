@@ -35,7 +35,7 @@ public class MzTabValidator
 	private static final Pattern FILE_REFERENCE_PATTERN =
 		Pattern.compile("ms_run\\[(\\d+)\\]");
 	private static final Pattern FILE_LINE_PATTERN =
-		Pattern.compile("^MTD\\s+ms_run\\[(\\d+)\\]-location\\s+([^\\s].*)$");
+		Pattern.compile("^MTD\\s+ms_run\\[(\\d+)\\]-location\\s+(.+)$");
 	private static final Pattern SCAN_PATTERN = Pattern.compile("scan=(\\d+)");
 	private static final Pattern INDEX_PATTERN =
 		Pattern.compile("index=(\\d+)");
