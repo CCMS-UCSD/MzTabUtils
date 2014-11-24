@@ -519,20 +519,21 @@ public class MzTabValidator
 			// then try to extract an index
 			matcher = INDEX_PATTERN.matcher(nativeID);
 			if (matcher.find()) {
-				scan = false;
 				value = Integer.parseInt(matcher.group(1));
+				scan = false;
 			} else {
 				// if it's a file specifier, and no index was also specified,
 				// then assume that it's just a 1-spectrum file
 				matcher = FILE_PATTERN.matcher(nativeID);
 				if (matcher.find()) {
-					scan = false;
 					value = Integer.parseInt(matcher.group(1));
+					scan = false;
 				}
 				// if it's just an integer, then by default
 				// we process it as a spectrum index
 				else try {
 					value = Integer.parseInt(nativeID);
+					scan = false;
 				} catch (NumberFormatException error) {}
 			}
 		}
