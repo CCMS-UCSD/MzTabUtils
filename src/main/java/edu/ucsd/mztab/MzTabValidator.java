@@ -66,8 +66,10 @@ public class MzTabValidator
 					output.getAbsolutePath()));
 			writer = new PrintWriter(
 				new BufferedWriter(new FileWriter(output, false)));
+			writer.println("MzTab_file\tUploaded_file\tPSM_rows\t" +
+				"Invalid_PSM_rows\tFound_PSMs\tPeptide_rows\t" +
+				"Found_Peptides\tProtein_rows\tFound_Proteins");
 			// read all scans files
-			boolean complete = true;
 			Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
 				scans = new LinkedHashMap<String,
 					ImmutablePair<Collection<Integer>, Collection<Integer>>>();
@@ -87,14 +89,13 @@ public class MzTabValidator
 				System.out.println("No files were submitted in the " +
 					"\"RESULT\" category for this dataset, so it will be " +
 					"marked as an unsupported (i.e. partial) submission.");
-				complete = false;
 			} else for (File mzTabFile : mzTabFiles) {
 				// extract counts for PSMs, invalid PSMs, proteins and peptides
 				int[] counts = validateMzTabFile(mzTabFile, context, scans);
 				String mzTabFilename = mzTabFile.getName();
 				String uploadedMzTabFilename =
 					context.getUploadedMzTabFilename(mzTabFilename);
-				if (counts == null || counts.length != 4)
+				if (counts == null || counts.length != 7)
 					die(String.format(
 						"MzTab file [%s] could not be parsed for validation.",
 						uploadedMzTabFilename));
@@ -109,17 +110,11 @@ public class MzTabValidator
 						"peak list files, and then re-submit.",
 						uploadedMzTabFilename, percentage));
 				// if it's good, write this mzTab file's row counts to the file
-				writer.println(String.format("%s.totalPSMs=%d",
-					mzTabFilename, psms));
-				writer.println(String.format("%s.invalidPSMs=%d",
-					mzTabFilename, invalid));
-				writer.println(String.format("%s.proteins=%d",
-					mzTabFilename, counts[2]));
-				writer.println(String.format("%s.peptides=%d",
-					mzTabFilename, counts[3]));
+				writer.println(String.format(
+					"%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+					mzTabFilename, uploadedMzTabFilename, psms, invalid,
+					counts[2], counts[3], counts[4], counts[5], counts[6]));
 			}
-			// write validated submission status into the output file
-			writer.println(String.format("submission.complete=%b", complete));
 		} catch (Throwable error) {
 			die(getRootCause(error).getMessage());
 		} finally {
@@ -227,10 +222,13 @@ public class MzTabValidator
 				"No valid \"ms_run[1-n]-location\" lines were found " +
 				"in mzTab file [%s].", mzTabFilename));
 		// validate mzTab file's PSMs
-		int psmCount = 0;
-		int invalidCount = 0;
-		int proteinCount = 0;
-		int peptideCount = 0;
+		Collection<PSMRecord> uniquePSMs = new LinkedHashSet<PSMRecord>();
+		Collection<String> foundPeptides = new LinkedHashSet<String>();
+		Collection<String> foundProteins = new LinkedHashSet<String>();
+		int psmRowCount = 0;
+		int invalidRowCount = 0;
+		int peptideRowCount = 0;
+		int proteinRowCount = 0;
 		BufferedReader reader = null;
 		PrintWriter writer = null;
 		File output = new File(TEMPORARY_MZTAB_FILE);
@@ -240,6 +238,9 @@ public class MzTabValidator
 				new FileWriter(output, false)));
 			String line = null;
 			int lineCount = 0;
+			int sequenceIndex = -1;
+			int accessionIndex = -1;
+			int modsIndex = -1;
 			// read PSM rows, ensure that all "spectra_ref" elements correspond
 			// to spectra that were actually found in the peak list files
 			int spectraRefIndex = -1;
@@ -265,6 +266,12 @@ public class MzTabValidator
 						String header = headers[i];
 						if (header == null)
 							continue;
+						else if (header.equalsIgnoreCase("sequence"))
+							sequenceIndex = i;
+						else if (header.equalsIgnoreCase("accession"))
+							accessionIndex = i;
+						else if (header.equalsIgnoreCase("modifications"))
+							modsIndex = i;
 						else if (header.equalsIgnoreCase("spectra_ref"))
 							spectraRefIndex = i;
 						else if (header.equalsIgnoreCase("opt_global_valid"))
@@ -273,7 +280,25 @@ public class MzTabValidator
 							"opt_global_invalid_reason"))
 							invalidReasonIndex = i;
 					}
-					if (spectraRefIndex < 0)
+					if (sequenceIndex < 0)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:\n" +
+							"----------\n%s\n----------\nNo \"sequence\" " +
+							"column header element was found.",
+							lineCount, mzTabFilename, line));
+					else if (accessionIndex < 0)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:\n" +
+							"----------\n%s\n----------\nNo \"accession\" " +
+							"column header element was found.",
+							lineCount, mzTabFilename, line));
+					else if (modsIndex < 0)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:\n" +
+							"----------\n%s\n----------\nNo " +
+							"\"modifications\" column header element was " +
+							"found.", lineCount, mzTabFilename, line));
+					else if (spectraRefIndex < 0)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
@@ -296,36 +321,55 @@ public class MzTabValidator
 				// only validate PSM rows, but count PRT and PEP rows
 				else if (line.startsWith("PSM") == false) {
 					if (line.startsWith("PRT"))
-						proteinCount++;
+						proteinRowCount++;
 					else if (line.startsWith("PEP"))
-						peptideCount++;
+						peptideRowCount++;
 					writer.println(line);
 					continue;
 				}
 				// ensure that a "spectra_ref" column index was found
-				if (spectraRefIndex < 0 || validIndex < 0 ||
+				if (sequenceIndex < 0 || accessionIndex < 0 || modsIndex < 0 ||
+					spectraRefIndex < 0 || validIndex < 0 ||
 					invalidReasonIndex < 0)
 					throw new IllegalArgumentException(String.format(
 						"A \"PSM\" row (line %d) was found before the " +
 						"\"PSH\" row in mzTab file [%s].",
 						lineCount, mzTabFilename));
+				else psmRowCount++;
 				// validate this PSM row
 				String[] columns = line.split("\\t");
 				try {
-					psmCount++;
 					if (columns == null || columns.length < 1 ||
-						columns.length <= spectraRefIndex)
+						columns.length <= sequenceIndex)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:\n" +
+							"----------\n%s\n----------\nNo \"sequence\" " +
+							"column element was found (expected at index %d).",
+							lineCount, mzTabFilename, line, sequenceIndex));
+					else if (columns.length <= accessionIndex)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:\n" +
+							"----------\n%s\n----------\nNo \"accession\" " +
+							"column element was found (expected at index %d).",
+							lineCount, mzTabFilename, line, accessionIndex));
+					else if (columns.length <= modsIndex)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:\n" +
+							"----------\n%s\n----------\nNo " +
+							"\"modifications\" column element was found " +
+							"(expected at index %d).",
+							lineCount, mzTabFilename, line, modsIndex));
+					else if (columns.length <= spectraRefIndex)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
 							"column element was found (expected at index %d).",
-							lineCount, mzTabFilename, line,
-							spectraRefIndex));
+							lineCount, mzTabFilename, line, spectraRefIndex));
 					// check existing validity status, if any
 					if (validIndex < columns.length) {
 						String validity = columns[validIndex];
 						if (validity.equalsIgnoreCase("INVALID")) {
-							invalidCount++;
+							invalidRowCount++;
 							// ensure that a reason was provided
 							if (invalidReasonIndex >= columns.length)
 								line = line.trim() + "\tThis PSM was marked " +
@@ -334,8 +378,11 @@ public class MzTabValidator
 							continue;
 						}
 					}
-					validatePSMRow(columns[spectraRefIndex], context, spectra,
-						peakListFiles, lineCount, mzTabFilename);
+					uniquePSMs.add(validatePSMRow(columns[sequenceIndex],
+						columns[modsIndex], columns[spectraRefIndex], context,
+						spectra, peakListFiles, lineCount, mzTabFilename));
+					foundPeptides.add(columns[sequenceIndex]);
+					foundProteins.add(columns[accessionIndex]);
 					// if we got this far, then the row is valid,
 					// so mark it as such if it isn't already
 					if (validIndex >= columns.length)
@@ -344,7 +391,7 @@ public class MzTabValidator
 						line = line.trim() + "\tnull";
 					writer.println(line);
 				} catch (InvalidPSMException error) {
-					invalidCount++;
+					invalidRowCount++;
 					// mark the row as invalid
 					if (validIndex < columns.length) {
 						columns[validIndex] = "INVALID";
@@ -389,7 +436,11 @@ public class MzTabValidator
 			throw new IOException(String.format(
 				"Could not delete temporary mzTab file [%s]",
 				output.getAbsolutePath()));
-		return new int[] { psmCount, invalidCount, proteinCount, peptideCount };
+		return new int[] {
+			psmRowCount, invalidRowCount, uniquePSMs.size(),
+			peptideRowCount, foundPeptides.size(),
+			proteinRowCount, foundProteins.size()
+		};
 	}
 	
 	private static Map<Integer, String> extractMsRunFilenames(File mzTabFile)
@@ -433,13 +484,17 @@ public class MzTabValidator
 		else return peakListFiles;
 	}
 	
-	private static void validatePSMRow(
-		String spectraRef, MassIVEMzTabContext context,
-		Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
-		spectra, Map<Integer, String> peakListFiles,
-		int lineNumber, String mzTabFilename
+	private static PSMRecord validatePSMRow(
+		String sequence, String modifications, String spectraRef,
+		MassIVEMzTabContext context, Map<String,
+			ImmutablePair<Collection<Integer>, Collection<Integer>>> spectra,
+		Map<Integer, String> peakListFiles, int lineNumber, String mzTabFilename
 	) throws InvalidPSMException {
-		if (spectraRef == null)
+		if (sequence == null)
+			throw new NullPointerException("\"sequence\" string is null.");
+		else if (modifications == null)
+			throw new NullPointerException("\"modifications\" string is null.");
+		else if (spectraRef == null)
 			throw new NullPointerException("\"spectra_ref\" string is null.");
 		else if (context == null)
 			throw new NullPointerException(
@@ -492,6 +547,7 @@ public class MzTabValidator
 				tokens[0], msRunLocation, scanFilename));
 		else validateSpectraRef(tokens[1], scans, lineNumber,
 			mzTabFilename, CommonUtils.cleanFileURL(msRunLocation));
+		return new PSMRecord(msRun, tokens[1], sequence, modifications);
 	}
 	
 	private static void validateSpectraRef(String nativeID,
