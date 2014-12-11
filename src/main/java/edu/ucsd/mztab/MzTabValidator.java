@@ -99,21 +99,32 @@ public class MzTabValidator
 					die(String.format(
 						"MzTab file [%s] could not be parsed for validation.",
 						uploadedMzTabFilename));
-				int psms = counts[0];
-				int invalid = counts[1];
 				// if this mzTab file has more than 10% invalid PSMs, it's bad
-				double percentage = (double)invalid / (double)psms * 100.0;
+				int psmRows = counts[0];
+				int invalidRows = counts[1];
+				double percentage = (double)invalidRows / (double)psmRows * 100.0;
 				if (percentage > 10)
 					die(String.format("MzTab file [%s] contains %s%% invalid " +
 						"PSM rows.  Please correct the file and ensure that " +
 						"its referenced spectra are accessible within linked " +
 						"peak list files, and then re-submit.",
 						uploadedMzTabFilename, percentage));
+				int foundPSMs = counts[2];
+				// only show found peptide and protein counts if the
+				// corresponding sections were not found in the file
+				int peptideRows = counts[3];
+				int foundPeptides = counts[4];
+				if (peptideRows > 0)
+					foundPeptides = 0;
+				int proteinRows = counts[5];
+				int foundProteins = counts[6];
+				if (proteinRows > 0)
+					foundProteins = 0;
 				// if it's good, write this mzTab file's row counts to the file
 				writer.println(String.format(
 					"%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
-					mzTabFilename, uploadedMzTabFilename, psms, invalid,
-					counts[2], counts[3], counts[4], counts[5], counts[6]));
+					mzTabFilename, uploadedMzTabFilename, psmRows, invalidRows,
+					foundPSMs, peptideRows, foundPeptides, proteinRows, foundProteins));
 			}
 		} catch (Throwable error) {
 			die(getRootCause(error).getMessage());
