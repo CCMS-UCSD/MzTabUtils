@@ -577,6 +577,7 @@ public class MzTabValidator
 			throw new NullPointerException("Peak list filename is null.");
 		// extract the spectrum identifier from the nativeID string
 		boolean scan = true;
+		boolean unknown = false;
 		Integer value = null;
 		// first try to extract a scan number
 		Matcher matcher = SCAN_PATTERN.matcher(nativeID);
@@ -596,11 +597,12 @@ public class MzTabValidator
 					value = Integer.parseInt(matcher.group(1));
 					scan = false;
 				}
-				// if it's just an integer, then by default
-				// we process it as a spectrum index
+				// if it's just an integer, we don't know if it's a scan or an
+				// index, so we need to mark it as unknown; try index first
 				else try {
 					value = Integer.parseInt(nativeID);
 					scan = false;
+					unknown = true;
 				} catch (NumberFormatException error) {}
 			}
 		}
@@ -616,12 +618,21 @@ public class MzTabValidator
 		if (scan)
 			ids = scans.getLeft();
 		else ids = scans.getRight();
-		if (ids == null || ids.contains(value) == false)
-			throw new InvalidPSMException(String.format(
-				"Invalid NativeID-formatted spectrum identifier " +
-				"[%s]: spectrum %s %d could not be found within " +
-				"the submitted peak list file.",
-				nativeID, scan ? "scan number" : "index", value));
+		if (ids == null || ids.contains(value) == false) {
+			// try the other one if we're not sure
+			if (unknown) {
+				if (scan)
+					ids = scans.getRight();
+				else ids = scans.getLeft();
+			}
+			// try again in case we're checking the other set
+			if (ids == null || ids.contains(value) == false)
+				throw new InvalidPSMException(String.format(
+					"Invalid NativeID-formatted spectrum identifier " +
+					"[%s]: spectrum %s %d could not be found within " +
+					"the submitted peak list file.",
+					nativeID, scan ? "scan number" : "index", value));
+		}
 	}
 	
 	private static void die(String message) {
