@@ -162,15 +162,17 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		}
 		// instantiate all peptide records into the mzTab file
 		Map<String, PeptideRecord> peptideRecords = params.getPeptides();
-		for (String sequence : peptideRecords.keySet()) {
-			PeptideRecord record = peptideRecords.get(sequence);
-			Collection<String> accessions = record.getAccessions();
-			if (accessions == null || accessions.isEmpty()) {
-				Peptide peptide = new Peptide(metadata);
-				peptide.setSequence(sequence);
-			} else for (String accession : record.getAccessions()) {
-				Peptide peptide = new Peptide(metadata);
-				peptide.setSequence(sequence);
+		if (peptideRecords != null) {
+			for (String sequence : peptideRecords.keySet()) {
+				PeptideRecord record = peptideRecords.get(sequence);
+				Collection<String> accessions = record.getAccessions();
+				if (accessions == null || accessions.isEmpty()) {
+					Peptide peptide = new Peptide(metadata);
+					peptide.setSequence(sequence);
+				} else for (String accession : record.getAccessions()) {
+					Peptide peptide = new Peptide(metadata);
+					peptide.setSequence(sequence);
+				}
 			}
 		}
 		// read all lines in the TSV file and add them to an mzTab PSM record
