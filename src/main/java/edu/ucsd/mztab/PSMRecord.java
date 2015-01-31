@@ -104,4 +104,11 @@ public class PSMRecord
 	public int hashCode() {
 		return toString().hashCode();
 	}
+	
+	/*========================================================================
+	 * Property accessor methods
+	 *========================================================================*/
+	public String getNativeID() {
+		return nativeID;
+	}
 }

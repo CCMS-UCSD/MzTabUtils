@@ -14,7 +14,12 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.xpath.XPathAPI;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.FileIOUtils;
@@ -27,7 +32,8 @@ public class MzTabValidator
 	private static final String USAGE =
 		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabValidator" +
 		"\n\t<ParameterFile>" +
-		"\n\t<MzTabDirectory>" +
+		"\n\t<UploadedResultDirectory>" +
+		"\n\t<ConvertedMzTabDirectory>" +
 		"\n\t<ScansDirectory>" +
 		"\n\t<OutputFile>";
 	private static final String TEMPORARY_MZTAB_FILE =
@@ -51,10 +57,17 @@ public class MzTabValidator
 		try {
 			// build mzTab file context
 			MassIVEMzTabContext context = new MassIVEMzTabContext(
-				new File(args[0]), new File(args[1]), new File(args[2]));
+				new File(args[0]), new File(args[2]), new File(args[3]));
+			// verify uploaded result file directory
+			File uploadedResults = new File(args[1]);
+			if (uploadedResults.isDirectory() == false ||
+				uploadedResults.canRead() == false)
+				throw new IllegalArgumentException(
+					String.format("Uploaded result file directory [%s] " +
+						"must be a readable directory.",
+						uploadedResults.getAbsolutePath()));
 			// verify output file
-			// validate output file
-			File output = new File(args[3]);
+			File output = new File(args[4]);
 			if (output.isDirectory())
 				throw new IllegalArgumentException(
 					String.format("Output file [%s] " +
@@ -84,6 +97,12 @@ public class MzTabValidator
 			}
 			// read all mzTab files, ensure that all referenced spectra
 			// are present in the provided peak list files
+			Map<String, Document> parsedMzidFileCache =
+				new LinkedHashMap<String, Document>();
+			Map<Document, Map<String, Map<String, Collection<String>>>>
+				mzidSpectrumIDCache =
+					new LinkedHashMap<Document,
+						Map<String, Map<String, Collection<String>>>>();
 			Collection<File> mzTabFiles = context.getMzTabFiles();
 			if (mzTabFiles == null || mzTabFiles.isEmpty()) {
 				System.out.println("No files were submitted in the " +
@@ -91,7 +110,8 @@ public class MzTabValidator
 					"marked as an unsupported (i.e. partial) submission.");
 			} else for (File mzTabFile : mzTabFiles) {
 				// extract counts for PSMs, invalid PSMs, proteins and peptides
-				int[] counts = validateMzTabFile(mzTabFile, context, scans);
+				int[] counts = validateMzTabFile(mzTabFile, context, scans,
+					uploadedResults, parsedMzidFileCache, mzidSpectrumIDCache);
 				String mzTabFilename = mzTabFile.getName();
 				String uploadedMzTabFilename =
 					context.getUploadedMzTabFilename(mzTabFilename);
@@ -124,7 +144,8 @@ public class MzTabValidator
 				writer.println(String.format(
 					"%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
 					mzTabFilename, uploadedMzTabFilename, psmRows, invalidRows,
-					foundPSMs, peptideRows, foundPeptides, proteinRows, foundProteins));
+					foundPSMs, peptideRows, foundPeptides, proteinRows,
+					foundProteins));
 			}
 		} catch (Throwable error) {
 			die(getRootCause(error).getMessage());
@@ -205,7 +226,10 @@ public class MzTabValidator
 	private static int[] validateMzTabFile(
 		File mzTabFile, MassIVEMzTabContext context,
 		Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
-		spectra
+		spectra, File uploadedResults,
+		Map<String, Document> parsedMzidFileCache,
+		Map<Document, Map<String, Map<String, Collection<String>>>>
+		mzidSpectrumIDCache
 	) throws Exception {
 		if (mzTabFile == null)
 			throw new NullPointerException("MzTab file is null.");
@@ -219,6 +243,9 @@ public class MzTabValidator
 		else if (spectra == null)
 			throw new NullPointerException(
 				"Peak list file spectra ID collection is null.");
+		else if (uploadedResults == null)
+			throw new NullPointerException(
+				"Uploaded result directory is null.");
 		String mzTabFilename =
 			context.getUploadedMzTabFilename(mzTabFile.getName());
 		// extract all peak list file references from mzTab file
@@ -389,11 +416,42 @@ public class MzTabValidator
 							continue;
 						}
 					}
-					uniquePSMs.add(validatePSMRow(columns[sequenceIndex],
-						columns[modsIndex], columns[spectraRefIndex], context,
-						spectra, peakListFiles, lineCount, mzTabFilename));
+					// parse the spectra_ref into file reference and nativeID;
+					// each "spectra_ref" column value should
+					// be a string with the following format:
+					// ms_run[<index>]:<nativeID-formatted identifier string>
+					String spectraRef = columns[spectraRefIndex];
+					String[] tokens = spectraRef.split(":");
+					if (tokens == null || tokens.length != 2)
+						throw new InvalidPSMException(String.format(
+							"Invalid \"spectra_ref\" column value [%s]: this " +
+							"value is expected to conform to string format " +
+							"[%s].", spectraRef, "ms_run[1-n]:" +
+							"<nativeID-formatted identifier string>"));
+					PSMRecord psm = validatePSMRow(columns[sequenceIndex],
+						columns[modsIndex], tokens[0], tokens[1], context,
+						spectra, peakListFiles, lineCount, mzTabFilename,
+						uploadedResults, parsedMzidFileCache,
+						mzidSpectrumIDCache);
+					uniquePSMs.add(psm);
 					foundPeptides.add(columns[sequenceIndex]);
 					foundProteins.add(columns[accessionIndex]);
+					// check if the PSM row validation changed the nativeID;
+					// if so, rewrite the line with the new nativeID
+					if (tokens[1].equals(psm.getNativeID()) == false) {
+						StringBuffer newLine = new StringBuffer();
+						for (int i=0; i<columns.length; i++) {
+							if (i == spectraRefIndex) {
+								newLine.append(tokens[0]).append(":");
+								newLine.append(psm.getNativeID());
+							} else newLine.append(columns[i]);
+							newLine.append("\t");
+						}
+						// chomp trailing tab character
+						if (newLine.charAt(newLine.length() - 1) == '\t')
+							newLine.setLength(newLine.length() - 1);
+						line = newLine.toString();
+					}
 					// if we got this far, then the row is valid,
 					// so mark it as such if it isn't already
 					if (validIndex >= columns.length)
@@ -496,17 +554,24 @@ public class MzTabValidator
 	}
 	
 	private static PSMRecord validatePSMRow(
-		String sequence, String modifications, String spectraRef,
+		String sequence, String modifications, String msRunID, String nativeID,
 		MassIVEMzTabContext context, Map<String,
 			ImmutablePair<Collection<Integer>, Collection<Integer>>> spectra,
-		Map<Integer, String> peakListFiles, int lineNumber, String mzTabFilename
+		Map<Integer, String> peakListFiles, int lineNumber,
+		String mzTabFilename, File uploadedResults,
+		Map<String, Document> parsedMzidFileCache,
+		Map<Document, Map<String, Map<String, Collection<String>>>>
+		mzidSpectrumIDCache
 	) throws InvalidPSMException {
 		if (sequence == null)
 			throw new NullPointerException("\"sequence\" string is null.");
 		else if (modifications == null)
 			throw new NullPointerException("\"modifications\" string is null.");
-		else if (spectraRef == null)
-			throw new NullPointerException("\"spectra_ref\" string is null.");
+		else if (msRunID == null)
+			throw new NullPointerException(
+				"\"ms_run-location\" string is null.");
+		else if (nativeID == null)
+			throw new NullPointerException("\"nativeID\" string is null.");
 		else if (context == null)
 			throw new NullPointerException(
 				"MzTab file mapping context is null.");
@@ -518,27 +583,21 @@ public class MzTabValidator
 				"\"ms_run[1-n]-location\" map is null.");
 		else if (mzTabFilename == null)
 			throw new NullPointerException("MzTab filename is null.");
-		// each "spectra_ref" column value should
-		// be a string with the following format:
-		// ms_run[<index>]:<nativeID-formatted identifier string>
-		String[] tokens = spectraRef.split(":");
-		if (tokens == null || tokens.length != 2)
-			throw new InvalidPSMException(String.format(
-				"Invalid \"spectra_ref\" column value [%s]: this value " +
-				"is expected to conform to string format [%s].", spectraRef,
-				"ms_run[1-n]:<nativeID-formatted identifier string>"));
-		Matcher matcher = FILE_REFERENCE_PATTERN.matcher(tokens[0]);
+		else if (uploadedResults == null)
+			throw new NullPointerException(
+				"Uploaded result directory is null.");
+		Matcher matcher = FILE_REFERENCE_PATTERN.matcher(msRunID);
 		if (matcher.matches() == false)
 			throw new InvalidPSMException(String.format(
 				"Invalid \"ms_run\" reference [%s]: this value is expected " +
-				"to conform to string format [%s].", tokens[0], "ms_run[1-n]"));
+				"to conform to string format [%s].", msRunID, "ms_run[1-n]"));
 		int msRun = Integer.parseInt(matcher.group(1));
 		String msRunLocation = peakListFiles.get(msRun);
 		if (msRunLocation == null)
 			throw new InvalidPSMException(String.format(
 				"Invalid \"ms_run\" reference [%s]: a file location for " +
 				"\"ms_run\" index %d was not found in the metadata section " +
-				"of this file.", tokens[0], msRun));
+				"of this file.", msRunID, msRun));
 		String scanFilename =
 			context.getScanFilename(mzTabFilename, msRunLocation);
 		if (scanFilename == null)
@@ -547,7 +606,7 @@ public class MzTabValidator
 				"location [%s], could not be mapped back to any " +
 				"submitted peak list file that was parsed for " +
 				"validation against its spectra contents.",
-				tokens[0], msRunLocation));
+				msRunID, msRunLocation));
 		ImmutablePair<Collection<Integer>, Collection<Integer>> scans =
 			spectra.get(scanFilename);
 		if (scans == null)
@@ -555,15 +614,21 @@ public class MzTabValidator
 				"No spectra were found for \"ms_run\" reference " +
 				"[%s], corresponding to file location [%s] (parsed " +
 				"into spectra summary file [%s]).",
-				tokens[0], msRunLocation, scanFilename));
-		else validateSpectraRef(tokens[1], scans, lineNumber,
-			mzTabFilename, CommonUtils.cleanFileURL(msRunLocation));
-		return new PSMRecord(msRun, tokens[1], sequence, modifications);
+				msRunID, msRunLocation, scanFilename));
+		String verifiedNativeID = validateSpectraRef(nativeID, scans,
+			lineNumber, mzTabFilename, CommonUtils.cleanFileURL(msRunLocation),
+			context, sequence, uploadedResults, parsedMzidFileCache,
+			mzidSpectrumIDCache);
+		return new PSMRecord(msRun, verifiedNativeID, sequence, modifications);
 	}
 	
-	private static void validateSpectraRef(String nativeID,
+	private static String validateSpectraRef(String nativeID,
 		ImmutablePair<Collection<Integer>, Collection<Integer>> scans,
-		int lineNumber, String mzTabFilename, String peakListFilename
+		int lineNumber, String mzTabFilename, String peakListFilename,
+		MassIVEMzTabContext context, String sequence, File uploadedResults,
+		Map<String, Document> parsedMzidFileCache,
+		Map<Document, Map<String, Map<String, Collection<String>>>>
+		mzidSpectrumIDCache
 	) throws InvalidPSMException {
 		if (nativeID == null)
 			throw new NullPointerException(
@@ -575,9 +640,16 @@ public class MzTabValidator
 			throw new NullPointerException("MzTab filename is null.");
 		else if (peakListFilename == null)
 			throw new NullPointerException("Peak list filename is null.");
+		else if (context == null)
+			throw new NullPointerException(
+				"MzTab file mapping context is null.");
+		else if (sequence == null)
+			throw new NullPointerException("\"sequence\" string is null.");
+		else if (uploadedResults == null)
+			throw new NullPointerException(
+				"Uploaded result directory is null.");
 		// extract the spectrum identifier from the nativeID string
 		boolean scan = true;
-		boolean unknown = false;
 		Integer value = null;
 		// first try to extract a scan number
 		Matcher matcher = SCAN_PATTERN.matcher(nativeID);
@@ -598,11 +670,15 @@ public class MzTabValidator
 					scan = false;
 				}
 				// if it's just an integer, we don't know if it's a scan or an
-				// index, so we need to mark it as unknown; try index first
+				// index, so look it up in the source mzid file, if there is one
 				else try {
 					value = Integer.parseInt(nativeID);
-					scan = false;
-					unknown = true;
+					if (isScan(mzTabFilename, sequence, value, uploadedResults,
+						context, parsedMzidFileCache, mzidSpectrumIDCache)
+						== false) {
+						nativeID = String.format("index=%d", value);
+						scan = false;
+					} else nativeID = String.format("scan=%d", value);
 				} catch (NumberFormatException error) {}
 			}
 		}
@@ -615,24 +691,333 @@ public class MzTabValidator
 				"the referenced spectrum within the submitted peak list file.",
 				nativeID));
 		Collection<Integer> ids = null;
+		// once the type of ID has been determined,
+		// check against the proper set
 		if (scan)
 			ids = scans.getLeft();
-		else ids = scans.getRight();
-		if (ids == null || ids.contains(value) == false) {
-			// try the other one if we're not sure
-			if (unknown) {
-				if (scan)
-					ids = scans.getRight();
-				else ids = scans.getLeft();
-			}
-			// try again in case we're checking the other set
-			if (ids == null || ids.contains(value) == false)
-				throw new InvalidPSMException(String.format(
-					"Invalid NativeID-formatted spectrum identifier " +
-					"[%s]: spectrum %s %d could not be found within " +
-					"the submitted peak list file.",
-					nativeID, scan ? "scan number" : "index", value));
+		else {
+			ids = scans.getRight();
+			value = value - 1;
 		}
+		if (ids == null || ids.contains(value) == false)
+			throw new InvalidPSMException(String.format(
+				"Invalid NativeID-formatted spectrum identifier " +
+				"[%s]: spectrum %s %d could not be found within " +
+				"the submitted peak list file.",
+				nativeID, scan ? "scan number" : "index", value));
+		else return nativeID;
+	}
+	
+	private static boolean isScan(
+		String mzTabFilename, String sequence, int id,
+		File uploadedResultDirectory, MassIVEMzTabContext context,
+		Map<String, Document> parsedMzidFileCache,
+		Map<Document, Map<String, Map<String, Collection<String>>>>
+		mzidSpectrumIDCache
+	) throws InvalidPSMException {
+		if (mzTabFilename == null)
+			throw new NullPointerException("MzTab filename is null.");
+		else if (sequence == null)
+			throw new NullPointerException("\"sequence\" string is null.");
+		else if (context == null)
+			throw new NullPointerException(
+				"MzTab file mapping context is null.");
+		else if (uploadedResultDirectory == null ||
+			uploadedResultDirectory.canRead() == false)
+			throw new InvalidPSMException(String.format(
+				"Invalid NativeID-formatted spectrum identifier [%d]: no " +
+				"submitted mzIdentML file could be found to verify whether " +
+				"this identifier represents an index or scan number.", id));
+		// get mangled mzTab filename
+		String mangledMzTabFilename =
+			context.getMangledMzTabFilename(mzTabFilename);
+		// get original mzid file that this mzTab was converted from, if any
+		File mzidFile = getUploadedMzIdentMLFile(
+			mangledMzTabFilename, uploadedResultDirectory);
+		// if this mzTab file was not converted from an mzid file, then there's
+		// no source to look up; its nativeIDs are just inherently bad
+		if (mzidFile == null || mzidFile.canRead() == false)
+			throw new InvalidPSMException(String.format(
+				"Invalid NativeID-formatted spectrum identifier [%d]: no " +
+				"submitted mzIdentML file could be found to verify whether " +
+				"this identifier represents an index or scan number.", id));
+		// check cache for parsed mzid document, to avoid redundant parsing
+		Document mzidDocument = null;
+		if (parsedMzidFileCache != null)
+			mzidDocument = parsedMzidFileCache.get(mzidFile.getName());
+		// if no cached copy was found, parse the file
+		if (mzidDocument == null) try {
+			mzidDocument = FileIOUtils.parseXML(mzidFile);
+			if (parsedMzidFileCache != null)
+				parsedMzidFileCache.put(mzidFile.getName(), mzidDocument);
+		} catch (Throwable error) {
+			throw new InvalidPSMException(String.format(
+				"Invalid NativeID-formatted spectrum identifier [%d]: " +
+				"submitted mzIdentML file [%s] could not be parsed to verify " +
+				"whether this identifier represents an index or scan number.",
+				id, mzTabFilename));
+		}
+		// check cache for processed mzid document,
+		// to avoid redundant XML processing
+		Map<String, Map<String, Collection<String>>> mzidMap =
+			mzidSpectrumIDCache.get(mzidDocument);
+		if (mzidMap == null) {
+			mzidMap =
+				new LinkedHashMap<String, Map<String, Collection<String>>>();
+			mzidSpectrumIDCache.put(mzidDocument, mzidMap);
+		}
+		// look for the nativeID in the processed map
+		String nativeID = getNativeIDFromMap(sequence, id, mzidMap);
+		// if not found in the map, look it up in the document
+		if (nativeID == null) {
+			boolean found = false;
+			NodeList peptides = null;
+			try {
+				peptides = XPathAPI.selectNodeList(mzidDocument, String.format(
+					"//Peptide[PeptideSequence[text()='%s']]", sequence));
+			} catch (Throwable error) {}
+			if (peptides == null)
+				throw new InvalidPSMException(String.format(
+					"Invalid NativeID-formatted spectrum identifier [%d]: " +
+					"could not find an entry for peptide sequence [%s] in " +
+					"submitted mzIdentML file [%s] to verify whether this " +
+					"identifier represents an index or scan number.",
+					id, sequence, mzTabFilename));
+			for (int i=0; i<peptides.getLength(); i++) {
+				Node peptide = peptides.item(i);
+				NodeList spectrumIDs = null;
+				String peptideRef = null;
+				try {
+					peptideRef = peptide.getAttributes()
+						.getNamedItem("id").getNodeValue();
+					spectrumIDs = XPathAPI.selectNodeList(mzidDocument,
+						String.format("//SpectrumIdentificationResult[" +
+						"SpectrumIdentificationItem[@peptide_ref='%s']]",
+						peptideRef));
+				} catch (Throwable error) {}
+				if (spectrumIDs == null || peptideRef == null)
+					continue;
+				for (int j=0; j<spectrumIDs.getLength(); j++) {
+					Node spectrumID = spectrumIDs.item(j);
+					try {
+						nativeID = spectrumID.getAttributes()
+							.getNamedItem("spectrumID").getNodeValue();
+					} catch (Throwable error) {}
+					if (nativeID == null)
+						continue;
+					else {
+						// add found nativeID to cache
+						addNativeIDToMap(
+							sequence, peptideRef, nativeID, mzidMap);
+						// if this nativeID matches, stop looking
+						if (nativeID.equals(String.format("scan=%d", id)) ||
+							nativeID.equals(
+								String.format("index=%d", id - 1))) {
+							found = true;
+							break;
+						}
+					}
+				}
+				if (found)
+					break;
+			}
+		}
+		// once all steps have been taken to find a matching nativeID,
+		// process whatever was found appropriately
+		if (nativeID == null)
+			throw new InvalidPSMException(String.format(
+				"Invalid NativeID-formatted spectrum identifier [%d]: " +
+				"no evidence could be found in submitted mzIdentML file [%s] " +
+				"to verify whether this identifier represents an index or " +
+				"scan number.", id, mzTabFilename));
+		else if (nativeID.equals(String.format("scan=%d", id)))
+			return true;
+		// need to decrement the ID printed in the mzTab file by
+		// 1 when comparing against mzid index IDs, since
+		// apparently jmzTab increments it during the conversion
+		else if (nativeID.equals(String.format("index=%d", id - 1)))
+			return false;
+		else throw new InvalidPSMException(String.format(
+			"Invalid NativeID-formatted spectrum identifier [%d]: " +
+			"found spectrum ID [%s] in submitted mzIdentML file [%s], " +
+			"but the NativeID format is not recognized.",
+			id, nativeID, mzTabFilename));
+	}
+	
+	@SuppressWarnings("unused")
+	private static Map<String, Map<String, Collection<String>>> mapMzidDocument(
+		Document mzidDocument
+	) {
+		if (mzidDocument == null)
+			return null;
+		// build map of sequence -> peptide_ref
+		Map<String, Collection<String>> peptideMap =
+			new LinkedHashMap<String, Collection<String>>();
+		// build map of peptide_ref -> nativeID
+		Map<String, Collection<String>> spectrumMap =
+			new LinkedHashMap<String, Collection<String>>();
+		// first look at peptide_refs and map them to their sequences
+		NodeList peptides = null;
+		try {
+			peptides = XPathAPI.selectNodeList(mzidDocument, "//Peptide");
+		} catch (Throwable error) {}
+		if (peptides == null || peptides.getLength() < 1)
+			return null;
+		for (int i=0; i<peptides.getLength(); i++) {
+			Node peptide = peptides.item(i);
+			String peptideRef = null;
+			try {
+				peptideRef =
+					peptide.getAttributes().getNamedItem("id").getNodeValue();
+			} catch (Throwable error) {}
+			if (peptideRef == null)
+				continue;
+			NodeList peptideSequences = null;
+			try {
+				peptideSequences =
+					XPathAPI.selectNodeList(peptide, "PeptideSequence");
+			} catch (Throwable error) {}
+			if (peptideSequences == null || peptideSequences.getLength() < 1)
+				continue;
+			for (int j=0; j<peptideSequences.getLength(); j++) {
+				Node peptideSequence = peptideSequences.item(j);
+				String sequence = null;
+				try {
+					sequence = peptideSequence.getTextContent().trim();
+				} catch (Throwable error) {}
+				if (sequence == null)
+					continue;
+				Collection<String> peptideRefs = peptideMap.get(sequence);
+				if (peptideRefs == null) {
+					peptideRefs = new LinkedHashSet<String>();
+					peptideMap.put(sequence, peptideRefs);
+				}
+				peptideRefs.add(peptideRef);
+			}
+		}
+		// then look at spectrum IDs and map their nativeIDs to peptide_refs
+		NodeList spectrumIDs = null;
+		try {
+			spectrumIDs = XPathAPI.selectNodeList(
+				mzidDocument, "//SpectrumIdentificationResult");
+		} catch (Throwable error) {}
+		if (spectrumIDs == null || spectrumIDs.getLength() < 1)
+			return null;
+		for (int i=0; i<spectrumIDs.getLength(); i++) {
+			Node spectrumID = spectrumIDs.item(i);
+			String nativeID = null;
+			try {
+				nativeID = spectrumID.getAttributes()
+					.getNamedItem("spectrumID").getNodeValue();
+			} catch (Throwable error) {}
+			if (nativeID == null)
+				continue;
+			NodeList spectrumIDItems = null;
+			try {
+				spectrumIDItems = XPathAPI.selectNodeList(
+					spectrumID, "SpectrumIdentificationItem");
+			} catch (Throwable error) {}
+			if (spectrumIDItems == null || spectrumIDItems.getLength() < 1)
+				continue;
+			for (int j=0; j<spectrumIDItems.getLength(); j++) {
+				Node spectrumIDItem = spectrumIDItems.item(j);
+				String peptideRef = null;
+				try {
+					peptideRef = spectrumIDItem.getAttributes()
+						.getNamedItem("peptide_ref").getNodeValue();
+				} catch (Throwable error) {}
+				if (peptideRef == null)
+					continue;
+				Collection<String> nativeIDs = spectrumMap.get(peptideRef);
+				if (nativeIDs == null) {
+					nativeIDs = new LinkedHashSet<String>();
+					spectrumMap.put(peptideRef, nativeIDs);
+				}
+				nativeIDs.add(nativeID);
+			}
+		}
+		// finally, combine the maps
+		Map<String, Map<String, Collection<String>>> outerMap =
+			new LinkedHashMap<String, Map<String, Collection<String>>>();
+		for (String sequence : peptideMap.keySet()) {
+			// make sure an inner map exists for this sequence
+			Map<String, Collection<String>> innerMap = outerMap.get(sequence);
+			if (innerMap == null) {
+				innerMap = new LinkedHashMap<String, Collection<String>>();
+				outerMap.put(sequence, innerMap);
+			}
+			// gather all peptide_refs for this sequence and
+			// move their nativeIDs into the inner map
+			Collection<String> peptideRefs = peptideMap.get(sequence);
+			for (String peptideRef : peptideRefs) {
+				Collection<String> nativeIDs = spectrumMap.get(peptideRef);
+				if (nativeIDs == null)
+					continue;
+				// make sure an inner collection of nativeIDs
+				// exists for this peptide_ref
+				Collection<String> innerNativeIDs = innerMap.get(peptideRef);
+				if (innerNativeIDs == null) {
+					innerNativeIDs = new LinkedHashSet<String>();
+					innerMap.put(peptideRef, innerNativeIDs);
+				}
+				innerNativeIDs.addAll(nativeIDs);
+			}
+		}
+		return outerMap;
+	}
+	
+	private static String getNativeIDFromMap(
+		String sequence, int id,
+		Map<String, Map<String, Collection<String>>> mzidMap
+	) {
+		if (sequence == null || mzidMap == null || mzidMap.isEmpty())
+			return null;
+		Map<String, Collection<String>> peptideRefs = mzidMap.get(sequence);
+		if (peptideRefs == null || peptideRefs.isEmpty())
+			return null;
+		for (String peptideRef : peptideRefs.keySet()) {
+			Collection<String> nativeIDs = peptideRefs.get(peptideRef);
+			if (nativeIDs == null || nativeIDs.isEmpty())
+				continue;
+			for (String nativeID : nativeIDs)
+				if (nativeID.equals(String.format("scan=%d", id)) ||
+					nativeID.equals(String.format("index=%d", id - 1)))
+					return nativeID;
+		}
+		return null;
+	}
+	
+	private static void addNativeIDToMap(
+		String sequence, String peptideRef, String nativeID,
+		Map<String, Map<String, Collection<String>>> mzidMap
+	) {
+		if (sequence == null || peptideRef == null || nativeID == null ||
+			mzidMap == null)
+			return;
+		Map<String, Collection<String>> peptideRefs = mzidMap.get(sequence);
+		if (peptideRefs == null) {
+			peptideRefs = new LinkedHashMap<String, Collection<String>>();
+			mzidMap.put(sequence, peptideRefs);
+		}
+		Collection<String> nativeIDs = peptideRefs.get(peptideRef);
+		if (nativeIDs == null) {
+			nativeIDs = new LinkedHashSet<String>();
+			peptideRefs.put(peptideRef, nativeIDs);
+		}
+		nativeIDs.add(nativeID);
+	}
+	
+	private static File getUploadedMzIdentMLFile(
+		String mzTabFilename, File uploadedResultDirectory
+	) {
+		if (mzTabFilename == null || uploadedResultDirectory == null ||
+			uploadedResultDirectory.canRead() == false)
+			return null;
+		File mzidFile = new File(uploadedResultDirectory, String.format(
+			"%s.%s", FilenameUtils.getBaseName(mzTabFilename), "mzid"));
+		if (mzidFile.canRead() == false)
+			return null;
+		else return mzidFile;
 	}
 	
 	private static void die(String message) {

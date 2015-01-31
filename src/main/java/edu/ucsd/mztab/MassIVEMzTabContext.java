@@ -158,6 +158,21 @@ public class MassIVEMzTabContext
 		return null;
 	}
 	
+	public String getMangledMzTabFilename(String uploadedMzTabFilename) {
+		if (uploadedMzTabFilename == null)
+			return null;
+		Collection<PeakListFileMapping> mappings =
+			getPeakListFileMappings(uploadedMzTabFilename);
+		if (mappings == null || mappings.isEmpty())
+			return null;
+		else for (PeakListFileMapping mapping : mappings) {
+			String mzTabFilename = mapping.mangledMzTabFilename;
+			if (mzTabFilename != null)
+				return mzTabFilename;
+		}
+		return uploadedMzTabFilename;
+	}
+	
 	public String getUploadedMzTabFilename(String mangledMzTabFilename) {
 		if (mangledMzTabFilename == null)
 			return null;
