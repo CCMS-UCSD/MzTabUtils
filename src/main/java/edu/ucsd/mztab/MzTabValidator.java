@@ -7,9 +7,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -771,11 +773,7 @@ public class MzTabValidator
 		// if not found in the map, look it up in the document
 		if (nativeID == null) {
 			boolean found = false;
-			NodeList peptides = null;
-			try {
-				peptides = XPathAPI.selectNodeList(mzidDocument, String.format(
-					"//Peptide[PeptideSequence[text()='%s']]", sequence));
-			} catch (Throwable error) {}
+			NodeList peptides = getPeptideNodes(mzidDocument, sequence);
 			if (peptides == null)
 				throw new InvalidPSMException(String.format(
 					"Invalid NativeID-formatted spectrum identifier [%d]: " +
@@ -790,11 +788,8 @@ public class MzTabValidator
 				try {
 					peptideRef = peptide.getAttributes()
 						.getNamedItem("id").getNodeValue();
-					spectrumIDs = XPathAPI.selectNodeList(mzidDocument,
-						String.format("//SpectrumIdentificationResult[" +
-						"SpectrumIdentificationItem[@peptide_ref='%s']]",
-						peptideRef));
 				} catch (Throwable error) {}
+				spectrumIDs = getSpectrumIDNodes(mzidDocument, peptideRef);
 				if (spectrumIDs == null || peptideRef == null)
 					continue;
 				for (int j=0; j<spectrumIDs.getLength(); j++) {
@@ -809,6 +804,9 @@ public class MzTabValidator
 						// add found nativeID to cache
 						addNativeIDToMap(
 							sequence, peptideRef, nativeID, mzidMap);
+//
+System.out.print("?");
+//
 						// if this nativeID matches, stop looking
 						if (nativeID.equals(String.format("scan=%d", id)) ||
 							nativeID.equals(
@@ -822,6 +820,9 @@ public class MzTabValidator
 					break;
 			}
 		}
+//
+else System.out.print("!");
+//
 		// once all steps have been taken to find a matching nativeID,
 		// process whatever was found appropriately
 		if (nativeID == null)
@@ -966,6 +967,74 @@ public class MzTabValidator
 		return outerMap;
 	}
 	
+	private static NodeList getPeptideNodes(
+		Document mzidDocument, String sequence
+	) {
+		if (mzidDocument == null || sequence == null)
+			return null;
+		try {
+			return XPathAPI.selectNodeList(mzidDocument, String.format(
+				"//Peptide[PeptideSequence[text()='%s']]", sequence));
+		} catch (Throwable error) {
+			return null;
+		}
+//		CustomNodeList peptides = new CustomNodeList();
+//		NodeList allPeptides = mzidDocument.getElementsByTagName("Peptide");
+//		for (int i=0; i<allPeptides.getLength(); i++) {
+//			Node peptide = allPeptides.item(i);
+//			NodeList children = peptide.getChildNodes();
+//			Node peptideSequence = null;
+//			for (int j=0; j<children.getLength(); j++) {
+//				Node child = children.item(j);
+//				if (child.getNodeName().equalsIgnoreCase("PeptideSequence")) {
+//					peptideSequence = child;
+//					break;
+//				}
+//			}
+//			if (peptideSequence == null)
+//				continue;
+//			else if (peptideSequence.getTextContent().trim().equals(sequence))
+//				peptides.add(peptide);
+//		}
+//		return peptides;
+	}
+	
+	private static NodeList getSpectrumIDNodes(
+		Document mzidDocument, String peptideRef
+	) {
+		if (mzidDocument == null || peptideRef == null)
+			return null;
+		try {
+			return XPathAPI.selectNodeList(mzidDocument,
+				String.format("//SpectrumIdentificationResult[" +
+				"SpectrumIdentificationItem[@peptide_ref='%s']]",
+				peptideRef));
+		} catch (Throwable error) {
+			return null;
+		}
+//		CustomNodeList spectrumIDs = new CustomNodeList();
+//		NodeList allSpectrumIDs =
+//			mzidDocument.getElementsByTagName("SpectrumIdentificationResult");
+//		for (int i=0; i<allSpectrumIDs.getLength(); i++) {
+//			Node spectrumID = allSpectrumIDs.item(i);
+//			NodeList children = spectrumID.getChildNodes();
+//			for (int j=0; j<children.getLength(); j++) {
+//				Node child = children.item(j);
+//				if (child.getNodeName().equalsIgnoreCase(
+//					"SpectrumIdentificationItem")) try {
+//					if (child.getAttributes().getNamedItem("peptide_ref")
+//						.getNodeValue().equals(peptideRef)) {
+//						spectrumIDs.add(spectrumID);
+//						break;
+//					}
+//				} catch (Throwable error) {
+//					continue;
+//				}
+//			}
+//		}
+//		return spectrumIDs;
+	}
+	
 	private static String getNativeIDFromMap(
 		String sequence, int id,
 		Map<String, Map<String, Collection<String>>> mzidMap
@@ -1050,5 +1119,49 @@ public class MzTabValidator
 		if (cause == null)
 			return error;
 		else return getRootCause(cause);
+	}
+	
+	/*========================================================================
+	 * Convenience methods
+	 *========================================================================*/
+	@SuppressWarnings("unused")
+	private static class CustomNodeList implements NodeList {
+		/*====================================================================
+		 * Properties
+		 *====================================================================*/
+		private List<Node> nodes;
+		
+		/*====================================================================
+		 * Constructor
+		 *====================================================================*/
+		public CustomNodeList() {
+			this(null);
+		}
+		
+		public CustomNodeList(List<Node> nodes) {
+			if (nodes == null)
+				nodes = new ArrayList<Node>();
+			this.nodes = nodes;
+		}
+		
+		/*====================================================================
+		 * NodeList methods
+		 *====================================================================*/
+		public Node item(int index) {
+			if (index >= nodes.size())
+				return null;
+			else return nodes.get(index);
+		}
+		
+		public int getLength() {
+			return nodes.size();
+		}
+		
+		/*====================================================================
+		 * List methods
+		 *====================================================================*/
+		public void add(Node node) {
+			nodes.add(node);
+		}
 	}
 }
