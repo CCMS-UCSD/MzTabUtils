@@ -632,8 +632,10 @@ public class MzTabValidator
 			try { writer.close(); }
 			catch (Throwable error) {}
 		}
-		// overwrite input mzTab file with updated temporary file
-		FileIOUtils.copyFile(output, mzTabFile);
+		// overwrite input mzTab file with updated temporary file,
+		// if appropriate
+		if (countOnly == false)
+			FileIOUtils.copyFile(output, mzTabFile);
 		if (output.delete() == false)
 			throw new IOException(String.format(
 				"Could not delete temporary mzTab file [%s]",
