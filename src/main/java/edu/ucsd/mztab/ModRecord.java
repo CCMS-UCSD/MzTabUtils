@@ -147,7 +147,8 @@ public class ModRecord
 				extractMod(cleaned, captured);
 			if (extracted != null) {
 				cleaned = extracted.getRight();
-				occurrences.add(getModification(extracted.getLeft(), psm));
+				addModificationOccurrence(
+					getModification(extracted.getLeft(), psm), occurrences);
 			}
 			// it should be impossible for the extraction operation to fail,
 			// since the matcher ensures that the mod is present in the PSM
@@ -166,7 +167,8 @@ public class ModRecord
 					index++;
 				// if this is a site affected by this fixed mod, then add it
 				if (sites.contains(current))
-					occurrences.add(getModification(index, psm));
+					addModificationOccurrence(
+						getModification(index, psm), occurrences);
 			}
 		}
 		if (occurrences != null && occurrences.isEmpty())
@@ -510,5 +512,25 @@ public class ModRecord
 		Modification mod = new Modification(Section.PSM, type, value);
 		mod.addPosition(index, null);
 		return mod;
+	}
+	
+	private void addModificationOccurrence(
+		Modification modification, Collection<Modification> occurrences
+	) {
+		if (modification == null || occurrences == null)
+			return;
+		boolean alreadyOccurred = false;
+		for (int index : modification.getPositionMap().keySet()) {
+			for (Modification occurred : occurrences) {
+				if (occurred.getPositionMap().containsKey(index)) {
+					alreadyOccurred = true;
+					break;
+				}
+			}
+			if (alreadyOccurred)
+				break;
+		}
+		if (alreadyOccurred == false)
+			occurrences.add(modification);
 	}
 }
