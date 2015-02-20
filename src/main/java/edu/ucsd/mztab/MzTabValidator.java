@@ -33,11 +33,12 @@ public class MzTabValidator
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabValidator" +
-		"\n\t<ParameterFile>" +
-		"\n\t<UploadedResultDirectory>" +
-		"\n\t<ConvertedMzTabDirectory>" +
-		"\n\t<ScansDirectory>" +
-		"\n\t<OutputFile>";
+		"\n\t-params  <ParameterFile>" +
+		"\n\t-mztab   <MzTabDirectory>" +
+		"\n\t[-scans  <ScansDirectory>]" +
+		"\n\t[-result <UploadedResultDirectory>]" +
+		"\n\t-output  <OutputFile>" +
+		"\n\t[-count_only]";
 	private static final String TEMPORARY_MZTAB_FILE =
 		"temp_modified_result.mzTab";
 	private static final Pattern FILE_REFERENCE_PATTERN =
@@ -53,34 +54,22 @@ public class MzTabValidator
 	 * Public interface methods
 	 *========================================================================*/
 	public static void main(String[] args) {
-		if (args == null || args.length < 4)
+		MzTabValidationOperation validation = extractArguments(args);
+		if (validation == null)
 			die(USAGE);
 		PrintWriter writer = null;
 		try {
 			// build mzTab file context
 			MassIVEMzTabContext context = new MassIVEMzTabContext(
-				new File(args[0]), new File(args[2]), new File(args[3]));
-			// verify uploaded result file directory
-			File uploadedResults = new File(args[1]);
-			if (uploadedResults.isDirectory() == false ||
-				uploadedResults.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("Uploaded result file directory [%s] " +
-						"must be a readable directory.",
-						uploadedResults.getAbsolutePath()));
-			// verify output file
-			File output = new File(args[4]);
-			if (output.isDirectory())
-				throw new IllegalArgumentException(
-					String.format("Output file [%s] " +
-						"must be a normal (non-directory) file.",
-						output.getAbsolutePath()));
+				validation.parameters, validation.mzTabDirectory,
+				validation.scansDirectory);
 			// set up output file writer
-			if (output.exists() == false && output.createNewFile() == false)
+			if (validation.outputFile.exists() == false &&
+				validation.outputFile.createNewFile() == false)
 				die(String.format("Could not create output file [%s]",
-					output.getAbsolutePath()));
-			writer = new PrintWriter(
-				new BufferedWriter(new FileWriter(output, false)));
+					validation.outputFile.getAbsolutePath()));
+			writer = new PrintWriter(new BufferedWriter(
+				new FileWriter(validation.outputFile, false)));
 			writer.println("MzTab_file\tUploaded_file\tPSM_rows\t" +
 				"Invalid_PSM_rows\tFound_PSMs\tPeptide_rows\t" +
 				"Found_Peptides\tProtein_rows\tFound_Proteins");
@@ -113,10 +102,16 @@ public class MzTabValidator
 			} else for (File mzTabFile : mzTabFiles) {
 				// extract counts for PSMs, invalid PSMs, proteins and peptides
 				int[] counts = validateMzTabFile(mzTabFile, context, scans,
-					uploadedResults, parsedMzidFileCache, mzidSpectrumIDCache);
+					validation.uploadedResultDirectory, parsedMzidFileCache,
+					mzidSpectrumIDCache, validation.countOnly);
 				String mzTabFilename = mzTabFile.getName();
+				// get original uploaded result filename for this mzTab file,
+				// if present; it may not be, if this is a count-only TSV
+				// conversion
 				String uploadedMzTabFilename =
 					context.getUploadedMzTabFilename(mzTabFilename);
+				if (uploadedMzTabFilename == null)
+					uploadedMzTabFilename = mzTabFilename;
 				if (counts == null || counts.length != 7)
 					die(String.format(
 						"MzTab file [%s] could not be parsed for validation.",
@@ -157,9 +152,136 @@ public class MzTabValidator
 		}
 	}
 	
+	/**
+	 * Struct to maintain context data for each copy dataset operation.
+	 */
+	private static class MzTabValidationOperation {
+		/*====================================================================
+		 * Properties
+		 *====================================================================*/
+		private File    parameters;
+		private File    mzTabDirectory;
+		private File    scansDirectory;
+		private File    uploadedResultDirectory;
+		private File    outputFile;
+		private boolean countOnly;
+		
+		/*====================================================================
+		 * Constructors
+		 *====================================================================*/
+		public MzTabValidationOperation(
+			File parameters, File mzTabDirectory, File scansDirectory,
+			File resultDirectory, File outputFile, boolean countOnly
+		) {
+			// validate parameters file
+			if (parameters == null)
+				throw new NullPointerException(
+					"Parameters file cannot be null.");
+			else if (parameters.isFile() == false)
+				throw new IllegalArgumentException(
+					String.format(
+						"Parameters file [%s] must be a regular file.",
+						parameters.getAbsolutePath()));
+			else if (parameters.canRead() == false)
+				throw new IllegalArgumentException(
+					String.format("Parameters file [%s] must be readable.",
+						parameters.getAbsolutePath()));
+			else this.parameters = parameters;
+			// validate mzTab directory
+			if (mzTabDirectory == null)
+				throw new NullPointerException(
+					"MzTab directory cannot be null.");
+			else if (mzTabDirectory.isDirectory() == false)
+				throw new IllegalArgumentException(
+					String.format("MzTab directory [%s] must be a directory.",
+						mzTabDirectory.getAbsolutePath()));
+			else if (mzTabDirectory.canRead() == false)
+				throw new IllegalArgumentException(
+					String.format("MzTab directory [%s] must be readable.",
+						mzTabDirectory.getAbsolutePath()));
+			else this.mzTabDirectory = mzTabDirectory;
+			// validate scans directory (can be null)
+			if (scansDirectory == null)
+				this.scansDirectory = null;
+			else if (scansDirectory.isDirectory() == false)
+				throw new IllegalArgumentException(String.format(
+					"Spectrum ID files directory [%s] must be a directory.",
+					scansDirectory.getAbsolutePath()));
+			else if (scansDirectory.canRead() == false)
+				throw new IllegalArgumentException(String.format(
+					"Spectrum ID files directory [%s] must be readable.",
+					scansDirectory.getAbsolutePath()));
+			else this.scansDirectory = scansDirectory;
+			// validate uploaded result directory (can be null)
+			if (resultDirectory == null)
+				this.uploadedResultDirectory = null;
+			else if (resultDirectory.isDirectory() == false)
+				throw new IllegalArgumentException(String.format(
+					"Uploaded result files directory [%s] must be a " +
+					"directory.", resultDirectory.getAbsolutePath()));
+			else if (resultDirectory.canRead() == false)
+				throw new IllegalArgumentException(String.format(
+					"Uploaded result files directory [%s] must be " +
+					"readable.", resultDirectory.getAbsolutePath()));
+			else this.uploadedResultDirectory = resultDirectory;
+			// validate output file
+			if (outputFile == null)
+				throw new NullPointerException("Output file cannot be null.");
+			else if (outputFile.isDirectory())
+				throw new IllegalArgumentException(String.format(
+					"Output file [%s] must be a normal (non-directory) file.",
+					outputFile.getAbsolutePath()));
+			this.outputFile = outputFile;
+			// determine validation mode
+			this.countOnly = countOnly;
+		}
+	}
+	
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
+	private static MzTabValidationOperation extractArguments(String[] args) {
+		if (args == null || args.length < 1)
+			return null;
+		File params = null;
+		File mzTabDirectory = null;
+		File scansDirectory = null;
+		File resultDirectory = null;
+		File output = null;
+		boolean countOnly = false;
+		for (int i=0; i<args.length; i++) {
+			String argument = args[i];
+			if (argument == null)
+				return null;
+			else if (argument.equals("-count_only"))
+				countOnly = true;
+			else {
+				i++;
+				if (i >= args.length)
+					return null;
+				String value = args[i];
+				if (argument.equals("-params"))
+					params = new File(value);
+				else if (argument.equals("-mztab"))
+					mzTabDirectory = new File(value);
+				else if (argument.equals("-scans"))
+					scansDirectory = new File(value);
+				else if (argument.equals("-result"))
+					resultDirectory = new File(value);
+				else if (argument.equals("-output"))
+					output = new File(value);
+				else return null;
+			}
+		}
+		try {
+			return new MzTabValidationOperation(params, mzTabDirectory,
+				scansDirectory, resultDirectory, output, countOnly);
+		} catch (Throwable error) {
+			System.err.println(error.getMessage());
+			return null;
+		}
+	}
+	
 	private static ImmutablePair<Collection<Integer>, Collection<Integer>>
 	readScansFile(File scansFile) throws Exception {
 		if (scansFile == null)
@@ -231,7 +353,7 @@ public class MzTabValidator
 		spectra, File uploadedResults,
 		Map<String, Document> parsedMzidFileCache,
 		Map<Document, Map<String, Map<String, Collection<String>>>>
-		mzidSpectrumIDCache
+		mzidSpectrumIDCache, boolean countOnly
 	) throws Exception {
 		if (mzTabFile == null)
 			throw new NullPointerException("MzTab file is null.");
@@ -245,11 +367,12 @@ public class MzTabValidator
 		else if (spectra == null)
 			throw new NullPointerException(
 				"Peak list file spectra ID collection is null.");
-		else if (uploadedResults == null)
-			throw new NullPointerException(
-				"Uploaded result directory is null.");
+		// get original uploaded result filename for this mzTab file, if
+		// present; it may not be, if this is a count-only TSV conversion
 		String mzTabFilename =
 			context.getUploadedMzTabFilename(mzTabFile.getName());
+		if (mzTabFilename == null)
+			mzTabFilename = mzTabFile.getName();
 		// extract all peak list file references from mzTab file
 		Map<Integer, String> peakListFiles = null;
 		try {
@@ -434,10 +557,18 @@ public class MzTabValidator
 						columns[modsIndex], tokens[0], tokens[1], context,
 						spectra, peakListFiles, lineCount, mzTabFilename,
 						uploadedResults, parsedMzidFileCache,
-						mzidSpectrumIDCache);
+						mzidSpectrumIDCache, countOnly);
 					uniquePSMs.add(psm);
-					foundPeptides.add(columns[sequenceIndex]);
-					foundProteins.add(columns[accessionIndex]);
+					// add this row's peptide and protein to found lists,
+					// if present and valid
+					String foundPeptide = columns[sequenceIndex];
+					if (foundPeptide != null &&
+						foundPeptide.trim().equalsIgnoreCase("null") == false)
+						foundPeptides.add(foundPeptide);
+					String foundProtein = columns[accessionIndex];
+					if (foundProtein != null &&
+						foundProtein.trim().equalsIgnoreCase("null") == false)
+						foundProteins.add(foundProtein);
 					// check if the PSM row validation changed the nativeID;
 					// if so, rewrite the line with the new nativeID
 					if (tokens[1].equals(psm.getNativeID()) == false) {
@@ -563,7 +694,7 @@ public class MzTabValidator
 		String mzTabFilename, File uploadedResults,
 		Map<String, Document> parsedMzidFileCache,
 		Map<Document, Map<String, Map<String, Collection<String>>>>
-		mzidSpectrumIDCache
+		mzidSpectrumIDCache, boolean countOnly
 	) throws InvalidPSMException {
 		if (sequence == null)
 			throw new NullPointerException("\"sequence\" string is null.");
@@ -585,9 +716,6 @@ public class MzTabValidator
 				"\"ms_run[1-n]-location\" map is null.");
 		else if (mzTabFilename == null)
 			throw new NullPointerException("MzTab filename is null.");
-		else if (uploadedResults == null)
-			throw new NullPointerException(
-				"Uploaded result directory is null.");
 		Matcher matcher = FILE_REFERENCE_PATTERN.matcher(msRunID);
 		if (matcher.matches() == false)
 			throw new InvalidPSMException(String.format(
@@ -600,27 +728,30 @@ public class MzTabValidator
 				"Invalid \"ms_run\" reference [%s]: a file location for " +
 				"\"ms_run\" index %d was not found in the metadata section " +
 				"of this file.", msRunID, msRun));
-		String scanFilename =
-			context.getScanFilename(mzTabFilename, msRunLocation);
-		if (scanFilename == null)
-			throw new InvalidPSMException(String.format(
-				"\"ms_run\" reference [%s], corresponding to file " +
-				"location [%s], could not be mapped back to any " +
-				"submitted peak list file that was parsed for " +
-				"validation against its spectra contents.",
-				msRunID, msRunLocation));
-		ImmutablePair<Collection<Integer>, Collection<Integer>> scans =
-			spectra.get(scanFilename);
-		if (scans == null)
-			throw new InvalidPSMException(String.format(
-				"No spectra were found for \"ms_run\" reference " +
-				"[%s], corresponding to file location [%s] (parsed " +
-				"into spectra summary file [%s]).",
-				msRunID, msRunLocation, scanFilename));
-		String verifiedNativeID = validateSpectraRef(nativeID, scans,
-			lineNumber, mzTabFilename, CommonUtils.cleanFileURL(msRunLocation),
-			context, sequence, uploadedResults, parsedMzidFileCache,
-			mzidSpectrumIDCache);
+		String verifiedNativeID = nativeID;
+		if (countOnly == false) {
+			String scanFilename =
+				context.getScanFilename(mzTabFilename, msRunLocation);
+			if (scanFilename == null)
+				throw new InvalidPSMException(String.format(
+					"\"ms_run\" reference [%s], corresponding to file " +
+					"location [%s], could not be mapped back to any " +
+					"submitted peak list file that was parsed for " +
+					"validation against its spectra contents.",
+					msRunID, msRunLocation));
+			ImmutablePair<Collection<Integer>, Collection<Integer>> scans =
+				spectra.get(scanFilename);
+			if (scans == null)
+				throw new InvalidPSMException(String.format(
+					"No spectra were found for \"ms_run\" reference " +
+					"[%s], corresponding to file location [%s] (parsed " +
+					"into spectra summary file [%s]).",
+					msRunID, msRunLocation, scanFilename));
+			verifiedNativeID = validateSpectraRef(nativeID, scans, lineNumber,
+				mzTabFilename, CommonUtils.cleanFileURL(msRunLocation),
+				context, sequence, uploadedResults, parsedMzidFileCache,
+				mzidSpectrumIDCache);
+		}
 		return new PSMRecord(msRun, verifiedNativeID, sequence, modifications);
 	}
 	

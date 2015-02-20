@@ -73,30 +73,31 @@ public class MassIVEMzTabContext
 				else mzTabFiles.add(file);
 			}
 		}
-		// validate argument scans directory
+		// validate argument scans directory (can be null)
 		if (scansDirectory == null)
-			throw new NullPointerException(
-				"Argument spectrum ID files directory cannot be null.");
+			scansFiles = new LinkedHashSet<File>();
 		else if (scansDirectory.isDirectory() == false ||
 			scansDirectory.canRead() == false)
 			throw new IllegalArgumentException("Argument spectrum ID files " +
 				"directory must be a readable directory.");
-		// collect files in argument scans directory
-		files = scansDirectory.listFiles();
-		if (files == null || files.length < 1)
-			scansFiles = new LinkedHashSet<File>();
 		else {
-			scansFiles = new LinkedHashSet<File>(files.length);
-			for (File file : files) {
-				// validate scans file
-				if (file == null)
-					throw new NullPointerException(
-						"Argument scans file cannot be null.");
-				else if (file.isFile() == false || file.canRead() == false)
-					throw new IllegalArgumentException(String.format(
-						"Argument scans file [%s] is not a readable file.",
-						file.getAbsolutePath()));
-				else scansFiles.add(file);
+			// collect files in argument scans directory
+			files = scansDirectory.listFiles();
+			if (files == null || files.length < 1)
+				scansFiles = new LinkedHashSet<File>();
+			else {
+				scansFiles = new LinkedHashSet<File>(files.length);
+				for (File file : files) {
+					// validate scans file
+					if (file == null)
+						throw new NullPointerException(
+							"Argument scans file cannot be null.");
+					else if (file.isFile() == false || file.canRead() == false)
+						throw new IllegalArgumentException(String.format(
+							"Argument scans file [%s] is not a readable file.",
+							file.getAbsolutePath()));
+					else scansFiles.add(file);
+				}
 			}
 		}
 		// build filename map
