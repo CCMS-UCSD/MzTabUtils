@@ -123,6 +123,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// add optional columns
 		psmColumnFactory.addOptionalColumn("valid", String.class);
 		psmColumnFactory.addOptionalColumn("invalid_reason", String.class);
+		for (String column : params.getExtraColumns())
+			psmColumnFactory.addOptionalColumn(column, String.class);
 		// TODO: gather all original TSV columns in the params object,
 		// and then iterate over those columns to add them here
 		return psmColumnFactory;
@@ -323,6 +325,16 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				psm.setStart(value);
 			else if (column.equals("end"))
 				psm.setEnd(value);
+		}
+		// add extra columns
+		for (String column : params.getExtraColumns()) {
+			if (column == null)
+				continue;
+			String value = extractMixtureElement(
+				elements[params.getExtraColumnIndex(column)], index);
+			if (value == null)
+				continue;
+			else psm.setOptionColumnValue(column, value);
 		}
 		// add fully initialized PSM to collection
 		psms.add(psm);

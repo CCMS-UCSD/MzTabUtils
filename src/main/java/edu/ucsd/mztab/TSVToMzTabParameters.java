@@ -45,6 +45,7 @@ public class TSVToMzTabParameters
 	private boolean                    hasHeader;
 	private boolean                    scanMode;
 	private Map<String, Integer>       columnIndices;
+	private Map<String, Integer>       extraColumns;
 	private Collection<ModRecord>      modifications;
 	private Collection<URL>            spectrumFiles;
 	private Map<String, ProteinRecord> proteins;
@@ -188,7 +189,7 @@ public class TSVToMzTabParameters
 						"elements of the first line from input TSV file [%s].",
 						filename));
 			// validate all columns extracted from the parameters file
-			columnIndices = new LinkedHashMap<String, Integer>(3);
+			columnIndices = new LinkedHashMap<String, Integer>(columns.size());
 			for (String column : columns.keySet()) {
 				String columnID = columns.get(column);
 				Integer index = extractColumnIndex(
@@ -198,6 +199,19 @@ public class TSVToMzTabParameters
 						"There was an error parsing \"%s\" column [%s].",
 						column, columnID));
 				else columnIndices.put(column, index);
+			}
+			// collect all "extra" columns
+			int extraColumnCount = elements.length - columnIndices.size();
+			if (extraColumnCount >= 1)
+				extraColumns =
+					new LinkedHashMap<String, Integer>(extraColumnCount);
+			else extraColumns = new LinkedHashMap<String, Integer>();
+			for (int i=0; i<elements.length; i++) {
+				if (columnIndices.containsValue(i))
+					continue;
+				else if (hasHeader())
+					extraColumns.put(elements[i], i);
+				else extraColumns.put(String.format("column_%d", i + 1), i);
 			}
 			// read all PSM rows, to collect spectrum filenames and to validate
 			// each row for complete inclusion of all registered column indices
@@ -357,6 +371,16 @@ public class TSVToMzTabParameters
 		if (column == null)
 			return null;
 		else return columnIndices.get(column);
+	}
+	
+	public Collection<String> getExtraColumns() {
+		return extraColumns.keySet();
+	}
+	
+	public Integer getExtraColumnIndex(String column) {
+		if (column == null)
+			return null;
+		else return extraColumns.get(column);
 	}
 	
 	/*========================================================================
