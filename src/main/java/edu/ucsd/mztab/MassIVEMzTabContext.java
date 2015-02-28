@@ -345,19 +345,14 @@ public class MassIVEMzTabContext
 					// filename from the first-level map
 					String bestMatch = FILE_PATH_COMPARATOR.findBestFileMatch(
 						tokens[1], filenameMap.keySet());
-					if (bestMatch == null)
-						throw new NullPointerException(String.format(
-							"No source result filename could be found " +
-							"from among the \"result_file_mapping\" " +
-							"parameters to match source filename [%s], " +
-							"from \"upload_file_mapping\" parameter value [%s]",
-							tokens[1], value));
-					// update all of this mzTab file's mappings
-					// with the mangled filename
-					Collection<PeakListFileMapping> mzTabMappings =
-						filenameMap.get(bestMatch);
-					for (PeakListFileMapping mapping : mzTabMappings)
-						mapping.mangledMzTabFilename = mangledFilename;
+					if (bestMatch != null) {
+						// update all of this mzTab file's mappings
+						// with the mangled filename
+						Collection<PeakListFileMapping> mzTabMappings =
+							filenameMap.get(bestMatch);
+						for (PeakListFileMapping mapping : mzTabMappings)
+							mapping.mangledMzTabFilename = mangledFilename;
+					}
 				}
 			}
 			// finally, duplicate each entry in the filename map
