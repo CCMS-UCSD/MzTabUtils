@@ -261,8 +261,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		psm.setPre(getPre(peptide));
 		psm.setPost(getPost(peptide));
 		// formulate "modifications" value for this row
+		String stripped = stripPreAndPost(peptide);
 		ImmutablePair<String, Collection<Modification>> extracted =
-			PeptideUtils.extractPTMsFromPSM(peptide, params.getModifications());
+			PeptideUtils.extractPTMsFromPSM(
+				stripped, params.getModifications());
 		// mark this row as "INVALID" if any mods were
 		// left unparsed from the peptide string
 		String cleaned = extracted.getLeft();
@@ -359,6 +361,17 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (tokens == null || index >= tokens.length)
 			return value;
 		else return tokens[index];
+	}
+	
+	private String stripPreAndPost(String psm) {
+		if (psm == null)
+			return null;
+		// TODO: the user should specify if this syntax is present, and
+		// therefore whether or not this processing should even be done
+		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		if (matcher.matches())
+			return getAminoAcid(matcher.group(2));
+		else return psm;
 	}
 	
 	private String getPre(String psm) {
