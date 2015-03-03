@@ -370,7 +370,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// therefore whether or not this processing should even be done
 		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
-			return getAminoAcid(matcher.group(2));
+			return matcher.group(2);
 		else return psm;
 	}
 	
