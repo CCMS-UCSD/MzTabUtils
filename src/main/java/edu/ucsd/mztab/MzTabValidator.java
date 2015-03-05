@@ -837,7 +837,8 @@ public class MzTabValidator
 				found = true;
 			// apparently, indices might be 0-based or 1-based,
 			// so we need to accept this ID if either is present
-			else if (scan == false && ids.contains(value - 1))
+			else if (scan == false &&
+				(ids.contains(value - 1) || ids.contains(value + 1)))
 				found = true;
 		}
 		if (found == false)
