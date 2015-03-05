@@ -825,16 +825,22 @@ public class MzTabValidator
 				"an index or a scan number must be provided in order to find " +
 				"the referenced spectrum within the submitted peak list file.",
 				nativeID));
-		Collection<Integer> ids = null;
 		// once the type of ID has been determined,
 		// check against the proper set
+		Collection<Integer> ids = null;
 		if (scan)
 			ids = scans.getLeft();
-		else {
-			ids = scans.getRight();
-			value = value - 1;
+		else ids = scans.getRight();
+		boolean found = false;
+		if (ids != null) {
+			if (ids.contains(value))
+				found = true;
+			// apparently, indices might be 0-based or 1-based,
+			// so we need to accept this ID if either is present
+			else if (scan == false && ids.contains(value - 1))
+				found = true;
 		}
-		if (ids == null || ids.contains(value) == false)
+		if (found == false)
 			throw new InvalidPSMException(String.format(
 				"Invalid NativeID-formatted spectrum identifier " +
 				"[%s]: spectrum %s %d could not be found within " +
