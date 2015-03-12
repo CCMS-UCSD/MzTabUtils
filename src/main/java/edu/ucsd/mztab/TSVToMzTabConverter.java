@@ -520,8 +520,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		else if (message.endsWith(".") == false)
 			message += ".";
 		System.err.println(message);
-		if (error != null)
-			error.printStackTrace();
+//		if (error != null)
+//			error.printStackTrace();
 		System.exit(1);
 	}
 }
