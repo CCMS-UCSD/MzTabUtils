@@ -135,32 +135,36 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		System.out.println("Filling data...");
 		// instantiate all protein records into the mzTab file
 		Map<String, ProteinRecord> proteinRecords = params.getProteins();
-		for (String accession : proteinRecords.keySet()) {
-			ProteinRecord record = proteinRecords.get(accession);
-			Protein protein = new Protein();
-			protein.setAccession(accession);
-			// set PSM counts
-			SortedMap<Integer, MsRun> msRunMap = metadata.getMsRunMap();
-			for (int msRun : msRunMap.keySet())
-				protein.setNumPSMs(
-					msRunMap.get(msRun), record.getPSMCount(msRun));
-			// set peptide counts
-			for (int msRun : msRunMap.keySet())
-				protein.setNumPeptidesDistinct(
-					msRunMap.get(msRun), record.getPeptideCount(msRun));
-			// TODO: count unique peptides for this protein
-			// set modifications
-			// TODO: deal with the fact that these modifications are taken
-			// directly from the PSMs, and therefore their "position" elements
-			// are PSM indices, whereas the mzTab format expects protein mods
-			// to be labeled with the position of the mod within the protein;
-			// presumably this requires knowing the protein sequence, or at
-			// least the start index of the PSM peptide within the protein
-//			Collection<Modification> modifications = record.getModifications();
-//			if (modifications != null)
-//				for (Modification modification : modifications)
-//					protein.addModification(modification);
-			proteins.add(protein);
+		if (proteinRecords != null) {
+			for (String accession : proteinRecords.keySet()) {
+				ProteinRecord record = proteinRecords.get(accession);
+				Protein protein = new Protein();
+				protein.setAccession(accession);
+				// set PSM counts
+				SortedMap<Integer, MsRun> msRunMap = metadata.getMsRunMap();
+				for (int msRun : msRunMap.keySet())
+					protein.setNumPSMs(
+						msRunMap.get(msRun), record.getPSMCount(msRun));
+				// set peptide counts
+				for (int msRun : msRunMap.keySet())
+					protein.setNumPeptidesDistinct(
+						msRunMap.get(msRun), record.getPeptideCount(msRun));
+				// TODO: count unique peptides for this protein
+				// set modifications
+				// TODO: deal with the fact that these modifications are taken
+				// directly from the PSMs, and therefore their "position"
+				// elements are PSM indices, whereas the mzTab format expects
+				// protein mods to be labeled with the position of the mod
+				// within the protein; presumably this requires knowing the
+				// protein sequence, or at least the start index of the PSM
+				// peptide within the protein
+//				Collection<Modification> modifications =
+//					record.getModifications();
+//				if (modifications != null)
+//					for (Modification modification : modifications)
+//						protein.addModification(modification);
+				proteins.add(protein);
+			}
 		}
 		// instantiate all peptide records into the mzTab file
 		Map<String, PeptideRecord> peptideRecords = params.getPeptides();
