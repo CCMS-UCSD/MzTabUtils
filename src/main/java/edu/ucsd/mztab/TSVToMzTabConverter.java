@@ -520,7 +520,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			message =
 				"There was an error converting the input TSV file to mzTab";
 		if (error != null)
-			message += ":";
+			message += ": " + error.getMessage();
 		else if (message.endsWith(".") == false)
 			message += ".";
 		System.err.println(message);
