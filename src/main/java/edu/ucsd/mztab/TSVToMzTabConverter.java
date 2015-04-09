@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.regex.Matcher;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.util.PeptideUtils;
@@ -449,6 +450,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	}
 	
 	public static URL getFileURL(String filename) {
+		filename = FilenameUtils.separatorsToSystem(filename);
 		// try to extract a URL from the filename string
 		URL url = null;
 		try {
