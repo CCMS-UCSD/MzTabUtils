@@ -410,49 +410,6 @@ public class TSVToMzTabParameters
 		modifications.add(mod);
 	}
 	
-	private Integer extractColumnIndex(
-		String columnID, String tsvFilename, String columnName, String line,
-		boolean header, String[] headers
-	) {
-		if (columnID == null || tsvFilename == null || columnName == null ||
-			line == null || headers == null)
-			return null;
-		// first try to parse the user-supplied columnID as an integer index
-		try {
-			int index = Integer.parseInt(columnID);
-			// the specified index must be within the bounds of the header array
-			if (index < 0 || index >= headers.length)
-				throw new IllegalArgumentException(String.format(
-					"Error parsing input TSV file [%s]: the index of the " +
-					"%s column was given as %s, but the first " +
-					"line of the file contains %d elements:\n%s",
-					tsvFilename, columnName, columnID, headers.length, line));
-			else return index;
-		}
-		// if the user-supplied value of the column ID was not an
-		// integer, then it must be the string name of a column header
-		catch (NumberFormatException error) {
-			// if there is no header row, then a column ID that cannot be
-			// parsed as an integer is illegal, since it can't be looked up
-			if (header == false)
-				throw new IllegalArgumentException(String.format(
-					"Error parsing input TSV file [%s]: the %s column header " +
-					"was given as [%s], but the converter parameters did " +
-					"not indicate that the file contains a header line.",
-					tsvFilename, columnName, columnID));
-			// otherwise, try to find the index of the specified column header
-			for (int i=0; i<headers.length; i++)
-				if (columnID.equals(headers[i]))
-					return i;
-			// if no matching column header was found, then throw an exception
-			throw new IllegalArgumentException(String.format(
-				"Error parsing input TSV file [%s]: the %s " +
-				"column header was given as [%s], but this header could " +
-				"not be found in the first line of the file:\n%s",
-				tsvFilename, columnName, columnID, line));
-		}
-	}
-	
 	/*========================================================================
 	 * Static application methods
 	 *========================================================================*/
@@ -538,6 +495,49 @@ public class TSVToMzTabParameters
 		} finally {
 			try { output.close(); }
 			catch (Throwable error) {}
+		}
+	}
+	
+	public static Integer extractColumnIndex(
+		String columnID, String tsvFilename, String columnName, String line,
+		boolean header, String[] headers
+	) {
+		if (columnID == null || tsvFilename == null || columnName == null ||
+			line == null || headers == null)
+			return null;
+		// first try to parse the user-supplied columnID as an integer index
+		try {
+			int index = Integer.parseInt(columnID);
+			// the specified index must be within the bounds of the header array
+			if (index < 0 || index >= headers.length)
+				throw new IllegalArgumentException(String.format(
+					"Error parsing input TSV file [%s]: the index of the " +
+					"%s column was given as %s, but the first " +
+					"line of the file contains %d elements:\n%s",
+					tsvFilename, columnName, columnID, headers.length, line));
+			else return index;
+		}
+		// if the user-supplied value of the column ID was not an
+		// integer, then it must be the string name of a column header
+		catch (NumberFormatException error) {
+			// if there is no header row, then a column ID that cannot be
+			// parsed as an integer is illegal, since it can't be looked up
+			if (header == false)
+				throw new IllegalArgumentException(String.format(
+					"Error parsing input TSV file [%s]: the %s column header " +
+					"was given as [%s], but the converter parameters did " +
+					"not indicate that the file contains a header line.",
+					tsvFilename, columnName, columnID));
+			// otherwise, try to find the index of the specified column header
+			for (int i=0; i<headers.length; i++)
+				if (columnID.equals(headers[i]))
+					return i;
+			// if no matching column header was found, then throw an exception
+			throw new IllegalArgumentException(String.format(
+				"Error parsing input TSV file [%s]: the %s " +
+				"column header was given as [%s], but this header could " +
+				"not be found in the first line of the file:\n%s",
+				tsvFilename, columnName, columnID, line));
 		}
 	}
 	
