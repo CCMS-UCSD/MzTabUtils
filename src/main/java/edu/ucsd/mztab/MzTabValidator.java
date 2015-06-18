@@ -33,11 +33,12 @@ public class MzTabValidator
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabValidator" +
-		"\n\t-params  <ParameterFile>" +
-		"\n\t-mztab   <MzTabDirectory>" +
-		"\n\t[-scans  <ScansDirectory>]" +
-		"\n\t[-result <UploadedResultDirectory>]" +
-		"\n\t-output  <OutputFile>" +
+		"\n\t-params     <ParameterFile>" +
+		"\n\t-mztab      <MzTabDirectory>" +
+		"\n\t[-scans     <ScansDirectory>]" +
+		"\n\t[-result    <UploadedResultDirectory>]" +
+		"\n\t-output     <OutputFile>" +
+		"\n\t[-threshold <InvalidPSMPercentageToFail: 0-100>]" +
 		"\n\t[-count_only]";
 	private static final String TEMPORARY_MZTAB_FILE =
 		"temp_modified_result.mzTab";
@@ -49,6 +50,7 @@ public class MzTabValidator
 	private static final Pattern INDEX_PATTERN =
 		Pattern.compile("index=(\\d+)");
 	private static final Pattern FILE_PATTERN = Pattern.compile("file=(.+)");
+	private static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	
 	/*========================================================================
 	 * Public interface methods
@@ -120,7 +122,7 @@ public class MzTabValidator
 				int psmRows = counts[0];
 				int invalidRows = counts[1];
 				double percentage = (double)invalidRows / (double)psmRows * 100.0;
-				if (percentage > 10)
+				if (percentage > validation.failureThreshold)
 					die(String.format("MzTab file [%s] contains %s%% invalid " +
 						"PSM rows.  Please correct the file and ensure that " +
 						"its referenced spectra are accessible within linked " +
@@ -165,13 +167,15 @@ public class MzTabValidator
 		private File    uploadedResultDirectory;
 		private File    outputFile;
 		private boolean countOnly;
+		private double  failureThreshold;
 		
 		/*====================================================================
 		 * Constructors
 		 *====================================================================*/
 		public MzTabValidationOperation(
 			File parameters, File mzTabDirectory, File scansDirectory,
-			File resultDirectory, File outputFile, boolean countOnly
+			File resultDirectory, File outputFile, boolean countOnly,
+			String failureThreshold
 		) {
 			// validate parameters file
 			if (parameters == null)
@@ -234,6 +238,15 @@ public class MzTabValidator
 			this.outputFile = outputFile;
 			// determine validation mode
 			this.countOnly = countOnly;
+			// determine failure threshold for mzTab validation
+			if (failureThreshold != null) try {
+				this.failureThreshold = Double.parseDouble(failureThreshold);
+			} catch (NumberFormatException error) {
+				throw new IllegalArgumentException(String.format(
+					"Failure threshold [%s] must be a real number " +
+					"between 0 and 100.", failureThreshold));
+			}
+			else this.failureThreshold = DEFAULT_FAILURE_THRESHOLD;
 		}
 	}
 	
@@ -249,6 +262,7 @@ public class MzTabValidator
 		File resultDirectory = null;
 		File output = null;
 		boolean countOnly = false;
+		String failureThreshold = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -270,12 +284,15 @@ public class MzTabValidator
 					resultDirectory = new File(value);
 				else if (argument.equals("-output"))
 					output = new File(value);
+				else if (argument.equals("-threshold"))
+					failureThreshold = value;
 				else return null;
 			}
 		}
 		try {
 			return new MzTabValidationOperation(params, mzTabDirectory,
-				scansDirectory, resultDirectory, output, countOnly);
+				scansDirectory, resultDirectory, output, countOnly,
+				failureThreshold);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
