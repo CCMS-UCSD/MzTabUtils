@@ -458,16 +458,24 @@ public class TSVToMzTabParameters
 				document, "//parameter[@name='fixed_mods']");
 			if (parameter != null) {
 				value = parameter.getFirstChild().getNodeValue();
-				if (value != null)
+				if (value != null) {
+					// if any mod characters are escaped, be sure to double
+					// the backslash ("\") character to make Java happy
+					value = value.replaceAll("\\\\", "\\\\\\\\");
 					output.println(String.format("fixed_mods=%s", value));
+				}
 			}
 			// extract variable mods, and write them to the output file
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='variable_mods']");
 			if (parameter != null) {
 				value = parameter.getFirstChild().getNodeValue();
-				if (value != null)
+				if (value != null) {
+					// if any mod characters are escaped, be sure to double
+					// the backslash ("\") character to make Java happy
+					value = value.replaceAll("\\\\", "\\\\\\\\");
 					output.println(String.format("variable_mods=%s", value));
+				}
 			}
 			// extract all column index identifiers,
 			// and write them to the output file
