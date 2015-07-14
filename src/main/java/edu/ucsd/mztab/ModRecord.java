@@ -317,61 +317,75 @@ public class ModRecord
 		Set<Character> foundAminoAcids = new LinkedHashSet<Character>();
 		StringBuffer pattern = new StringBuffer();
 		boolean foundHash = false;
+		boolean escape = false;
 		for (int i=0; i<modID.length(); i++) {
 			char current = modID.charAt(i);
-			// if the current character is an asterisk ("*"), then add all
-			// known amino acids to the regular expression for this region
-			if (current == '*') {
-				// asterisks don't make sense if other
-				// amino acids were already specified
-				if (foundAminoAcids.isEmpty() == false)
-					throw new IllegalArgumentException(String.format(
-						"Found an asterisk (\"*\") at position %d in mod ID " +
-						"string [%s], even though other site references had " +
-						"already been found in the same string.", i, modID));
-				for (char aminoAcid : PeptideUtils.AMINO_ACID_MASSES.keySet())
-					foundAminoAcids.add(aminoAcid);
+			// if the current character is a backslash ("\"), then the next
+			// character after it should be literally inserted into the pattern
+			if (current == '\\') {
+				escape = true;
 				continue;
 			}
-			// if the current character is a hash ("#"), then add a
-			// generic mass value extractor to the pattern string
-			else if (current == '#') {
-				if (foundHash)
-					throw new IllegalArgumentException(String.format(
-						"Found a hash (\"#\") at position %d in mod ID " +
-						"string [%s], even though other generic mass " +
-						"references had already been found in the same " +
-						"string.", i, modID));
-				else foundHash = true;
-				pattern.append(FLOAT_PATTERN_STRING);
-				this.generic = true;
-				continue;
-			}
-			// if the current character is a standalone amino acid,
-			// then add it to the regular expression for this region
-			else if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current)) {
-				// redundant amino acids are not allowed
-				if (foundAminoAcids.contains(current))
-					throw new IllegalArgumentException(String.format(
-						"Found site \"%c\" at position %d in mod ID string " +
-						"[%s], even though a reference to this site had " +
-						"already been found in the same string.",
-						current, i, modID));
-				else foundAminoAcids.add(current);
-				continue;
-			}
-			// if the current character is not an amino acid, then add any
-			// recently found amino acids to the regular expression
-			else if (foundAminoAcids.isEmpty() == false) {
-				setSites(foundAminoAcids, modID);
-				pattern.append("[");
-				for (char aminoAcid : foundAminoAcids)
-					pattern.append(aminoAcid);
-				pattern.append("]");
-				foundAminoAcids.clear();
+			// if the current character is not escaped by an immediately
+			// preceding backslash ("\"), then process it normally
+			else if (escape == false) {
+				// if the current character is an asterisk ("*"), then add all
+				// known amino acids to the regular expression for this region
+				if (current == '*') {
+					// asterisks don't make sense if other
+					// amino acids were already specified
+					if (foundAminoAcids.isEmpty() == false)
+						throw new IllegalArgumentException(String.format(
+							"Found an asterisk (\"*\") at position %d in " +
+							"mod ID string [%s], even though other site " +
+							"references had already been found in the same " +
+							"string.", i, modID));
+					for (char aminoAcid :
+						PeptideUtils.AMINO_ACID_MASSES.keySet())
+						foundAminoAcids.add(aminoAcid);
+					continue;
+				}
+				// if the current character is a hash ("#"), then add a
+				// generic mass value extractor to the pattern string
+				else if (current == '#') {
+					if (foundHash)
+						throw new IllegalArgumentException(String.format(
+							"Found a hash (\"#\") at position %d in mod ID " +
+							"string [%s], even though other generic mass " +
+							"references had already been found in the same " +
+							"string.", i, modID));
+					else foundHash = true;
+					pattern.append(FLOAT_PATTERN_STRING);
+					this.generic = true;
+					continue;
+				}
+				// if the current character is a standalone amino acid,
+				// then add it to the regular expression for this region
+				else if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current)) {
+					// redundant amino acids are not allowed
+					if (foundAminoAcids.contains(current))
+						throw new IllegalArgumentException(String.format(
+							"Found site \"%c\" at position %d in mod ID " +
+							"string [%s], even though a reference to this " +
+							"site had already been found in the same string.",
+							current, i, modID));
+					else foundAminoAcids.add(current);
+					continue;
+				}
+				// if the current character is not an amino acid, then add any
+				// recently found amino acids to the regular expression
+				else if (foundAminoAcids.isEmpty() == false) {
+					setSites(foundAminoAcids, modID);
+					pattern.append("[");
+					for (char aminoAcid : foundAminoAcids)
+						pattern.append(aminoAcid);
+					pattern.append("]");
+					foundAminoAcids.clear();
+				}
 			}
 			// add the regex-escaped character to the pattern
 			pattern.append(Pattern.quote(Character.toString(current)));
+			escape = false;
 		}
 		// if the ID string ended in an amino acid pattern, add it now
 		if (foundAminoAcids.isEmpty() == false) {
