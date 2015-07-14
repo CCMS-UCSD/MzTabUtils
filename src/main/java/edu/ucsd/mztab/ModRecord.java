@@ -320,18 +320,19 @@ public class ModRecord
 		boolean escape = false;
 		for (int i=0; i<modID.length(); i++) {
 			char current = modID.charAt(i);
-			// if the current character is a backslash ("\"), then the next
-			// character after it should be literally inserted into the pattern
-			if (current == '\\') {
-				escape = true;
-				continue;
-			}
 			// if the current character is not escaped by an immediately
 			// preceding backslash ("\"), then process it normally
-			else if (escape == false) {
+			if (escape == false) {
+				// if the current character is a backslash ("\"),
+				// then the next character after it should be
+				// literally inserted into the pattern
+				if (current == '\\') {
+					escape = true;
+					continue;
+				}
 				// if the current character is an asterisk ("*"), then add all
 				// known amino acids to the regular expression for this region
-				if (current == '*') {
+				else if (current == '*') {
 					// asterisks don't make sense if other
 					// amino acids were already specified
 					if (foundAminoAcids.isEmpty() == false)
