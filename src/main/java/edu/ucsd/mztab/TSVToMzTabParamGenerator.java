@@ -172,7 +172,9 @@ public class TSVToMzTabParamGenerator
 				// data line of the file to determine the spectrum ID type
 				else {
 					line = reader.readLine();
-					elements = line.split("\t");
+					if (line == null)
+						elements = null;
+					else elements = line.split("\t");
 					if (elements == null || elements.length < 1)
 						throw new IllegalArgumentException(
 							String.format("Could not parse the tab-delimited " +
