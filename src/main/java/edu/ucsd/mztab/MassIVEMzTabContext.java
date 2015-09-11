@@ -319,12 +319,13 @@ public class MassIVEMzTabContext
 					String bestMatch = FILE_PATH_COMPARATOR.findBestFileMatch(
 						tokens[1], uploadedPeakListFilenames.keySet());
 					if (bestMatch == null)
-						throw new NullPointerException(String.format(
-							"No source peak list filename could be found " +
-							"from among the \"result_file_mapping\" " +
-							"parameters to match source filename [%s], " +
-							"from \"upload_file_mapping\" parameter value [%s]",
-							tokens[1], value));
+						continue;
+//						throw new NullPointerException(String.format(
+//							"No source peak list filename could be found " +
+//							"from among the \"result_file_mapping\" " +
+//							"parameters to match source filename [%s], " +
+//							"from \"upload_file_mapping\" parameter value [%s]",
+//							tokens[1], value));
 					// update all of this peak list file's mapping
 					// with the mangled filename
 					Collection<PeakListFileMapping> peakListMappings =
