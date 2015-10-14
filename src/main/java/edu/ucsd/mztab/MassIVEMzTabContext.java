@@ -189,6 +189,21 @@ public class MassIVEMzTabContext
 		return mangledMzTabFilename;
 	}
 	
+	public String getUploadedPeakListFilename(
+		String mzTabFilename, String mzTabPeakListFilename
+	) {
+		if (mzTabFilename == null || mzTabPeakListFilename == null)
+			return null;
+		Collection<PeakListFileMapping> mappings =
+			getPeakListFileMappings(mzTabFilename);
+		if (mappings == null)
+			return null;
+		for (PeakListFileMapping mapping : mappings)
+			if (mzTabPeakListFilename.equals(mapping.mzTabPeakListFilename))
+				return mapping.uploadedPeakListFilename;
+		return null;
+	}
+	
 	public String toJSON() {
 		if (filenameMap == null)
 			return null;
@@ -394,7 +409,7 @@ public class MassIVEMzTabContext
 	 * Struct to maintain context data for a particular mapping of peak list
 	 * file referenced within an mzTab file -> uploaded dataset peak list file.
 	 */
-	private static class PeakListFileMapping {
+	public static class PeakListFileMapping {
 		/*====================================================================
 		 * Properties
 		 *====================================================================*/
