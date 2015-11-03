@@ -139,18 +139,19 @@ public class MassIVEMzTabContext
 		if (mappings == null || mappings.isEmpty())
 			return null;
 		else for (PeakListFileMapping mapping : mappings) {
-			String location = mapping.mzTabPeakListFilename;
-			if (location == null)
+			String location = msRunLocation;
+			String mappedLocation = mapping.mzTabPeakListFilename;
+			if (mappedLocation == null)
 				continue;
 			// if the raw "ms_run" location does not match,
 			// try stripping off the protocol part of the URL
-			else if (location.equals(msRunLocation) == false)
-				msRunLocation = CommonUtils.cleanFileURL(msRunLocation);
+			else if (mappedLocation.equals(location) == false)
+				location = CommonUtils.cleanFileURL(location);
 			// as a last-ditch effort, try stripping off a leading "/"
-			if (location.equals(msRunLocation) == false &&
-				msRunLocation.startsWith("/"))
-				msRunLocation = msRunLocation.substring(1);
-			if (location.equals(msRunLocation)) {
+			if (mappedLocation.equals(location) == false &&
+				location.startsWith("/"))
+				location = location.substring(1);
+			if (mappedLocation.equals(location)) {
 				String mangled = mapping.mangledPeakListFilename;
 				if (mangled != null)
 					return FilenameUtils.getBaseName(mangled) + ".scans";
