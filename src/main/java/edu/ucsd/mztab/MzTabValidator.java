@@ -116,18 +116,22 @@ public class MzTabValidator
 					uploadedMzTabFilename = mzTabFilename;
 				if (counts == null || counts.length != 7)
 					die(String.format(
-						"MzTab file [%s] could not be parsed for validation.",
+						"Result file [%s] could not be parsed for validation.",
 						uploadedMzTabFilename));
 				// if this mzTab file has more than 10% invalid PSMs, it's bad
 				int psmRows = counts[0];
 				int invalidRows = counts[1];
 				double percentage = (double)invalidRows / (double)psmRows * 100.0;
-				if (percentage > validation.failureThreshold)
-					die(String.format("MzTab file [%s] contains %s%% invalid " +
-						"PSM rows.  Please correct the file and ensure that " +
+				if (percentage > validation.failureThreshold) {
+					// log the filename map values, since that's
+					// the most likely reason for this failure
+					//System.err.println(context.toJSON());
+					die(String.format("Result file [%s] contains %s%% invalid " +
+						"PSM rows. Please correct the file and ensure that " +
 						"its referenced spectra are accessible within linked " +
 						"peak list files, and then re-submit.",
 						uploadedMzTabFilename, percentage));
+				}
 				int foundPSMs = counts[2];
 				// only show found peptide and protein counts if the
 				// corresponding sections were not found in the file
@@ -154,8 +158,11 @@ public class MzTabValidator
 		}
 	}
 	
+	/*========================================================================
+	 * Convenience classes
+	 *========================================================================*/
 	/**
-	 * Struct to maintain context data for each copy dataset operation.
+	 * Struct to maintain context data for each mzTab validation operation.
 	 */
 	private static class MzTabValidationOperation {
 		/*====================================================================
