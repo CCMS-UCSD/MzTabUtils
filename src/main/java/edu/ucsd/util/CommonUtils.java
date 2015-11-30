@@ -8,8 +8,10 @@ public class CommonUtils
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
-	private static final Pattern FILE_URI_PATTERN =
-		Pattern.compile("[^/]+://(.*)");
+	public static final Pattern FILE_URI_PROTOCOL_PATTERN =
+		Pattern.compile("[^/]+:(?:[/]{1,2})?(.*)");
+	public static final Pattern WINDOWS_FILE_URI_PROTOCOL_PATTERN =
+		Pattern.compile("[^\\\\]+:(?:[\\\\]{1,2})?(.*)");
 	
 	/*========================================================================
 	 * Static utility methods
@@ -23,9 +25,14 @@ public class CommonUtils
 		if (matcher.matches())
 			fileURLString = matcher.group(1);
 		// if this is a file URI, clean it
-		matcher = FILE_URI_PATTERN.matcher(fileURLString);
+		matcher = FILE_URI_PROTOCOL_PATTERN.matcher(fileURLString);
 		if (matcher.matches())
 			fileURLString = matcher.group(1);
+		else {
+			matcher = WINDOWS_FILE_URI_PROTOCOL_PATTERN.matcher(fileURLString);
+			if (matcher.matches())
+				fileURLString = matcher.group(1);
+		}
 		// account for buggy jmzTab file URLs
 		if (fileURLString.startsWith("file:"))
 			fileURLString = fileURLString.substring(5);
