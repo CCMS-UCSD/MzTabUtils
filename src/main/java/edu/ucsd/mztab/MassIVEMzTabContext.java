@@ -147,9 +147,9 @@ public class MassIVEMzTabContext
 			// try stripping off the protocol part of the URL
 			else if (mappedLocation.equals(location) == false)
 				location = CommonUtils.cleanFileURL(location);
-			// as a last-ditch effort, try stripping off a leading "/"
+			// as a last-ditch effort, try stripping off a leading "/" (or "\")
 			if (mappedLocation.equals(location) == false &&
-				location.startsWith("/"))
+				(location.startsWith("/") || location.startsWith("\\")))
 				location = location.substring(1);
 			if (mappedLocation.equals(location)) {
 				String mangled = mapping.mangledPeakListFilename;
