@@ -160,34 +160,34 @@ public class MassIVEMzTabContext
 		return null;
 	}
 	
-	public String getMangledMzTabFilename(String uploadedMzTabFilename) {
-		if (uploadedMzTabFilename == null)
+	public String getMangledResultFilename(String uploadedResultFilename) {
+		if (uploadedResultFilename == null)
 			return null;
 		Collection<PeakListFileMapping> mappings =
-			getPeakListFileMappings(uploadedMzTabFilename);
+			getPeakListFileMappings(uploadedResultFilename);
 		if (mappings == null || mappings.isEmpty())
 			return null;
 		else for (PeakListFileMapping mapping : mappings) {
-			String mzTabFilename = mapping.mangledMzTabFilename;
-			if (mzTabFilename != null)
-				return mzTabFilename;
+			String resultFilename = mapping.mangledResultFilename;
+			if (resultFilename != null)
+				return resultFilename;
 		}
-		return uploadedMzTabFilename;
+		return uploadedResultFilename;
 	}
 	
-	public String getUploadedMzTabFilename(String mangledMzTabFilename) {
-		if (mangledMzTabFilename == null)
+	public String getUploadedResultFilename(String mangledResultFilename) {
+		if (mangledResultFilename == null)
 			return null;
 		Collection<PeakListFileMapping> mappings =
-			getPeakListFileMappings(mangledMzTabFilename);
+			getPeakListFileMappings(mangledResultFilename);
 		if (mappings == null || mappings.isEmpty())
 			return null;
 		else for (PeakListFileMapping mapping : mappings) {
-			String mzTabFilename = mapping.uploadedMzTabFilename;
-			if (mzTabFilename != null)
-				return mzTabFilename;
+			String resultFilename = mapping.uploadedResultFilename;
+			if (resultFilename != null)
+				return resultFilename;
 		}
-		return mangledMzTabFilename;
+		return mangledResultFilename;
 	}
 	
 	public String getUploadedPeakListFilename(
@@ -205,6 +205,21 @@ public class MassIVEMzTabContext
 		return null;
 	}
 	
+	public String getUserPeakListFilename(
+		String mzTabFilename, String mzTabPeakListFilename
+	) {
+		if (mzTabFilename == null || mzTabPeakListFilename == null)
+			return null;
+		Collection<PeakListFileMapping> mappings =
+			getPeakListFileMappings(mzTabFilename);
+		if (mappings == null)
+			return null;
+		for (PeakListFileMapping mapping : mappings)
+			if (mzTabPeakListFilename.equals(mapping.mzTabPeakListFilename))
+				return mapping.userPeakListFilename;
+		return null;
+	}
+	
 	public String toJSON() {
 		if (filenameMap == null)
 			return null;
@@ -214,12 +229,14 @@ public class MassIVEMzTabContext
 			Collection<PeakListFileMapping> resultFileMap =
 				filenameMap.get(resultFilename);
 			for (PeakListFileMapping mapping : resultFileMap) {
-				output.append("\n\t\t{\"uploadedMzTabFilename\":\"").append(
-					mapping.uploadedMzTabFilename).append("\",");
-				output.append("\"mangledMzTabFilename\":\"").append(
-					mapping.mangledMzTabFilename).append("\",");
+				output.append("\n\t\t{\"uploadedResultFilename\":\"").append(
+					mapping.uploadedResultFilename).append("\",");
+				output.append("\"mangledResultFilename\":\"").append(
+					mapping.mangledResultFilename).append("\",");
 				output.append("\"uploadedPeakListFilename\":\"").append(
 					mapping.uploadedPeakListFilename).append("\",");
+				output.append("\"userPeakListFilename\":\"").append(
+					mapping.userPeakListFilename).append("\",");
 				output.append("\"mangledPeakListFilename\":\"").append(
 					mapping.mangledPeakListFilename).append("\",");
 				output.append("\"mzTabPeakListFilename\":\"").append(
@@ -346,8 +363,10 @@ public class MassIVEMzTabContext
 					// with the mangled filename
 					Collection<PeakListFileMapping> peakListMappings =
 						uploadedPeakListFilenames.get(bestMatch);
-					for (PeakListFileMapping mapping : peakListMappings)
+					for (PeakListFileMapping mapping : peakListMappings) {
 						mapping.mangledPeakListFilename = tokens[0];
+						mapping.userPeakListFilename = tokens[1];
+					}
 				} else if (value.startsWith("RESULT-")) {
 					// convert mangled filename to mzTab, if necessary,
 					// since that's what the workflow did
@@ -368,7 +387,7 @@ public class MassIVEMzTabContext
 						Collection<PeakListFileMapping> mzTabMappings =
 							filenameMap.get(bestMatch);
 						for (PeakListFileMapping mapping : mzTabMappings)
-							mapping.mangledMzTabFilename = mangledFilename;
+							mapping.mangledResultFilename = mangledFilename;
 					}
 				}
 			}
@@ -382,14 +401,14 @@ public class MassIVEMzTabContext
 				if (mzTabMappings == null || mzTabMappings.isEmpty())
 					continue;
 				for (PeakListFileMapping mapping : mzTabMappings) {
-					if (mapping.mangledMzTabFilename == null)
+					if (mapping.mangledResultFilename == null)
 						continue;
 					// don't add this entry to the map if it's already there
 					else if (mangledMap.containsKey(
-						mapping.mangledMzTabFilename))
+						mapping.mangledResultFilename))
 						continue;
 					else mangledMap.put(
-						mapping.mangledMzTabFilename, mzTabMappings);
+						mapping.mangledResultFilename, mzTabMappings);
 				}
 			}
 			if (mangledMap != null && mangledMap.isEmpty() == false)
@@ -414,23 +433,24 @@ public class MassIVEMzTabContext
 		/*====================================================================
 		 * Properties
 		 *====================================================================*/
-		private String uploadedMzTabFilename;
-		private String mangledMzTabFilename;
+		private String uploadedResultFilename;
+		private String mangledResultFilename;
 		private String mzTabPeakListFilename;
 		private String uploadedPeakListFilename;
+		private String userPeakListFilename;
 		private String mangledPeakListFilename;
 		
 		/*====================================================================
 		 * Constructor
 		 *====================================================================*/
 		public PeakListFileMapping(
-			String uploadedMzTabFilename, String mzTabPeakListFilename,
+			String uploadedResultFilename, String mzTabPeakListFilename,
 			String uploadedPeakListFilename
 		) {
-			if (uploadedMzTabFilename == null)
+			if (uploadedResultFilename == null)
 				throw new NullPointerException(
-					"Uploaded mzTab filename cannot be null.");
-			else this.uploadedMzTabFilename = uploadedMzTabFilename;
+					"Uploaded result filename cannot be null.");
+			else this.uploadedResultFilename = uploadedResultFilename;
 			if (mzTabPeakListFilename == null)
 				throw new NullPointerException(
 					"MzTab peak list filename cannot be null.");

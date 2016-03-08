@@ -110,18 +110,19 @@ public class MzTabValidator
 				// get original uploaded result filename for this mzTab file,
 				// if present; it may not be, if this is a count-only TSV
 				// conversion
-				String uploadedMzTabFilename =
-					context.getUploadedMzTabFilename(mzTabFilename);
-				if (uploadedMzTabFilename == null)
-					uploadedMzTabFilename = mzTabFilename;
+				String uploadedResultFilename =
+					context.getUploadedResultFilename(mzTabFilename);
+				if (uploadedResultFilename == null)
+					uploadedResultFilename = mzTabFilename;
 				if (counts == null || counts.length != 7)
 					die(String.format(
 						"Result file [%s] could not be parsed for validation.",
-						uploadedMzTabFilename));
+						uploadedResultFilename));
 				// if this mzTab file has more than 10% invalid PSMs, it's bad
 				int psmRows = counts[0];
 				int invalidRows = counts[1];
-				double percentage = (double)invalidRows / (double)psmRows * 100.0;
+				double percentage =
+					(double)invalidRows / (double)psmRows * 100.0;
 				if (percentage > validation.failureThreshold) {
 					// log the filename map values, since that's
 					// the most likely reason for this failure
@@ -130,7 +131,7 @@ public class MzTabValidator
 						"PSM rows. Please correct the file and ensure that " +
 						"its referenced spectra are accessible within linked " +
 						"peak list files, and then re-submit.",
-						uploadedMzTabFilename, percentage));
+						uploadedResultFilename, percentage));
 				}
 				int foundPSMs = counts[2];
 				// only show found peptide and protein counts if the
@@ -146,7 +147,7 @@ public class MzTabValidator
 				// if it's good, write this mzTab file's row counts to the file
 				writer.println(String.format(
 					"%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
-					mzTabFilename, uploadedMzTabFilename, psmRows, invalidRows,
+					mzTabFilename, uploadedResultFilename, psmRows, invalidRows,
 					foundPSMs, peptideRows, foundPeptides, proteinRows,
 					foundProteins));
 			}
@@ -393,10 +394,10 @@ public class MzTabValidator
 				"Peak list file spectra ID collection is null.");
 		// get original uploaded result filename for this mzTab file, if
 		// present; it may not be, if this is a count-only TSV conversion
-		String mzTabFilename =
-			context.getUploadedMzTabFilename(mzTabFile.getName());
-		if (mzTabFilename == null)
-			mzTabFilename = mzTabFile.getName();
+		String resultFilename =
+			context.getUploadedResultFilename(mzTabFile.getName());
+		if (resultFilename == null)
+			resultFilename = mzTabFile.getName();
 		// extract all peak list file references from mzTab file
 		Map<Integer, String> peakListFiles = null;
 		try {
@@ -407,7 +408,7 @@ public class MzTabValidator
 		if (peakListFiles == null || peakListFiles.isEmpty())
 			throw new IllegalArgumentException(String.format(
 				"No valid \"ms_run[1-n]-location\" lines were found " +
-				"in mzTab file [%s].", mzTabFilename));
+				"in mzTab conversion of result file [%s].", resultFilename));
 		// validate mzTab file's PSMs
 		Collection<PSMRecord> uniquePSMs = new LinkedHashSet<PSMRecord>();
 		Collection<String> foundPeptides = new LinkedHashSet<String>();
@@ -448,7 +449,7 @@ public class MzTabValidator
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo tab-delimited " +
 							"column header elements were found.",
-							lineCount, mzTabFilename, line));
+							lineCount, resultFilename, line));
 					else for (int i=0; i<headerCount; i++) {
 						String header = headers[i];
 						if (header == null)
@@ -472,25 +473,25 @@ public class MzTabValidator
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"sequence\" " +
 							"column header element was found.",
-							lineCount, mzTabFilename, line));
+							lineCount, resultFilename, line));
 					else if (accessionIndex < 0)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"accession\" " +
 							"column header element was found.",
-							lineCount, mzTabFilename, line));
+							lineCount, resultFilename, line));
 					else if (modsIndex < 0)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo " +
 							"\"modifications\" column header element was " +
-							"found.", lineCount, mzTabFilename, line));
+							"found.", lineCount, resultFilename, line));
 					else if (spectraRefIndex < 0)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
 							"column header element was found.",
-							lineCount, mzTabFilename, line));
+							lineCount, resultFilename, line));
 					// add extra validity optional columns, if necessary
 					if (validIndex < 0) {
 						line = line.trim() + "\topt_global_valid";
@@ -521,7 +522,7 @@ public class MzTabValidator
 					throw new IllegalArgumentException(String.format(
 						"A \"PSM\" row (line %d) was found before the " +
 						"\"PSH\" row in mzTab file [%s].",
-						lineCount, mzTabFilename));
+						lineCount, resultFilename));
 				else psmRowCount++;
 				// validate this PSM row
 				String[] columns = line.split("\\t");
@@ -532,26 +533,26 @@ public class MzTabValidator
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"sequence\" " +
 							"column element was found (expected at index %d).",
-							lineCount, mzTabFilename, line, sequenceIndex));
+							lineCount, resultFilename, line, sequenceIndex));
 					else if (columns.length <= accessionIndex)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"accession\" " +
 							"column element was found (expected at index %d).",
-							lineCount, mzTabFilename, line, accessionIndex));
+							lineCount, resultFilename, line, accessionIndex));
 					else if (columns.length <= modsIndex)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo " +
 							"\"modifications\" column element was found " +
 							"(expected at index %d).",
-							lineCount, mzTabFilename, line, modsIndex));
+							lineCount, resultFilename, line, modsIndex));
 					else if (columns.length <= spectraRefIndex)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
 							"column element was found (expected at index %d).",
-							lineCount, mzTabFilename, line, spectraRefIndex));
+							lineCount, resultFilename, line, spectraRefIndex));
 					// check existing validity status, if any
 					if (validIndex < columns.length) {
 						String validity = columns[validIndex];
@@ -579,7 +580,7 @@ public class MzTabValidator
 							"<nativeID-formatted identifier string>"));
 					PSMRecord psm = validatePSMRow(columns[sequenceIndex],
 						columns[modsIndex], tokens[0], tokens[1], context,
-						spectra, peakListFiles, lineCount, mzTabFilename,
+						spectra, peakListFiles, lineCount, resultFilename,
 						uploadedResults, parsedMzidFileCache,
 						mzidSpectrumIDCache, countOnly);
 					uniquePSMs.add(psm);
@@ -894,12 +895,12 @@ public class MzTabValidator
 				"Invalid NativeID-formatted spectrum identifier [%d]: no " +
 				"submitted mzIdentML file could be found to verify whether " +
 				"this identifier represents an index or scan number.", id));
-		// get mangled mzTab filename
-		String mangledMzTabFilename =
-			context.getMangledMzTabFilename(mzTabFilename);
+		// get mangled result filename
+		String mangledResultFilename =
+			context.getMangledResultFilename(mzTabFilename);
 		// get original mzid file that this mzTab was converted from, if any
 		File mzidFile = getUploadedMzIdentMLFile(
-			mangledMzTabFilename, uploadedResultDirectory);
+			mangledResultFilename, uploadedResultDirectory);
 		// if this mzTab file was not converted from an mzid file, then there's
 		// no source to look up; its nativeIDs are just inherently bad
 		if (mzidFile == null || mzidFile.canRead() == false)
