@@ -25,8 +25,10 @@ public class MzTabCleaner
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.MzTabCleaner" +
 		"\n\t-params <ParameterFile>" +
 		"\n\t-mztab  <MzTabDirectory>" +
-		"\n\t-id     <DatasetIDFile>" +
 		"\n\t-output <CleanedMzTabDirectory>" +
+		"\n\t[-id    <DatasetIDFile>] (if specified, peak file references " +
+		"will be replaced with dataset FTP URLs, rather than ProteoSAFe " +
+		"user upload paths)" +
 		"\n\t[-push] (if specified, no changes will be made to the file " +
 		"except to ensure that validity columns are present)";
 	private static final Pattern FILE_LINE_PATTERN =
@@ -82,26 +84,25 @@ public class MzTabCleaner
 				throw new NullPointerException(
 					"Parameters file cannot be null.");
 			else if (parameters.isFile() == false)
-				throw new IllegalArgumentException(
-					String.format(
-						"Parameters file [%s] must be a regular file.",
-						parameters.getAbsolutePath()));
+				throw new IllegalArgumentException(String.format(
+					"Parameters file [%s] must be a regular file.",
+					parameters.getAbsolutePath()));
 			else if (parameters.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("Parameters file [%s] must be readable.",
-						parameters.getAbsolutePath()));
+				throw new IllegalArgumentException(String.format(
+					"Parameters file [%s] must be readable.",
+					parameters.getAbsolutePath()));
 			// validate mzTab directory
 			if (mzTabDirectory == null)
 				throw new NullPointerException(
 					"MzTab directory cannot be null.");
 			else if (mzTabDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be a directory.",
-						mzTabDirectory.getAbsolutePath()));
+				throw new IllegalArgumentException(String.format(
+					"MzTab directory [%s] must be a directory.",
+					mzTabDirectory.getAbsolutePath()));
 			else if (mzTabDirectory.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be readable.",
-						mzTabDirectory.getAbsolutePath()));
+				throw new IllegalArgumentException(String.format(
+					"MzTab directory [%s] must be readable.",
+					mzTabDirectory.getAbsolutePath()));
 			// build mzTab file context
 			context = new MassIVEMzTabContext(parameters, mzTabDirectory, null);
 			// validate output directory
@@ -119,30 +120,28 @@ public class MzTabCleaner
 					outputDirectory.getAbsolutePath()));
 			this.outputDirectory = outputDirectory;
 			// validate dataset ID file
-			if (datasetIDFile == null)
-				throw new NullPointerException(
-					"Dataset ID file cannot be null.");
-			else if (datasetIDFile.isFile() == false)
-				throw new IllegalArgumentException(
-					String.format(
+			if (datasetIDFile != null) {
+				if (datasetIDFile.isFile() == false)
+					throw new IllegalArgumentException(String.format(
 						"Dataset ID file [%s] must be a regular file.",
 						datasetIDFile.getAbsolutePath()));
-			else if (datasetIDFile.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("Dataset ID file [%s] must be readable.",
+				else if (datasetIDFile.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"Dataset ID file [%s] must be readable.",
 						datasetIDFile.getAbsolutePath()));
-			// read file to get dataset ID
-			RandomAccessFile input = null;
-			try {
-				input = new RandomAccessFile(datasetIDFile, "r");
-				datasetID = input.readLine();
-			} catch (Throwable error) {
-				throw new IllegalArgumentException(
-					String.format("Could not read dataset ID from file [%s].",
+				// read file to get dataset ID
+				RandomAccessFile input = null;
+				try {
+					input = new RandomAccessFile(datasetIDFile, "r");
+					datasetID = input.readLine();
+				} catch (Throwable error) {
+					throw new IllegalArgumentException(String.format(
+						"Could not read dataset ID from file [%s].",
 						datasetIDFile.getAbsolutePath()), error);
-			} finally {
-				try { input.close(); } catch (Throwable error) {}
-			}
+				} finally {
+					try { input.close(); } catch (Throwable error) {}
+				}
+			} else datasetID = null;
 			// set flag indicating whether or not this is a "push-through"
 			// mzTab cleaning operation; that is, one in which no change
 			// should take place to the files except to ensure that
@@ -219,9 +218,61 @@ public class MzTabCleaner
 				line = reader.readLine();
 				if (line == null)
 					break;
-				// simply copy the line to the output file
+				if (line.startsWith("MTD")) {
+					// if this is a file location line, update it,
+					// unless this is a push-through operation
+					Matcher matcher = FILE_LINE_PATTERN.matcher(line);
+					if (matcher.matches() && cleanup.pushThrough == false) {
+						String referencedFilename =
+							CommonUtils.cleanFileURL(matcher.group(2));
+						// update file reference with dataset FTP URL
+						if (cleanup.datasetID != null) {
+							// get dataset repository relative path for
+							// this referenced peak list file
+							String datasetRelativePath =
+								cleanup.context.getUploadedPeakListFilename(
+									mzTabFile.getName(), referencedFilename);
+							if (datasetRelativePath == null)
+								throw new IllegalArgumentException(
+									String.format("Cannot clean mzTab file " +
+										"[%s], since no mapping could be " +
+										"found for \"ms_run[%s]-location\" " +
+										"value [%s]:\n%s",
+										mzTabFile.getAbsolutePath(),
+										matcher.group(1), matcher.group(2),
+										cleanup.context.toJSON()));
+							else writer.println(String.format(
+								"MTD\tms_run[%s]-location\t" +
+								"ftp://%s@massive.ucsd.edu/peak/%s",
+								matcher.group(1), cleanup.datasetID,
+								datasetRelativePath));
+						} else {
+							// get user upload relative path for
+							// this referenced peak list file
+							String userRelativePath =
+								cleanup.context.getUserPeakListFilename(
+									mzTabFile.getName(), referencedFilename);
+							if (userRelativePath == null)
+								throw new IllegalArgumentException(
+									String.format("Cannot clean mzTab file " +
+										"[%s], since no mapping could be " +
+										"found for \"ms_run[%s]-location\" " +
+										"value [%s]:\n%s",
+										mzTabFile.getAbsolutePath(),
+										matcher.group(1), matcher.group(2),
+										cleanup.context.toJSON()));
+							else writer.println(String.format(
+								"MTD\tms_run[%s]-location\tfile://%s",
+								matcher.group(1), userRelativePath));
+						}
+					}
+					// otherwise simply copy the line
+					// to the output file verbatim
+					else writer.println(line);
+				}
+				// copy the line to the output file
 				// if it's past the metadata section
-				if (line.startsWith("MTD") == false) {
+				else {
 					// if this is the PSH row, then ensure the
 					// file has the special validity columns
 					if (line.startsWith("PSH")) {
@@ -244,33 +295,6 @@ public class MzTabCleaner
 					writer.println(line);
 					continue;
 				}
-				// if this is a file location line, update it,
-				// unless this is a push-through operation
-				if (cleanup.pushThrough == false) {
-					Matcher matcher = FILE_LINE_PATTERN.matcher(line);
-					if (matcher.matches()) {
-						// get dataset repository relative path for
-						// this referenced peak list file
-						String datasetRelativePath =
-							cleanup.context.getUploadedPeakListFilename(
-								mzTabFile.getName(),
-								CommonUtils.cleanFileURL(matcher.group(2)));
-						if (datasetRelativePath == null)
-							throw new IllegalArgumentException(String.format(
-								"Cannot clean mzTab file [%s], since no " +
-								"mapping could be found for \"ms_run[%s]-" +
-								"location\" value [%s]:\n%s",
-								mzTabFile.getAbsolutePath(), matcher.group(1),
-								matcher.group(2), cleanup.context.toJSON()));
-						else writer.println(String.format(
-							"MTD\tms_run[%s]-location\t" +
-							"ftp://%s@massive.ucsd.edu/peak/%s",
-							matcher.group(1), cleanup.datasetID,
-							datasetRelativePath));
-					}
-				}
-				// otherwise simply copy the line to the output file verbatim
-				else writer.println(line);
 			}
 		} catch (IOException error) {
 			throw error;
