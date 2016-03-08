@@ -9,7 +9,7 @@ public class CommonUtils
 	 * Constants
 	 *========================================================================*/
 	public static final Pattern FILE_URI_PROTOCOL_PATTERN =
-		Pattern.compile("file:(?:[/\\\\]{1,2})?(.*)");
+		Pattern.compile("file:(?:[/]{2})?(.*)");
 //		Pattern.compile("[^/]+:(?:[/]{1,2})?(.*)");
 	
 	/*========================================================================
