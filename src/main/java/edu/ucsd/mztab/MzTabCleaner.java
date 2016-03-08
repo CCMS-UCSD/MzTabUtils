@@ -12,6 +12,8 @@ import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
 import edu.ucsd.util.CommonUtils;
 
 public class MzTabCleaner
@@ -20,11 +22,13 @@ public class MzTabCleaner
 	 * Constants
 	 *========================================================================*/
 	private static final String USAGE =
-		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabCleaner" +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.MzTabCleaner" +
 		"\n\t-params <ParameterFile>" +
 		"\n\t-mztab  <MzTabDirectory>" +
 		"\n\t-id     <DatasetIDFile>" +
-		"\n\t-output <CleanedMzTabDirectory>";
+		"\n\t-output <CleanedMzTabDirectory>" +
+		"\n\t[-push] (if specified, no changes will be made to the file " +
+		"except to ensure that validity columns are present)";
 	private static final Pattern FILE_LINE_PATTERN =
 		Pattern.compile("^MTD\\s+ms_run\\[(\\d+)\\]-location\\s+(.+)$");
 	
@@ -64,13 +68,14 @@ public class MzTabCleaner
 		private MassIVEMzTabContext context;
 		private File                outputDirectory;
 		private String              datasetID;
+		private boolean             pushThrough;
 		
 		/*====================================================================
 		 * Constructors
 		 *====================================================================*/
 		public MzTabCleanupOperation(
 			File parameters, File mzTabDirectory,
-			File outputDirectory, File datasetIDFile
+			File outputDirectory, File datasetIDFile, boolean pushThrough
 		) {
 			// validate parameters file
 			if (parameters == null)
@@ -138,6 +143,11 @@ public class MzTabCleaner
 			} finally {
 				try { input.close(); } catch (Throwable error) {}
 			}
+			// set flag indicating whether or not this is a "push-through"
+			// mzTab cleaning operation; that is, one in which no change
+			// should take place to the files except to ensure that
+			// validity columns are present
+			this.pushThrough = pushThrough;
 		}
 	}
 	
@@ -151,10 +161,13 @@ public class MzTabCleaner
 		File mzTabDirectory = null;
 		File outputDirectory = null;
 		File datasetIDFile = null;
+		boolean pushThrough = false;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
 				return null;
+			else if (argument.equals("-push"))
+				pushThrough = true;
 			else {
 				i++;
 				if (i >= args.length)
@@ -173,7 +186,8 @@ public class MzTabCleaner
 		}
 		try {
 			return new MzTabCleanupOperation(
-				params, mzTabDirectory, outputDirectory, datasetIDFile);
+				params, mzTabDirectory,
+				outputDirectory, datasetIDFile, pushThrough);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
@@ -199,38 +213,61 @@ public class MzTabCleaner
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(cleanedMzTabFile, false)));
 			String line = null;
+			int validIndex = -1;
+			int invalidReasonIndex = -1;
 			while (true) {
 				line = reader.readLine();
 				if (line == null)
 					break;
 				// simply copy the line to the output file
-				// verbatim if it's past the metadata section
-				else if (line.startsWith("MTD") == false &&
-					line.startsWith("COM") == false &&
-					line.trim().equals("") == false) {
+				// if it's past the metadata section
+				if (line.startsWith("MTD") == false) {
+					// if this is the PSH row, then ensure the
+					// file has the special validity columns
+					if (line.startsWith("PSH")) {
+						ImmutablePair<String, int[]> header =
+							processPSHLine(line);
+						if (header != null) {
+							line = header.getLeft();
+							validIndex = header.getRight()[0];
+							invalidReasonIndex = header.getRight()[1];
+						}
+					}
+					// if this is the PSM row, then ensure it has
+					// values for the special validity columns
+					else if (line.startsWith("PSM")) {
+						String processed = processPSMLine(
+							line, validIndex, invalidReasonIndex);
+						if (processed != null)
+							line = processed;
+					}
 					writer.println(line);
 					continue;
 				}
-				// if this is a file location line, update it
-				Matcher matcher = FILE_LINE_PATTERN.matcher(line);
-				if (matcher.matches()) {
-					// get dataset repository relative path for
-					// this referenced peak list file
-					String datasetRelativePath =
-						cleanup.context.getUploadedPeakListFilename(
-							mzTabFile.getName(),
-							CommonUtils.cleanFileURL(matcher.group(2)));
-					if (datasetRelativePath == null)
-						throw new IllegalArgumentException(String.format(
-							"Cannot clean mzTab file [%s], since no mapping " +
-							"could be found for \"ms_run[%s]-location\" " +
-							"value [%s]:\n%s", mzTabFile.getAbsolutePath(),
-							matcher.group(1), matcher.group(2),
-							cleanup.context.toJSON()));
-					else writer.println(String.format(
-						"MTD\tms_run[%s]-location\t" +
-						"ftp://%s@massive.ucsd.edu/peak/%s", matcher.group(1),
-						cleanup.datasetID, datasetRelativePath));
+				// if this is a file location line, update it,
+				// unless this is a push-through operation
+				if (cleanup.pushThrough == false) {
+					Matcher matcher = FILE_LINE_PATTERN.matcher(line);
+					if (matcher.matches()) {
+						// get dataset repository relative path for
+						// this referenced peak list file
+						String datasetRelativePath =
+							cleanup.context.getUploadedPeakListFilename(
+								mzTabFile.getName(),
+								CommonUtils.cleanFileURL(matcher.group(2)));
+						if (datasetRelativePath == null)
+							throw new IllegalArgumentException(String.format(
+								"Cannot clean mzTab file [%s], since no " +
+								"mapping could be found for \"ms_run[%s]-" +
+								"location\" value [%s]:\n%s",
+								mzTabFile.getAbsolutePath(), matcher.group(1),
+								matcher.group(2), cleanup.context.toJSON()));
+						else writer.println(String.format(
+							"MTD\tms_run[%s]-location\t" +
+							"ftp://%s@massive.ucsd.edu/peak/%s",
+							matcher.group(1), cleanup.datasetID,
+							datasetRelativePath));
+					}
 				}
 				// otherwise simply copy the line to the output file verbatim
 				else writer.println(line);
@@ -245,6 +282,57 @@ public class MzTabCleaner
 			try { reader.close(); } catch (Throwable error) {}
 			try { writer.close(); } catch (Throwable error) {}
 		}
+	}
+	
+	private static ImmutablePair<String, int[]> processPSHLine(String line) {
+		if (line == null)
+			return null;
+		String[] headers = line.split("\\t");
+		if (headers == null || headers.length < 1)
+			return null;
+		int validIndex = -1;
+		int invalidReasonIndex = -1;
+		for (int i=0; i<headers.length; i++) {
+			String header = headers[i];
+			if (header == null)
+				continue;
+			else if (header.equalsIgnoreCase(
+				"opt_global_valid"))
+				validIndex = i;
+			else if (header.equalsIgnoreCase(
+				"opt_global_invalid_reason"))
+				invalidReasonIndex = i;
+		}
+		// add extra validity optional columns, if necessary
+		if (validIndex < 0) {
+			validIndex = headers.length;
+			line = line.trim() + "\topt_global_valid";
+			headers = line.split("\\t");
+		}
+		if (invalidReasonIndex < 0) {
+			invalidReasonIndex = headers.length;
+			line = line.trim() + "\topt_global_invalid_reason";
+		}
+		int[] columns = new int[]{ validIndex, invalidReasonIndex };
+		return new ImmutablePair<String, int[]>(line, columns);
+	}
+	
+	private static String processPSMLine(
+		String line, int validIndex, int invalidReasonIndex
+	) {
+		if (line == null|| validIndex < 0 || invalidReasonIndex < 0)
+			return line;
+		String[] columns = line.split("\\t");
+		if (columns == null || columns.length < 1)
+			return line;
+		// mark the row as valid if it isn't already
+		if (validIndex >= columns.length) {
+			line = line.trim() + "\tVALID";
+			columns = line.split("\\t");
+		}
+		if (invalidReasonIndex >= columns.length)
+			line = line.trim() + "\tnull";
+		return line;
 	}
 	
 	private static void die(String message) {
