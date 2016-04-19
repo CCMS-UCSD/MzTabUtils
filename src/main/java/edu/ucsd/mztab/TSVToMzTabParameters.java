@@ -22,7 +22,7 @@ import org.w3c.dom.NodeList;
 
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import edu.ucsd.util.FileIOUtils;
-import edu.ucsd.util.PeptideUtils;
+import edu.ucsd.util.ProteomicsUtils;
 
 public class TSVToMzTabParameters
 {
@@ -288,10 +288,10 @@ public class TSVToMzTabParameters
 					String peptide =
 						elements[columnIndices.get("modified_sequence")];
 					record.addPeptide(
-						msRun, PeptideUtils.cleanPeptide(peptide));
+						msRun, ProteomicsUtils.cleanPeptide(peptide));
 					// get this row's modifications and add them to this protein
 					ImmutablePair<String, Collection<Modification>> extracted =
-						PeptideUtils.extractPTMsFromPSM(
+						TSVToMzTabConverter.extractPTMsFromPSM(
 							peptide, getModifications());
 					Collection<Modification> mods = extracted.getRight();
 					if (mods != null)

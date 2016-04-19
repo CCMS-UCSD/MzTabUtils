@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.regex.Matcher;
@@ -15,7 +16,7 @@ import java.util.regex.Matcher;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
-import edu.ucsd.util.PeptideUtils;
+import edu.ucsd.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
@@ -261,15 +262,14 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			elements[params.getColumnIndex("spectrum_id")], index));
 		psm.setSpectraRef(spectraRef.toString());
 		// set (cleaned) peptide string
-		psm.setSequence(PeptideUtils.cleanPeptide(peptide));
+		psm.setSequence(ProteomicsUtils.cleanPeptide(peptide));
 		// try to extract "pre" and "post" values from the peptide sequence
 		psm.setPre(getPre(peptide));
 		psm.setPost(getPost(peptide));
 		// formulate "modifications" value for this row
 		String stripped = stripPreAndPost(peptide);
 		ImmutablePair<String, Collection<Modification>> extracted =
-			PeptideUtils.extractPTMsFromPSM(
-				stripped, params.getModifications());
+			extractPTMsFromPSM(stripped, params.getModifications());
 		// mark this row as "INVALID" if any mods were
 		// left unparsed from the peptide string
 		String cleaned = extracted.getLeft();
@@ -373,7 +373,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return matcher.group(2);
 		else return psm;
@@ -384,7 +384,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return getAminoAcid(matcher.group(1));
 		else return null;
@@ -395,7 +395,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return getAminoAcid(matcher.group(3));
 		else return null;
@@ -406,7 +406,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		char residue = peptide.charAt(0);
 		if (residue == '-' ||
-			PeptideUtils.AMINO_ACID_MASSES.containsKey(residue))
+			ProteomicsUtils.AMINO_ACID_MASSES.containsKey(residue))
 			return peptide;
 		// sometimes, underscores ("_") are used to indicate terminal residues
 		else if (residue == '_')
@@ -418,7 +418,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (peptide == null)
 			return false;
 		else for (int i=0; i<peptide.length(); i++)
-			if (PeptideUtils.AMINO_ACID_MASSES.containsKey(peptide.charAt(i))
+			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(peptide.charAt(i))
 				== false)
 				return false;
 		return true;
@@ -462,6 +462,34 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			url = new URL("file://" + filename);
 		} catch (MalformedURLException error) {}
 		return url;
+	}
+	
+	public static ImmutablePair<String, Collection<Modification>>
+	extractPTMsFromPSM(String psm, Collection<ModRecord> modifications) {
+		if (psm == null || modifications == null)
+			return null;
+		Collection<Modification> mods = new LinkedHashSet<Modification>();
+		String current = psm;
+		// check the psm string for occurrences of all registered mods
+		for (ModRecord record : modifications) {
+			ImmutablePair<String, Collection<Modification>> parsedPSM =
+				record.parsePSM(current);
+			if (parsedPSM == null)
+				continue;
+			// keep track of the iteratively cleaned PSM string
+			String cleaned = parsedPSM.getLeft();
+			if (cleaned != null)
+				current = cleaned;
+			// if no mods of this type were found, continue
+			Collection<Modification> theseMods = parsedPSM.getRight();
+			if (theseMods != null && theseMods.isEmpty() == false)
+				mods.addAll(theseMods);
+		}
+		if (mods == null || mods.isEmpty())
+			return new ImmutablePair<String, Collection<Modification>>(
+				current, null);
+		else return new ImmutablePair<String, Collection<Modification>>(
+			current, mods);
 	}
 	
 	/*========================================================================

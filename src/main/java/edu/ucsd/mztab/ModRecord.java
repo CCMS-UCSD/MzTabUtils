@@ -10,7 +10,7 @@ import java.util.regex.PatternSyntaxException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.util.OntologyUtils;
-import edu.ucsd.util.PeptideUtils;
+import edu.ucsd.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.Section;
@@ -115,7 +115,7 @@ public class ModRecord
 		// first, check for the typical "enclosing dot" syntax
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = PeptideUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			psm = matcher.group(2);
 		// iteratively apply this mod's regular expression, to extract any
@@ -163,7 +163,7 @@ public class ModRecord
 				// only count amino acid characters to
 				// keep track of the unmodified index
 				char current = cleaned.charAt(i);
-				if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current))
+				if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(current))
 					index++;
 				// if this is a site affected by this fixed mod, then add it
 				if (sites.contains(current))
@@ -342,7 +342,7 @@ public class ModRecord
 							"references had already been found in the same " +
 							"string.", i, modID));
 					for (char aminoAcid :
-						PeptideUtils.AMINO_ACID_MASSES.keySet())
+						ProteomicsUtils.AMINO_ACID_MASSES.keySet())
 						foundAminoAcids.add(aminoAcid);
 					continue;
 				}
@@ -362,7 +362,7 @@ public class ModRecord
 				}
 				// if the current character is a standalone amino acid,
 				// then add it to the regular expression for this region
-				else if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current)) {
+				else if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(current)) {
 					// redundant amino acids are not allowed
 					if (foundAminoAcids.contains(current))
 						throw new IllegalArgumentException(String.format(
@@ -407,7 +407,7 @@ public class ModRecord
 					// add any amino acid site found from the ontology lookup
 					char residue = site.charAt(0);
 					if (site.length() == 1 &&
-						PeptideUtils.AMINO_ACID_MASSES.containsKey(residue))
+						ProteomicsUtils.AMINO_ACID_MASSES.containsKey(residue))
 						foundAminoAcids.add(residue);
 					// otherwise, the value must represent a generic site
 					// like N-term, so clear the found amino acids to trigger
@@ -421,7 +421,7 @@ public class ModRecord
 			// if the found amino acids set is still empty, then it's a generic
 			// site, and all known amino acids should be added just like a "*"
 			if (foundAminoAcids.isEmpty())
-				for (char aminoAcid : PeptideUtils.AMINO_ACID_MASSES.keySet())
+				for (char aminoAcid : ProteomicsUtils.AMINO_ACID_MASSES.keySet())
 					foundAminoAcids.add(aminoAcid);
 			setSites(foundAminoAcids, modID);
 		}
@@ -478,7 +478,7 @@ public class ModRecord
 		// to generate the correct index within the unmodified peptide string
 		int index = 0;
 		for (int i=0; i<end; i++) {
-			if (PeptideUtils.AMINO_ACID_MASSES.containsKey(psm.charAt(i))) {
+			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(psm.charAt(i))) {
 				index++;
 				// if we've already reached the mod region, then the
 				// first amino acid we find is the affected site
@@ -490,7 +490,7 @@ public class ModRecord
 		StringBuffer cleaned = new StringBuffer();
 		for (int i=0; i<mod.length(); i++) {
 			char current = mod.charAt(i);
-			if (PeptideUtils.AMINO_ACID_MASSES.containsKey(current))
+			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(current))
 				cleaned.append(current);
 		}
 		// splice the cleaned substring into the original string
