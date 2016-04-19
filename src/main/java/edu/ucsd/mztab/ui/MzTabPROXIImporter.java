@@ -40,7 +40,7 @@ public class MzTabPROXIImporter
 			// sort files alphabetically
 			Arrays.sort(files);
 			System.out.println(String.format(
-				"Importing %d mzTab %s into the PROXI database...",
+				"Importing %d mzTab %s into the PROXI database...\n----------",
 				files.length, CommonUtils.pluralize("file", files.length)));
 			for (File file : files) {
 				MzTabReader reader = new MzTabReader(file);
