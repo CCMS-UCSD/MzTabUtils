@@ -58,7 +58,7 @@ public class CountProcessor implements MzTabProcessor
 	public void setUp(MzTabFile mzTabFile) {
 		if (mzTabFile == null)
 			throw new NullPointerException("Argument mzTab file is null.");
-		else mzTabFilename = mzTabFile.getFile().getName();
+		else mzTabFilename = mzTabFile.getMzTabFilename();
 	}
 	
 	public String processMzTabLine(String line, int lineNumber) {

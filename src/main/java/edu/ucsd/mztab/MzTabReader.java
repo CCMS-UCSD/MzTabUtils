@@ -20,7 +20,7 @@ public class MzTabReader
 	/*========================================================================
 	 * Constructor
 	 *========================================================================*/
-	public MzTabReader(File file) {
+	public MzTabReader(File file, File parameters) {
 		// validate input mzTab file
 		if (file == null)
 			throw new NullPointerException(
@@ -28,7 +28,15 @@ public class MzTabReader
 		else if (file.isFile() == false || file.canRead() == false)
 			throw new NullPointerException(
 				"Argument mzTab file must be a valid readable file.");
-		else mzTabFile = new MzTabFile(file);
+		// validate argument params.xml file
+		if (parameters == null)
+			throw new NullPointerException(
+				"Argument params.xml file cannot be null.");
+		else if (parameters.isFile() == false || parameters.canRead() == false)
+			throw new IllegalArgumentException(
+				"Argument params.xml file must be a readable file.");
+		// parse parameters to populate this mzTab file
+		mzTabFile = new MzTabFile(file, parameters);
 		// initialize processor chain
 		processors = new ArrayList<MzTabProcessor>();
 	}
@@ -70,6 +78,10 @@ public class MzTabReader
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
+	public MzTabFile getMzTabFile() {
+		return mzTabFile;
+	}
+	
 	public void addProcessor(MzTabProcessor processor) {
 		if (processor != null)
 			processors.add(processor);

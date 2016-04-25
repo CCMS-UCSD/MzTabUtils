@@ -17,6 +17,7 @@ public class MzTabPROXIImporter
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabPROXIImporter" +
 		"\n\t-mztab    <MzTabDirectory>" +
+		"\n\t-params   <ProteoSAFeParametersFile>" +
 		"\n\t[-dataset <TaskID> <DatasetID> <DatasetRelativePath>]" +
 		"\n\t[-task    <TaskID> <Username> <TaskRelativePath>]" +
 		"\n\t[-user    <Username> <UserSpaceRelativePath>]";
@@ -43,7 +44,7 @@ public class MzTabPROXIImporter
 				"Importing %d mzTab %s into the PROXI database...\n----------",
 				files.length, CommonUtils.pluralize("file", files.length)));
 			for (File file : files) {
-				MzTabReader reader = new MzTabReader(file);
+				MzTabReader reader = new MzTabReader(file, importer.parameters);
 				String descriptor = String.format(
 					"%s/%s", importer.descriptorBase, file.getName());
 				reader.addProcessor(new PROXIProcessor(descriptor,
@@ -79,6 +80,7 @@ public class MzTabPROXIImporter
 		 *====================================================================*/
 		private MzTabImportMode mode;
 		private File            mzTabDirectory;
+		private File            parameters;
 		private String          descriptorBase;
 		private String          taskID;
 		private Integer         datasetID;
@@ -87,7 +89,7 @@ public class MzTabPROXIImporter
 		 * Constructors
 		 *====================================================================*/
 		public MzTabImportOperation(
-			String mode, File mzTabDirectory,
+			String mode, File mzTabDirectory, File parameters,
 			String datasetID, String taskID, String username, String path
 		) {
 			// initialize nullable properties
@@ -115,13 +117,16 @@ public class MzTabPROXIImporter
 						"a valid dataset ID.", datasetID), error);
 				}
 				// formulate mzTab file descriptor prefix
-				StringBuffer descriptorBase = new StringBuffer("m.");
+				StringBuilder descriptorBase = new StringBuilder("m.");
 				descriptorBase.append(datasetID);
 				if (path != null && path.trim().equals("") == false)
 					descriptorBase.append("/").append(path);
-				// chomp trailing slash, if present
-				if (descriptorBase.charAt(descriptorBase.length() - 1) == '/')
-					descriptorBase.setLength(descriptorBase.length() - 1);
+				// add trailing slash, if not present
+				if (descriptorBase.charAt(descriptorBase.length() - 1) != '/')
+					descriptorBase.append("/");
+				// all processed dataset mzTab files
+				// are stored under "ccms_output"
+				descriptorBase.append("ccms_output");
 				this.descriptorBase = descriptorBase.toString();
 			}
 			// if mode is "task", then taskID and username are required
@@ -173,6 +178,15 @@ public class MzTabPROXIImporter
 					String.format("MzTab directory [%s] must be readable.",
 						mzTabDirectory.getAbsolutePath()));
 			else this.mzTabDirectory = mzTabDirectory;
+			// validate params.xml file
+			if (parameters == null)
+				throw new NullPointerException(
+					"Argument params.xml file cannot be null.");
+			else if (parameters.isFile() == false ||
+				parameters.canRead() == false)
+				throw new IllegalArgumentException(
+					"Argument params.xml file must be a readable file.");
+			else this.parameters = parameters;
 		}
 	}
 	
@@ -184,6 +198,7 @@ public class MzTabPROXIImporter
 			return null;
 		String mode = null;
 		File mzTabDirectory = null;
+		File parameters = null;
 		String datasetID = null;
 		String taskID = null;
 		String username = null;
@@ -199,6 +214,8 @@ public class MzTabPROXIImporter
 				String value = args[i];
 				if (argument.equals("-mztab"))
 					mzTabDirectory = new File(value);
+				else if (argument.equals("-params"))
+					parameters = new File(value);
 				else if (argument.equals("-dataset")) {
 					mode = "DATASET";
 					taskID = value;
@@ -234,7 +251,8 @@ public class MzTabPROXIImporter
 		}
 		try {
 			return new MzTabImportOperation(
-				mode, mzTabDirectory, datasetID, taskID, username, path);
+				mode, mzTabDirectory, parameters,
+				datasetID, taskID, username, path);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;

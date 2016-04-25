@@ -3,18 +3,21 @@ package edu.ucsd.mztab.model;
 import java.io.File;
 import java.net.URI;
 
+import org.w3c.dom.Document;
+
 public class PeakListFile
 {
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
-	private String msRunLocation;
 	private File   file;
+	private String descriptor;
+	private String msRunLocation;
 	
 	/*========================================================================
 	 * Constructors
 	 *========================================================================*/
-	public PeakListFile(String msRunLocation) {
+	public PeakListFile(String msRunLocation, Document parameters) {
 		// validate input ms_run location string
 		if (msRunLocation == null)
 			throw new NullPointerException(

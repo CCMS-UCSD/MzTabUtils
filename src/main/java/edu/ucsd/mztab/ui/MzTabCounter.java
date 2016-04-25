@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import edu.ucsd.mztab.MzTabReader;
+import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.processors.CountProcessor;
 
 public class MzTabCounter
@@ -18,6 +19,7 @@ public class MzTabCounter
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabCounter" +
 		"\n\t-mztab  <MzTabDirectory>" +
+		"\n\t-params <ProteoSAFeParametersFile>" +
 		"\n\t-output <OutputFile>";
 	
 	/*========================================================================
@@ -36,17 +38,25 @@ public class MzTabCounter
 					count.outputFile.getAbsolutePath()));
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(count.outputFile, false)));
-			writer.println("MzTab_file\tPSM_rows\tFound_PSMs\tPEP_rows\t" +
-				"Found_Peptides\tPRT_rows\tFound_Proteins\tFound_Mods");
+			writer.println(
+				"MzTab_file\tResult_file\tPSM_rows\tFound_PSMs\t" +
+				"PEP_rows\tFound_Peptides\tPRT_rows\tFound_Proteins\t" +
+				"Found_Mods");
 			// read through all mzTab files, write counts to output file
 			for (File file : count.mzTabDirectory.listFiles()) {
 				Map<String, Integer> counts = new HashMap<String, Integer>(7);
-				MzTabReader reader = new MzTabReader(file);
+				MzTabReader reader = new MzTabReader(file, count.parameters);
 				reader.addProcessor(new CountProcessor(counts));
 				reader.read();
+				// get relevant file names to print to output file
+				MzTabFile mzTabFile = reader.getMzTabFile();
+				String uploadedFilename = mzTabFile.getUploadedFilename();
+				if (uploadedFilename == null)
+					uploadedFilename = mzTabFile.getMzTabFilename();
 				writer.println(String.format(
-					"%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
-					file.getName(), counts.get("PSM"), counts.get("PSM_ID"),
+					"%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+					file.getName(), uploadedFilename,
+					counts.get("PSM"), counts.get("PSM_ID"),
 					counts.get("PEP"), counts.get("sequence"),
 					counts.get("PRT"), counts.get("accession"),
 					counts.get("modification")));
@@ -70,12 +80,15 @@ public class MzTabCounter
 		 * Properties
 		 *====================================================================*/
 		private File mzTabDirectory;
+		private File parameters;
 		private File outputFile;
 		
 		/*====================================================================
 		 * Constructors
 		 *====================================================================*/
-		public MzTabCountOperation(File mzTabDirectory, File outputFile) {
+		public MzTabCountOperation(
+			File mzTabDirectory, File parameters,File outputFile
+		) {
 			// validate mzTab directory
 			if (mzTabDirectory == null)
 				throw new NullPointerException(
@@ -89,6 +102,15 @@ public class MzTabCounter
 					String.format("MzTab directory [%s] must be readable.",
 						mzTabDirectory.getAbsolutePath()));
 			else this.mzTabDirectory = mzTabDirectory;
+			// validate params.xml file
+			if (parameters == null)
+				throw new NullPointerException(
+					"Argument params.xml file cannot be null.");
+			else if (parameters.isFile() == false ||
+				parameters.canRead() == false)
+				throw new IllegalArgumentException(
+					"Argument params.xml file must be a readable file.");
+			else this.parameters = parameters;
 			// validate output file
 			if (outputFile == null)
 				throw new NullPointerException("Output file cannot be null.");
@@ -107,6 +129,7 @@ public class MzTabCounter
 		if (args == null || args.length < 1)
 			return null;
 		File mzTabDirectory = null;
+		File parameters = null;
 		File output = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
@@ -119,13 +142,15 @@ public class MzTabCounter
 				String value = args[i];
 				if (argument.equals("-mztab"))
 					mzTabDirectory = new File(value);
+				else if (argument.equals("-params"))
+					parameters = new File(value);
 				else if (argument.equals("-output"))
 					output = new File(value);
 				else return null;
 			}
 		}
 		try {
-			return new MzTabCountOperation(mzTabDirectory, output);
+			return new MzTabCountOperation(mzTabDirectory, parameters, output);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
