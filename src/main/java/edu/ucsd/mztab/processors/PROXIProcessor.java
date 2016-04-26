@@ -64,8 +64,12 @@ public class PROXIProcessor implements MzTabProcessor
 			throw new NullPointerException(
 				"Argument ProteoSAFe file descriptor string is null.");
 		else mzTabRecord.descriptor = descriptor;
-		// task ID and dataset ID can be null
-		mzTabRecord.taskID = taskID;
+		// validate task ID
+		if (taskID == null)
+			throw new NullPointerException(
+				"Argument ProteoSAFe task ID is null.");
+		else mzTabRecord.taskID = taskID;
+		// dataset ID can be null
 		mzTabRecord.datasetID = datasetID;
 		// initialize counter maps
 		uniqueElements = new HashMap<String, Map<String, Integer>>();
@@ -315,25 +319,20 @@ public class PROXIProcessor implements MzTabProcessor
 		ResultSet result = null;
 		try {
 			StringBuffer sql = new StringBuffer(
-				"INSERT IGNORE INTO proxi.resultfiles (file_descriptor");
-			if (mzTabRecord.taskID != null)
-				sql.append(", task_id");
+				"INSERT IGNORE INTO proxi.resultfiles " +
+				"(file_descriptor, task_id");
 			if (mzTabRecord.datasetID != null)
 				sql.append(", dataset_id");
-			sql.append(") VALUES(?");
-			if (mzTabRecord.taskID != null)
-				sql.append(", ?");
+			sql.append(") VALUES(?, ?");
 			if (mzTabRecord.datasetID != null)
 				sql.append(", ?");
 			sql.append(")");
 			statement = connection.prepareStatement(
 				sql.toString(), Statement.RETURN_GENERATED_KEYS);
-			int setValues = 0;
-			statement.setString(++setValues, mzTabRecord.descriptor);
-			if (mzTabRecord.taskID != null)
-				statement.setString(++setValues, mzTabRecord.taskID);
+			statement.setString(1, mzTabRecord.descriptor);
+			statement.setString(2, mzTabRecord.taskID);
 			if (mzTabRecord.datasetID != null)
-				statement.setInt(++setValues, mzTabRecord.datasetID);
+				statement.setInt(3, mzTabRecord.datasetID);
 			int insertion = statement.executeUpdate();
 			// if the row already exists, need to look it up manually to get ID
 			if (insertion == 0) {
@@ -846,7 +845,8 @@ public class PROXIProcessor implements MzTabProcessor
 			try { statement.close(); } catch (Throwable error) {}
 		}
 		// add this variant to the set of recorded variants
-		addElement("variant", sequence, variantID);
+		addElement(
+			"variant", String.format("%s_%d", sequence, charge), variantID);
 		return variantID;
 	}
 	

@@ -19,8 +19,7 @@ public class MzTabPROXIImporter
 		"\n\t-mztab    <MzTabDirectory>" +
 		"\n\t-params   <ProteoSAFeParametersFile>" +
 		"\n\t[-dataset <TaskID> <DatasetID> <DatasetRelativePath>]" +
-		"\n\t[-task    <TaskID> <Username> <TaskRelativePath>]" +
-		"\n\t[-user    <Username> <UserSpaceRelativePath>]";
+		"\n\t[-task    <TaskID> <Username> <TaskRelativePath>]";
 	public static final String DATASET_ID_PREFIX = "MSV";
 	
 	/*========================================================================
@@ -73,7 +72,7 @@ public class MzTabPROXIImporter
 		/*====================================================================
 		 * Constants
 		 *====================================================================*/
-		private static enum MzTabImportMode { DATASET, TASK, USER }
+		private static enum MzTabImportMode { DATASET, TASK }
 		
 		/*====================================================================
 		 * Properties
@@ -90,26 +89,25 @@ public class MzTabPROXIImporter
 		 *====================================================================*/
 		public MzTabImportOperation(
 			String mode, File mzTabDirectory, File parameters,
-			String datasetID, String taskID, String username, String path
+			String taskID, String datasetID, String username, String path
 		) {
 			// initialize nullable properties
-			this.taskID = null;
 			this.datasetID = null;
+			// validate task ID
+			if (taskID == null)
+				throw new NullPointerException("Task ID cannot be null.");
+			else this.taskID = taskID;
 			// validate import mode
 			if (mode == null)
 				throw new NullPointerException(
 					"MzTab import mode cannot be null.");
 			else this.mode = MzTabImportMode.valueOf(mode.toUpperCase());
-			// if mode is "dataset", then taskID and datasetID are required
+			// if mode is "dataset", then datasetID is required
 			if (this.mode.equals(MzTabImportMode.DATASET)) {
 				if (datasetID == null)
 					throw new NullPointerException("Dataset ID cannot be " +
 						"null when importing dataset mzTab files.");
-				else if (taskID == null)
-					throw new NullPointerException("Task ID cannot be null " +
-						"when importing dataset mzTab files.");
 				// record task and dataset ID
-				this.taskID = taskID;
 				try { this.datasetID = parseDatasetIDString(datasetID); }
 				catch (Throwable error) {
 					throw new IllegalArgumentException(String.format(
@@ -129,16 +127,11 @@ public class MzTabPROXIImporter
 				descriptorBase.append("ccms_output");
 				this.descriptorBase = descriptorBase.toString();
 			}
-			// if mode is "task", then taskID and username are required
+			// if mode is "task", then username is required
 			else if (this.mode.equals(MzTabImportMode.TASK)) {
-				if (taskID == null)
-					throw new NullPointerException("Task ID cannot be null " +
-						"when importing workflow result mzTab files.");
-				else if (username == null)
+				if (username == null)
 					throw new NullPointerException("Username cannot be null " +
 						"when importing workflow result mzTab files.");
-				// record task ID
-				this.taskID = taskID;
 				// formulate mzTab file descriptor prefix
 				StringBuffer descriptorBase = new StringBuffer("u.");
 				descriptorBase.append(username).append("/").append(taskID);
@@ -149,21 +142,8 @@ public class MzTabPROXIImporter
 					descriptorBase.setLength(descriptorBase.length() - 1);
 				this.descriptorBase = descriptorBase.toString();
 			}
-			// if mode is "user", then username is required
-			else if (this.mode.equals(MzTabImportMode.USER)) {
-				if (username == null)
-					throw new NullPointerException("Username cannot be null " +
-						"when importing user-uploaded mzTab files.");
-				// formulate mzTab file descriptor prefix
-				StringBuffer descriptorBase = new StringBuffer("f.");
-				descriptorBase.append(username);
-				if (path != null && path.trim().equals("") == false)
-					descriptorBase.append("/").append(path);
-				// chomp trailing slash, if present
-				if (descriptorBase.charAt(descriptorBase.length() - 1) == '/')
-					descriptorBase.setLength(descriptorBase.length() - 1);
-				this.descriptorBase = descriptorBase.toString();
-			} else throw new IllegalArgumentException(String.format(
+			// the only recognized import modes are "dataset" and "task"
+			else throw new IllegalArgumentException(String.format(
 				"Unrecognized mzTab import mode [%s].", this.mode.name()));
 			// validate mzTab directory
 			if (mzTabDirectory == null)
@@ -238,21 +218,13 @@ public class MzTabPROXIImporter
 					i++;
 					if (i < args.length)
 						path = args[i];
-				} else if (argument.equals("-user")) {
-					mode = "USER";
-					username = value;
-					// next argument is relevant in this case
-					i++;
-					if (i < args.length)
-						path = args[i];
-				}
-				else return null;
+				} else return null;
 			}
 		}
 		try {
 			return new MzTabImportOperation(
 				mode, mzTabDirectory, parameters,
-				datasetID, taskID, username, path);
+				taskID, datasetID, username, path);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
