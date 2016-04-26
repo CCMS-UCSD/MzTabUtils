@@ -43,7 +43,13 @@ public class MzTabPROXIImporter
 				"Importing %d mzTab %s into the PROXI database...\n----------",
 				files.length, CommonUtils.pluralize("file", files.length)));
 			for (File file : files) {
+				long fileParseStart = System.currentTimeMillis();
 				MzTabReader reader = new MzTabReader(file, importer.parameters);
+				System.out.println(String.format(
+					"Parsed file [%s] to build filename map in %s.",
+					reader.getMzTabFile().getMzTabFilename(),
+					CommonUtils.formatMilliseconds(
+						System.currentTimeMillis() - fileParseStart)));
 				String descriptor = String.format(
 					"%s/%s", importer.descriptorBase, file.getName());
 				reader.addProcessor(new PROXIProcessor(descriptor,

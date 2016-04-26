@@ -102,6 +102,9 @@ public class PROXIProcessor implements MzTabProcessor
 		// insert mzTab file into database,
 		// populate mzTabFile object with column values
 		insertMzTabFile();
+		// record all of this mzTab file's referenced spectrum files
+		for (Integer msRun : mzTabRecord.mzTabFile.getPeakListFiles().keySet())
+			recordSpectrumFile(mzTabRecord.mzTabFile.getPeakListFile(msRun));
 	}
 	
 	public String processMzTabLine(String line, int lineNumber) {
@@ -254,7 +257,7 @@ public class PROXIProcessor implements MzTabProcessor
 	
 	public void tearDown() {
 		StringBuilder success = new StringBuilder("Imported file [");
-		success.append(mzTabRecord.mzTabFile.getFile().getName());
+		success.append(mzTabRecord.mzTabFile.getMzTabFilename());
 		success.append("] (");
 		success.append(
 			CommonUtils.formatBytes(mzTabRecord.mzTabFile.getFile().length()));
@@ -480,7 +483,11 @@ public class PROXIProcessor implements MzTabProcessor
 				"No spectrum file could be found " +
 				"for ms_run[%d] of mzTab file [%s].",
 				msRun, mzTabRecord.mzTabFile.getMzTabFilename()));
-		int spectrumFileID = recordSpectrumFile(spectrumFile);
+		Integer spectrumFileID = recordSpectrumFile(spectrumFile);
+		if (spectrumFileID == null || spectrumFileID <= 0)
+			throw new IllegalArgumentException(String.format(
+				"Spectrum file ms_run[%d] [%s] could not be recorded.",
+				msRun, spectrumFile.getMsRunLocation()));
 		// be sure this PSM's peptide and variant have been recorded
 		String peptide = psm.getSequence();
 		Integer peptideID =
@@ -494,7 +501,7 @@ public class PROXIProcessor implements MzTabProcessor
 		if (variantID == null || variantID <= 0)
 			throw new IllegalArgumentException(String.format(
 				"Variant peptide sequence [%s] is invalid.", variant));
-		Integer psmID = recordPSM(psm, peptideID, variantID);
+		Integer psmID = recordPSM(psm, spectrumFileID, peptideID, variantID);
 		// only process further if this is a legitimate psm
 		if (psmID != null && psmID > 0) {
 			// record the protein associated with this psm
@@ -673,7 +680,7 @@ public class PROXIProcessor implements MzTabProcessor
 	}
 	
 	private Integer recordPSM(
-		PSM psm, int peptideID, int variantID
+		PSM psm, int spectrumFileID, int peptideID, int variantID
 	) {
 		if (psm == null)
 			return null;
@@ -681,18 +688,14 @@ public class PROXIProcessor implements MzTabProcessor
 		Integer psmID = getElementID("psm", psm.getID().toString());
 		if (psmID != null)
 			return psmID;
-		// otherwise, get spectrum filename for this PSM
-		// TODO: get a more useful filename from the mzTab file record
-		String filename = mzTabRecord.mzTabFile.getPeakListFile(psm.getMsRun())
-			.getMsRunLocation();
 		// then write psm to the database
 		PreparedStatement statement = null;
 		ResultSet result = null;
 		try {
 			StringBuilder sql = new StringBuilder(
 				"INSERT IGNORE INTO proxi.psms " +
-				"(spectrum_filename, nativeid, variant_sequence, charge, " +
-				"exp_mass_to_charge, resultfile_id, peptide_id, variant_id");
+				"(nativeid, variant_sequence, charge, exp_mass_to_charge, " +
+				"resultfile_id, spectrumfile_id, peptide_id, variant_id");
 			if (mzTabRecord.datasetID != null)
 				sql.append(", dataset_id");
 			sql.append(") VALUES(?, ?, ?, ?, ?, ?, ?, ?");
@@ -701,15 +704,15 @@ public class PROXIProcessor implements MzTabProcessor
 			sql.append(")");
 			statement = connection.prepareStatement(
 				sql.toString(), Statement.RETURN_GENERATED_KEYS);
-			statement.setString(1, filename);
-			statement.setString(2, psm.getNativeID());
-			statement.setString(3, psm.getModifiedSequence());
-			statement.setInt(4, psm.getCharge());
+			statement.setString(1, psm.getNativeID());
+			statement.setString(2, psm.getModifiedSequence());
+			statement.setInt(3, psm.getCharge());
 			Double massToCharge = psm.getMassToCharge();
 			if (massToCharge == null)
-				statement.setNull(5, Types.DOUBLE);
-			else statement.setDouble(5, massToCharge);
-			statement.setInt(6, mzTabRecord.id);
+				statement.setNull(4, Types.DOUBLE);
+			else statement.setDouble(4, massToCharge);
+			statement.setInt(5, mzTabRecord.id);
+			statement.setInt(6, spectrumFileID);
 			statement.setInt(7, peptideID);
 			statement.setInt(8, variantID);
 			if (mzTabRecord.datasetID != null)
@@ -720,9 +723,10 @@ public class PROXIProcessor implements MzTabProcessor
 				try { statement.close(); } catch (Throwable error) {}
 				statement = connection.prepareStatement(
 					"SELECT id FROM proxi.psms " +
-					"WHERE resultfile_id=? AND filename=? AND nativeid=?");
+					"WHERE resultfile_id=? AND spectrumfile_id=? " +
+					"AND nativeid=?");
 				statement.setInt(1, mzTabRecord.id);
-				statement.setString(2, filename);
+				statement.setInt(2, spectrumFileID);
 				statement.setString(3, psm.getNativeID());
 				result = statement.executeQuery();
 				if (result.next())

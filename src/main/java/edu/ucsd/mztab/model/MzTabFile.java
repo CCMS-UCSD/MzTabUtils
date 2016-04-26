@@ -142,6 +142,10 @@ public class MzTabFile
 		return mangledFilename;
 	}
 	
+	public Map<Integer, PeakListFile> getPeakListFiles() {
+		return new LinkedHashMap<Integer, PeakListFile>(peakListFiles);
+	}
+	
 	public PeakListFile getPeakListFile(int msRun) {
 		return peakListFiles.get(msRun);
 	}
