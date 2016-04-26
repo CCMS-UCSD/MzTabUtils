@@ -17,6 +17,7 @@ import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.model.PSM;
+import edu.ucsd.mztab.model.PeakListFile;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.ProteomicsUtils;
 
@@ -108,7 +109,7 @@ public class PROXIProcessor implements MzTabProcessor
 			throw new NullPointerException(
 				"Processed mzTab line cannot be null.");
 		else incrementRowCount("lines_in_file");
-		String mzTabFilename = mzTabRecord.mzTabFile.getFile().getName();
+		String mzTabFilename = mzTabRecord.mzTabFile.getMzTabFilename();
 		// read line and, if it's a content row, parse and insert its content
 		// protein section
 		if (line.startsWith("PRH")) {
@@ -139,7 +140,7 @@ public class PROXIProcessor implements MzTabProcessor
 			try {
 				cascadeProtein(
 					columns[prtHeader.getColumnIndex("accession")],
-					modifications);
+					null, modifications);
 				connection.commit();
 			} catch (Throwable error) {
 				try { connection.rollback(); } catch (Throwable innerError) {}
@@ -184,7 +185,7 @@ public class PROXIProcessor implements MzTabProcessor
 				cascadePeptide(
 					columns[pepHeader.getColumnIndex("sequence")],
 					columns[pepHeader.getColumnIndex("accession")],
-					modifications);
+					null, modifications);
 				connection.commit();
 			} catch (Throwable error) {
 				try { connection.rollback(); } catch (Throwable innerError) {}
@@ -318,7 +319,7 @@ public class PROXIProcessor implements MzTabProcessor
 		PreparedStatement statement = null;
 		ResultSet result = null;
 		try {
-			StringBuffer sql = new StringBuffer(
+			StringBuilder sql = new StringBuilder(
 				"INSERT IGNORE INTO proxi.resultfiles " +
 				"(file_descriptor, task_id");
 			if (mzTabRecord.datasetID != null)
@@ -370,16 +371,20 @@ public class PROXIProcessor implements MzTabProcessor
 	}
 	
 	private Integer cascadeProtein(
-		String accession, Collection<Modification> modifications
+		String accession, Integer spectrumFileID,
+		Collection<Modification> modifications
 	) {
 		Integer proteinID = recordProtein(accession);
 		// only process further if this is a legitimate protein
 		if (proteinID != null && proteinID > 0) {
+			// record the spectrum file associated with this protein
+			if (spectrumFileID != null && spectrumFileID > 0)
+				recordSpectrumFileProtein(spectrumFileID, proteinID);
 			// record all modifications associated with this protein
 			if (modifications != null && modifications.isEmpty() == false) {
 				for (Modification modification : modifications) {
-					Integer modificationID = recordModification(
-						modification.getName(), modification.getMass());
+					Integer modificationID =
+						cascadeModification(modification, spectrumFileID);
 					if (modificationID != null && modificationID > 0)
 						recordProteinModification(proteinID, modificationID);
 				}
@@ -389,21 +394,22 @@ public class PROXIProcessor implements MzTabProcessor
 	}
 	
 	private Integer cascadePeptide(
-		String sequence, String accession,
+		String sequence, String accession, Integer spectrumFileID,
 		Collection<Modification> modifications
 	) {
 		Integer peptideID = recordPeptide(sequence);
 		// only process further if this is a legitimate peptide
 		if (peptideID != null && peptideID > 0) {
 			// record the protein associated with this peptide
-			Integer proteinID = cascadeProtein(accession, modifications);
+			Integer proteinID =
+				cascadeProtein(accession, spectrumFileID, modifications);
 			if (proteinID != null && proteinID > 0)
 				recordPeptideProtein(peptideID, proteinID, sequence);
 			// record all modifications associated with this peptide
 			if (modifications != null && modifications.isEmpty() == false) {
 				for (Modification modification : modifications) {
-					Integer modificationID = recordModification(
-						modification.getName(), modification.getMass());
+					Integer modificationID =
+						cascadeModification(modification, spectrumFileID);
 					if (modificationID != null && modificationID > 0)
 						recordPeptideModification(peptideID, modificationID);
 				}
@@ -414,20 +420,24 @@ public class PROXIProcessor implements MzTabProcessor
 	
 	private Integer cascadeVariant(
 		String modifiedSequence, String accession, int charge, int peptideID,
-		Collection<Modification> modifications
+		Integer spectrumFileID, Collection<Modification> modifications
 	) {
 		Integer variantID = recordVariant(modifiedSequence, charge, peptideID);
 		// only process further if this is a legitimate variant
 		if (variantID != null && variantID > 0) {
+			// record the spectrum file associated with this variant
+			if (spectrumFileID != null && spectrumFileID > 0)
+				recordSpectrumFileVariant(spectrumFileID, variantID);
 			// record the protein associated with this variant
-			Integer proteinID = cascadeProtein(accession, modifications);
+			Integer proteinID =
+				cascadeProtein(accession, spectrumFileID, modifications);
 			if (proteinID != null && proteinID > 0)
 				recordVariantProtein(variantID, proteinID);
 			// record all modifications associated with this variant
 			if (modifications != null && modifications.isEmpty() == false) {
 				for (Modification modification : modifications) {
-					Integer modificationID = recordModification(
-						modification.getName(), modification.getMass());
+					Integer modificationID =
+						cascadeModification(modification, spectrumFileID);
 					Integer location = modification.getPosition();
 					if (modificationID != null && modificationID > 0 &&
 						location != null)
@@ -439,6 +449,21 @@ public class PROXIProcessor implements MzTabProcessor
 		return peptideID;
 	}
 	
+	private Integer cascadeModification(
+		Modification modification, Integer spectrumFileID
+	) {
+		Integer modificationID =
+			recordModification(modification.getName(), modification.getMass());
+		// only process further if this is a legitimate modification,
+		// and the argument spectrum file ID is also legitimate
+		if (modificationID != null && modificationID > 0 &&
+			spectrumFileID != null && spectrumFileID > 0) {
+			// record the spectrum file associated with this modification
+			recordSpectrumFileModification(spectrumFileID, modificationID);
+		}
+		return modificationID;
+	}
+	
 	private Integer cascadePSM(
 		String psmFileID, String spectraRef, String sequence,
 		String accession, String charge, String massToCharge,
@@ -446,15 +471,26 @@ public class PROXIProcessor implements MzTabProcessor
 	) {
 		PSM psm = new PSM(psmFileID, spectraRef, sequence,
 			charge, massToCharge, modifications);
-		// otherwise, be sure this PSM's peptide and variant have been recorded
+		// retrieve and record this PSM's spectrum file
+		int msRun = psm.getMsRun();
+		PeakListFile spectrumFile =
+			mzTabRecord.mzTabFile.getPeakListFile(msRun);
+		if (spectrumFile == null)
+			throw new NullPointerException(String.format(
+				"No spectrum file could be found " +
+				"for ms_run[%d] of mzTab file [%s].",
+				msRun, mzTabRecord.mzTabFile.getMzTabFilename()));
+		int spectrumFileID = recordSpectrumFile(spectrumFile);
+		// be sure this PSM's peptide and variant have been recorded
 		String peptide = psm.getSequence();
-		Integer peptideID = cascadePeptide(peptide, accession, modifications);
+		Integer peptideID =
+			cascadePeptide(peptide, accession, spectrumFileID, modifications);
 		if (peptideID == null || peptideID <= 0)
 			throw new IllegalArgumentException(String.format(
 				"Peptide sequence [%s] is invalid.", peptide));
 		String variant = psm.getModifiedSequence();
-		Integer variantID = cascadeVariant(
-			variant, accession, psm.getCharge(), peptideID, modifications);
+		Integer variantID = cascadeVariant(variant, accession,
+			psm.getCharge(), peptideID, spectrumFileID, modifications);
 		if (variantID == null || variantID <= 0)
 			throw new IllegalArgumentException(String.format(
 				"Variant peptide sequence [%s] is invalid.", variant));
@@ -462,20 +498,178 @@ public class PROXIProcessor implements MzTabProcessor
 		// only process further if this is a legitimate psm
 		if (psmID != null && psmID > 0) {
 			// record the protein associated with this psm
-			Integer proteinID = cascadeProtein(accession, modifications);
+			Integer proteinID =
+				cascadeProtein(accession, spectrumFileID, modifications);
 			if (proteinID != null && proteinID > 0)
 				recordPSMProtein(psmID, proteinID);
 			// record all modifications associated with this psm
 			if (modifications != null && modifications.isEmpty() == false) {
 				for (Modification modification : modifications) {
-					Integer modificationID = recordModification(
-						modification.getName(), modification.getMass());
+					Integer modificationID =
+						cascadeModification(modification, spectrumFileID);
 					if (modificationID != null && modificationID > 0)
 						recordPSMModification(psmID, modificationID);
 				}
 			}
 		}
 		return psmID;
+	}
+	
+	private Integer recordSpectrumFile(PeakListFile spectrumFile) {
+		if (spectrumFile == null)
+			return null;
+		// get unique spectrum file descriptor
+		String descriptor = spectrumFile.getMsRunLocation();
+		// first check to see if this spectrum file has already been recorded
+		Integer spectrumFileID = getElementID("spectrumFile", descriptor);
+		if (spectrumFileID != null)
+			return spectrumFileID;
+		// then write spectrum file to the database
+		PreparedStatement statement = null;
+		ResultSet result = null;
+		try {
+			StringBuilder sql = new StringBuilder(
+				"INSERT IGNORE INTO proxi.spectrumfiles " +
+				"(file_descriptor, task_id");
+			if (mzTabRecord.datasetID != null)
+				sql.append(", dataset_id");
+			sql.append(") VALUES(?, ?");
+			if (mzTabRecord.datasetID != null)
+				sql.append(", ?");
+			sql.append(")");
+			statement = connection.prepareStatement(
+				sql.toString(), Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, descriptor);
+			statement.setString(2, mzTabRecord.taskID);
+			if (mzTabRecord.datasetID != null)
+				statement.setInt(3, mzTabRecord.datasetID);
+			int insertion = statement.executeUpdate();
+			// if the row already exists, need to look it up manually to get ID
+			if (insertion == 0) {
+				try { statement.close(); } catch (Throwable error) {}
+				statement = connection.prepareStatement(
+					"SELECT id FROM proxi.spectrumfiles WHERE descriptor=?");
+				statement.setString(1, descriptor);
+				result = statement.executeQuery();
+				if (result.next())
+					spectrumFileID = result.getInt(1);
+				else throw new RuntimeException(String.format(
+					"No spectrumfile row was found for descriptor [%s] " +
+					"even though the previous insert was ignored.",
+					descriptor));
+			}
+			// if the insert succeeded, get its generated row ID
+			else if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					spectrumFileID = result.getInt(1);
+				else throw new RuntimeException("The spectrumfile insert " +
+					"statement did not generate a row ID.");
+			}
+			else throw new RuntimeException(String.format(
+				"The spectrumfile insert statement returned a value of \"%d\".",
+				insertion));
+		} catch (Throwable error) {
+			throw new RuntimeException("Error recording spectrumfile: There " +
+				"was an error inserting the spectrumfile row into the " +
+				"database.", error);
+		} finally {
+			try { statement.close(); } catch (Throwable error) {}
+			try { result.close(); } catch (Throwable error) {}
+		}
+		// write resultfile/spectrumfile link to the database
+		try {
+			statement = connection.prepareStatement(
+				"INSERT IGNORE INTO proxi.resultfile_spectrumfiles " +
+				"(resultfile_id, spectrumfile_id) VALUES(?, ?)");
+			statement.setInt(1, mzTabRecord.id);
+			statement.setInt(2, spectrumFileID);
+			int insertion = statement.executeUpdate();
+			if (insertion != 0 && insertion != 1)
+				throw new RuntimeException(String.format(
+					"The resultfile_spectrumfile insert statement " +
+					"returned a value of \"%d\".", insertion));
+		} catch (Throwable error) {
+			throw new RuntimeException("Error recording " +
+				"resultfile_spectrumfile: There was an error inserting the " +
+				"resultfile_spectrumfile row into the database.", error);
+		} finally {
+			try { statement.close(); } catch (Throwable error) {}
+		}
+		// add this spectrum file to the set of recorded psms
+		addElement("spectrumFile", descriptor, spectrumFileID);
+		return spectrumFileID;
+	}
+	
+	private void recordSpectrumFileVariant(int spectrumFileID, int variantID) {
+		// write spectrumfile/variant link to the database
+		PreparedStatement statement = null;
+		try {
+			statement = connection.prepareStatement(
+				"INSERT IGNORE INTO proxi.spectrumfile_variants " +
+				"(spectrumfile_id, variant_id) VALUES(?, ?)");
+			statement.setInt(1, spectrumFileID);
+			statement.setInt(2, variantID);
+			int insertion = statement.executeUpdate();
+			if (insertion != 0 && insertion != 1)
+				throw new RuntimeException(String.format(
+					"The spectrumfile_variant insert statement " +
+					"returned a value of \"%d\".", insertion));
+		} catch (Throwable error) {
+			throw new RuntimeException("Error recording " +
+				"spectrumfile_variant: There was an error inserting the " +
+				"spectrumfile_variant row into the database.", error);
+		} finally {
+			try { statement.close(); } catch (Throwable error) {}
+		}
+	}
+	
+	private void recordSpectrumFileProtein(int spectrumFileID, int proteinID) {
+		// write spectrumfile/protein link to the database
+		PreparedStatement statement = null;
+		try {
+			statement = connection.prepareStatement(
+				"INSERT IGNORE INTO proxi.spectrumfile_proteins " +
+				"(spectrumfile_id, protein_id) VALUES(?, ?)");
+			statement.setInt(1, spectrumFileID);
+			statement.setInt(2, proteinID);
+			int insertion = statement.executeUpdate();
+			if (insertion != 0 && insertion != 1)
+				throw new RuntimeException(String.format(
+					"The spectrumfile_protein insert statement " +
+					"returned a value of \"%d\".", insertion));
+		} catch (Throwable error) {
+			throw new RuntimeException("Error recording " +
+				"spectrumfile_protein: There was an error inserting the " +
+				"spectrumfile_protein row into the database.", error);
+		} finally {
+			try { statement.close(); } catch (Throwable error) {}
+		}
+	}
+	
+	private void recordSpectrumFileModification(
+		int spectrumFileID, int modificationID
+	) {
+		// write spectrumfile/modification link to the database
+		PreparedStatement statement = null;
+		try {
+			statement = connection.prepareStatement(
+				"INSERT IGNORE INTO proxi.spectrumfile_modifications " +
+				"(spectrumfile_id, modification_id) VALUES(?, ?)");
+			statement.setInt(1, spectrumFileID);
+			statement.setInt(2, modificationID);
+			int insertion = statement.executeUpdate();
+			if (insertion != 0 && insertion != 1)
+				throw new RuntimeException(String.format(
+					"The spectrumfile_modification insert statement " +
+					"returned a value of \"%d\".", insertion));
+		} catch (Throwable error) {
+			throw new RuntimeException("Error recording " +
+				"spectrumfile_modification: There was an error inserting the " +
+				"spectrumfile_modification row into the database.", error);
+		} finally {
+			try { statement.close(); } catch (Throwable error) {}
+		}
 	}
 	
 	private Integer recordPSM(
@@ -487,7 +681,7 @@ public class PROXIProcessor implements MzTabProcessor
 		Integer psmID = getElementID("psm", psm.getID().toString());
 		if (psmID != null)
 			return psmID;
-		// oherwise, get spectrum filename for this PSM
+		// otherwise, get spectrum filename for this PSM
 		// TODO: get a more useful filename from the mzTab file record
 		String filename = mzTabRecord.mzTabFile.getPeakListFile(psm.getMsRun())
 			.getMsRunLocation();
