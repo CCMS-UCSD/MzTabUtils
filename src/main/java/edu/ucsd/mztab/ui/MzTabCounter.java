@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import edu.ucsd.mztab.MzTabReader;
+import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.processors.CountProcessor;
 
@@ -31,6 +32,9 @@ public class MzTabCounter
 			die(USAGE);
 		PrintWriter writer = null;
 		try {
+			// parse out file mapping context for this task from params.xml
+			TaskMzTabContext context = new TaskMzTabContext(
+				count.mzTabDirectory, count.parameters);
 			// set up output file writer
 			if (count.outputFile.exists() == false &&
 				count.outputFile.createNewFile() == false)
@@ -45,12 +49,12 @@ public class MzTabCounter
 			// read through all mzTab files, write counts to output file
 			for (File file : count.mzTabDirectory.listFiles()) {
 				Map<String, Integer> counts = new HashMap<String, Integer>(7);
-				MzTabReader reader = new MzTabReader(file, count.parameters);
+				MzTabFile mzTabFile = context.getMzTabFile(file);
+				MzTabReader reader = new MzTabReader(mzTabFile);
 				reader.addProcessor(new CountProcessor(counts));
 				reader.read();
 				// get relevant file names to print to output file
-				MzTabFile mzTabFile = reader.getMzTabFile();
-				String uploadedFilename = mzTabFile.getUploadedFilename();
+				String uploadedFilename = mzTabFile.getUploadedResultFilename();
 				if (uploadedFilename == null)
 					uploadedFilename = mzTabFile.getMzTabFilename();
 				writer.println(String.format(

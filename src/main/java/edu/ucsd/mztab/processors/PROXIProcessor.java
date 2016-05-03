@@ -17,7 +17,7 @@ import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.model.PSM;
-import edu.ucsd.mztab.model.PeakListFile;
+import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.ProteomicsUtils;
 
@@ -103,8 +103,8 @@ public class PROXIProcessor implements MzTabProcessor
 		// populate mzTabFile object with column values
 		insertMzTabFile();
 		// record all of this mzTab file's referenced spectrum files
-		for (Integer msRun : mzTabRecord.mzTabFile.getPeakListFiles().keySet())
-			recordSpectrumFile(mzTabRecord.mzTabFile.getPeakListFile(msRun));
+		for (Integer msRun : mzTabRecord.mzTabFile.getMsRuns().keySet())
+			recordSpectrumFile(mzTabRecord.mzTabFile.getMsRun(msRun));
 	}
 	
 	public String processMzTabLine(String line, int lineNumber) {
@@ -458,8 +458,8 @@ public class PROXIProcessor implements MzTabProcessor
 			charge, massToCharge, modifications);
 		// retrieve and record this PSM's spectrum file
 		int msRun = psm.getMsRun();
-		PeakListFile spectrumFile =
-			mzTabRecord.mzTabFile.getPeakListFile(msRun);
+		MzTabMsRun spectrumFile =
+			mzTabRecord.mzTabFile.getMsRun(msRun);
 		if (spectrumFile == null)
 			throw new NullPointerException(String.format(
 				"No spectrum file could be found " +
@@ -501,7 +501,7 @@ public class PROXIProcessor implements MzTabProcessor
 		return psmID;
 	}
 	
-	private Integer recordSpectrumFile(PeakListFile spectrumFile) {
+	private Integer recordSpectrumFile(MzTabMsRun spectrumFile) {
 		if (spectrumFile == null)
 			return null;
 		// get unique spectrum file descriptor

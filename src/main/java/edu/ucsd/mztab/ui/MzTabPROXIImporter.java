@@ -5,6 +5,8 @@ import java.sql.Connection;
 import java.util.Arrays;
 
 import edu.ucsd.mztab.MzTabReader;
+import edu.ucsd.mztab.TaskMzTabContext;
+import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.processors.PROXIProcessor;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.DatabaseUtils;
@@ -36,6 +38,16 @@ public class MzTabPROXIImporter
 		// read through all mzTab files, import content to database
 		try {
 			long start = System.currentTimeMillis();
+			// parse out file mapping context for this task from params.xml
+			TaskMzTabContext context = new TaskMzTabContext(
+				importer.mzTabDirectory, importer.parameters);
+			System.out.println(String.format(
+				"Parsed files in mzTab directory [%s] and parameters file " +
+				"[%s] to build ProteoSAFe task filename context in %s.",
+				importer.mzTabDirectory.getAbsolutePath(),
+				importer.parameters.getAbsolutePath(),
+				CommonUtils.formatMilliseconds(
+					System.currentTimeMillis() - start)));
 			File[] files = importer.mzTabDirectory.listFiles();
 			// sort files alphabetically
 			Arrays.sort(files);
@@ -43,13 +55,8 @@ public class MzTabPROXIImporter
 				"Importing %d mzTab %s into the PROXI database...\n----------",
 				files.length, CommonUtils.pluralize("file", files.length)));
 			for (File file : files) {
-				long fileParseStart = System.currentTimeMillis();
-				MzTabReader reader = new MzTabReader(file, importer.parameters);
-				System.out.println(String.format(
-					"Parsed file [%s] to build filename map in %s.",
-					reader.getMzTabFile().getMzTabFilename(),
-					CommonUtils.formatMilliseconds(
-						System.currentTimeMillis() - fileParseStart)));
+				MzTabFile mzTabFile = context.getMzTabFile(file);
+				MzTabReader reader = new MzTabReader(mzTabFile);
 				String descriptor = String.format(
 					"%s/%s", importer.descriptorBase, file.getName());
 				reader.addProcessor(new PROXIProcessor(descriptor,

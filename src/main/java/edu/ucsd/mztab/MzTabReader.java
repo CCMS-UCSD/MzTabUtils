@@ -1,7 +1,6 @@
 package edu.ucsd.mztab;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,23 +19,12 @@ public class MzTabReader
 	/*========================================================================
 	 * Constructor
 	 *========================================================================*/
-	public MzTabReader(File file, File parameters) {
+	public MzTabReader(MzTabFile mzTabFile) {
 		// validate input mzTab file
-		if (file == null)
+		if (mzTabFile == null)
 			throw new NullPointerException(
 				"Argument mzTab file cannot be null.");
-		else if (file.isFile() == false || file.canRead() == false)
-			throw new NullPointerException(
-				"Argument mzTab file must be a valid readable file.");
-		// validate argument params.xml file
-		if (parameters == null)
-			throw new NullPointerException(
-				"Argument params.xml file cannot be null.");
-		else if (parameters.isFile() == false || parameters.canRead() == false)
-			throw new IllegalArgumentException(
-				"Argument params.xml file must be a readable file.");
-		// parse parameters to populate this mzTab file
-		mzTabFile = new MzTabFile(file, parameters);
+		else this.mzTabFile = mzTabFile;
 		// initialize processor chain
 		processors = new ArrayList<MzTabProcessor>();
 	}
