@@ -7,6 +7,8 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.io.FilenameUtils;
+
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabFile;
@@ -54,7 +56,8 @@ public class MzTabCounter
 				reader.addProcessor(new CountProcessor(counts));
 				reader.read();
 				// get relevant file names to print to output file
-				String uploadedFilename = mzTabFile.getUploadedResultFilename();
+				String uploadedFilename = FilenameUtils.getName(
+					mzTabFile.getUploadedResultPath());
 				if (uploadedFilename == null)
 					uploadedFilename = mzTabFile.getMzTabFilename();
 				writer.println(String.format(

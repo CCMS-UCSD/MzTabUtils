@@ -18,6 +18,7 @@ public class MzTabFile
 	private String                   descriptor;
 	private String                   mangledResultFilename;
 	private String                   uploadedResultPath;
+	private String                   mappedResultPath;
 	private Map<Integer, MzTabMsRun> msRuns;
 	
 	/*========================================================================
@@ -95,6 +96,38 @@ public class MzTabFile
 		return msRuns;
 	}
 	
+	@Override
+	public String toString() {
+		StringBuilder mzTab = new StringBuilder("{");
+		mzTab.append("\n\t\"file\":\"").append(getFile().getAbsolutePath());
+		mzTab.append("\",\n\t\"descriptor\":");
+		if (descriptor == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(descriptor).append("\"");
+		mzTab.append("\",\n\t\"mangled\":");
+		if (mangledResultFilename == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(mangledResultFilename).append("\"");
+		mzTab.append(",\n\t\"uploaded\":");
+		if (uploadedResultPath == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(uploadedResultPath).append("\"");
+		mzTab.append(",\n\t\"mapped\":");
+		if (mappedResultPath == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(mappedResultPath).append("\"");
+		mzTab.append(",\n\t\"ms_runs\":[");
+		for (Integer msRunIndex : msRuns.keySet()) {
+			mzTab.append("\n\t\t").append(msRuns.get(msRunIndex).toString());
+			mzTab.append(",");
+		}
+		// chomp trailing comma
+		if (mzTab.charAt(mzTab.length() - 1) == ',')
+			mzTab.setLength(mzTab.length() - 1);
+		mzTab.append("\n\t]\n}");
+		return mzTab.toString();
+	}
+	
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
@@ -103,15 +136,79 @@ public class MzTabFile
 	}
 	
 	public String getDescriptor() {
-		return descriptor;
+		if (descriptor != null)
+			return descriptor;
+		// by default, the descriptor should consist of the uploaded path
+		else if (uploadedResultPath != null) {
+			descriptor = String.format("f.%s", uploadedResultPath);
+			return descriptor;
+		} else return null;
 	}
 	
-	public void setDescriptor(String descriptor) {
-		this.descriptor = descriptor;
+	public void setDatasetDescriptor(
+		String datasetID, String mzTabRelativePath
+	) {
+		// dataset ID is required for dataset file descriptors
+		if (datasetID == null) {
+			this.descriptor = null;
+			return;
+		}
+		// build descriptor appropriately based on parameters
+		StringBuilder descriptor = new StringBuilder("f.").append(datasetID);
+		// dataset files are never directly under the dataset directory; if no
+		// mzTab relative path is provided, then it defaults to "ccms_result"
+		if (mzTabRelativePath == null || mzTabRelativePath.trim().isEmpty())
+			mzTabRelativePath = "ccms_result";
+		// append the relative path of the mzTab directory
+		descriptor.append("/").append(mzTabRelativePath);
+		// append the final file path under the mzTab directory
+		descriptor.append("/");
+		// if this is a dataset file, then it should have a mapped file path
+		String mappedPath = getMappedMzTabPath();
+		if (mappedPath != null)
+			descriptor.append(mappedPath);
+		else descriptor.append(file.getName());
+		this.descriptor = descriptor.toString();
+	}
+	
+	public void setTaskDescriptor(
+		String username, String taskID, String mzTabRelativePath
+	) {
+		// username and task ID are required for task file descriptors
+		if (username == null || taskID == null) {
+			this.descriptor = null;
+			return;
+		}
+		// build descriptor appropriately based on parameters
+		StringBuilder descriptor = new StringBuilder("u.");
+		descriptor.append(username).append("/").append(taskID);
+		// append the relative path of the mzTab directory, if specified
+		if (mzTabRelativePath != null &&
+			mzTabRelativePath.trim().isEmpty() == false)
+			descriptor.append("/").append(mzTabRelativePath);
+		// append the final file path under the mzTab directory
+		descriptor.append("/");
+		// if this is a task file, then it should either have a mangled filename
+		// or the file itself should be present in the task mzTab directory
+		String mangledFilename = getMangledMzTabFilename();
+		if (mangledFilename != null)
+			descriptor.append(mangledFilename);
+		else descriptor.append(file.getName());
+		this.descriptor = descriptor.toString();
 	}
 	
 	public String getMangledResultFilename() {
 		return mangledResultFilename;
+	}
+	
+	public String getMangledMzTabFilename() {
+		if (mangledResultFilename == null)
+			return null;
+		else if (FilenameUtils.getExtension(mangledResultFilename)
+			.equalsIgnoreCase("mztab"))
+			return mangledResultFilename;
+		else return String.format("%s.mzTab",
+			FilenameUtils.getBaseName(mangledResultFilename));
 	}
 	
 	public void setMangledResultFilename(String mangledResultFilename) {
@@ -122,25 +219,53 @@ public class MzTabFile
 		return uploadedResultPath;
 	}
 	
+	public String getUploadedMzTabPath() {
+		if (uploadedResultPath == null)
+			return null;
+		else if (FilenameUtils.getExtension(uploadedResultPath)
+			.equalsIgnoreCase("mztab"))
+			return uploadedResultPath;
+		else return String.format("%s%s.mzTab",
+			FilenameUtils.getPath(uploadedResultPath),
+			FilenameUtils.getBaseName(uploadedResultPath));
+	}
+	
 	public void setUploadedResultPath(String uploadedResultPath) {
 		this.uploadedResultPath = uploadedResultPath;
 	}
 	
-	public String getUploadedResultFilename() {
-		if (uploadedResultPath == null)
+	public String getMappedResultPath() {
+		return mappedResultPath;
+	}
+	
+	public String getMappedMzTabPath() {
+		if (mappedResultPath == null)
 			return null;
-		else return FilenameUtils.getName(uploadedResultPath);
+		else if (FilenameUtils.getExtension(mappedResultPath)
+			.equalsIgnoreCase("mztab"))
+			return mappedResultPath;
+		else return String.format("%s%s.mzTab",
+			FilenameUtils.getPath(mappedResultPath),
+			FilenameUtils.getBaseName(mappedResultPath));
+	}
+	
+	public void setMappedResultPath(String mappedResultPath) {
+		this.mappedResultPath = mappedResultPath;
+	}
+	
+	public String getMzTabPath() {
+		String path = getMappedMzTabPath();
+		if (path == null)
+			path = getUploadedMzTabPath();
+		if (path == null)
+			path = getMangledMzTabFilename();
+		if (path == null)
+			path = file.getAbsolutePath();
+		return path;
 	}
 	
 	public String getMzTabFilename() {
-		String uploadedFilename = getUploadedResultFilename();
-		if (uploadedFilename == null)
-			return file.getName();
-		else if (FilenameUtils.getExtension(uploadedFilename).equalsIgnoreCase(
-			"mztab"))
-			return uploadedFilename;
-		else return String.format(
-			"%s.mzTab", FilenameUtils.getBaseName(uploadedFilename));
+		return FilenameUtils.getName(getMzTabPath());
 	}
 	
 	public Map<Integer, MzTabMsRun> getMsRuns() {
