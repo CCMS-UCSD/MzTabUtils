@@ -6,7 +6,6 @@ import java.util.Arrays;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
-import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.processors.PROXIProcessor;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.DatabaseUtils;
@@ -63,11 +62,10 @@ public class MzTabPROXIImporter
 				"Importing %d mzTab %s into the PROXI database...\n----------",
 				files.length, CommonUtils.pluralize("file", files.length)));
 			for (File file : files) {
-				MzTabFile mzTabFile = context.getMzTabFile(file);
-				MzTabReader reader = new MzTabReader(mzTabFile);
+				MzTabReader reader =
+					new MzTabReader(context.getMzTabFile(file));
 				reader.addProcessor(new PROXIProcessor(
-					mzTabFile.getDescriptor(), importer.taskID,
-					importer.datasetID, connection));
+					importer.taskID, importer.datasetID, connection));
 				reader.read();
 			}
 			System.out.println(String.format(

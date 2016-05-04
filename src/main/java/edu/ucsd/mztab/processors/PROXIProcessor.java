@@ -51,8 +51,7 @@ public class PROXIProcessor implements MzTabProcessor
 	 * Constructor
 	 *========================================================================*/
 	public PROXIProcessor(
-		String descriptor, String taskID, Integer datasetID,
-		Connection connection
+		String taskID, Integer datasetID, Connection connection
 	) {
 		// validate database connection
 		if (connection == null)
@@ -61,10 +60,6 @@ public class PROXIProcessor implements MzTabProcessor
 		else this.connection = connection;
 		// initialize PROXI mzTab file record
 		mzTabRecord = new PROXIMzTabRecord();
-		if (descriptor == null)
-			throw new NullPointerException(
-				"Argument ProteoSAFe file descriptor string is null.");
-		else mzTabRecord.descriptor = descriptor;
 		// validate task ID
 		if (taskID == null)
 			throw new NullPointerException(
@@ -297,7 +292,6 @@ public class PROXIProcessor implements MzTabProcessor
 		 *====================================================================*/
 		private MzTabFile mzTabFile;
 		private Integer   id;
-		private String    descriptor;
 		private String    taskID;
 		private Integer   datasetID;
 		
@@ -308,7 +302,6 @@ public class PROXIProcessor implements MzTabProcessor
 			// initialize properties
 			mzTabFile = null;
 			id = null;
-			descriptor = null;
 			taskID = null;
 			datasetID = null;
 		}
@@ -319,6 +312,7 @@ public class PROXIProcessor implements MzTabProcessor
 	 *========================================================================*/
 	private void insertMzTabFile() {
 		// insert resultfile row into database
+		String descriptor = mzTabRecord.mzTabFile.getDescriptor();
 		PreparedStatement statement = null;
 		ResultSet result = null;
 		try {
@@ -333,7 +327,7 @@ public class PROXIProcessor implements MzTabProcessor
 			sql.append(")");
 			statement = connection.prepareStatement(
 				sql.toString(), Statement.RETURN_GENERATED_KEYS);
-			statement.setString(1, mzTabRecord.descriptor);
+			statement.setString(1, descriptor);
 			statement.setString(2, mzTabRecord.taskID);
 			if (mzTabRecord.datasetID != null)
 				statement.setInt(3, mzTabRecord.datasetID);
@@ -344,14 +338,14 @@ public class PROXIProcessor implements MzTabProcessor
 				statement = connection.prepareStatement(
 					"SELECT id FROM proxi.resultfiles " +
 					"WHERE file_descriptor=?");
-				statement.setString(1, mzTabRecord.descriptor);
+				statement.setString(1, descriptor);
 				result = statement.executeQuery();
 				if (result.next())
 					mzTabRecord.id = result.getInt(1);
 				else throw new RuntimeException(String.format(
 					"No resultfile row was found for descriptor [%s] " +
 					"even though the previous insert was ignored.",
-					mzTabRecord.descriptor));
+					descriptor));
 			}
 			// if the insert succeeded, get its generated row ID
 			else if (insertion == 1) {
@@ -505,7 +499,7 @@ public class PROXIProcessor implements MzTabProcessor
 		if (spectrumFile == null)
 			return null;
 		// get unique spectrum file descriptor
-		String descriptor = spectrumFile.getMsRunLocation();
+		String descriptor = spectrumFile.getDescriptor();
 		// first check to see if this spectrum file has already been recorded
 		Integer spectrumFileID = getElementID("spectrumFile", descriptor);
 		if (spectrumFileID != null)
