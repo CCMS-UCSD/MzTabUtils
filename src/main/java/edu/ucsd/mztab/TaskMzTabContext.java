@@ -154,35 +154,6 @@ public class TaskMzTabContext
 		return context.toString();
 	}
 	
-	public static void main(String[] args) {
-		TaskMzTabContext context = null;
-		File mzTabDirectory = new File(args[0]);
-		File parametersFile = new File(args[1]);
-		if (args.length >= 4) {
-			String mzTabPath = args[2];
-			String peakListPath = args[3];
-			// if there are 5 arguments, then this is a dataset
-			if (args.length >= 5) {
-				String datasetID = args[4];
-				if (mzTabPath != null && mzTabPath.trim().isEmpty() == false)
-					mzTabPath = String.format("%s/ccms_result", mzTabPath);
-				else mzTabPath = "ccms_result";
-				if (peakListPath != null &&
-					peakListPath.trim().isEmpty() == false)
-					peakListPath = String.format("%s/peak", peakListPath);
-				else peakListPath = "peak";
-				context = new TaskMzTabContext(mzTabDirectory, parametersFile,
-					mzTabPath, peakListPath, datasetID);
-			}
-			// otherwise, this is some other kind of task
-			else context = new TaskMzTabContext(
-				mzTabDirectory, parametersFile, mzTabPath, peakListPath);
-		}
-		else context =
-			new TaskMzTabContext(new File(args[0]), new File(args[1]));
-		System.out.println(context.toString());
-	}
-	
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
