@@ -159,18 +159,22 @@ public class MzTabMsRun
 		msRun.append("\"index\":").append(getMsRunIndex());
 		msRun.append(",\n\t\t\"location\":");
 		msRun.append("\"").append(getMsRunLocation()).append("\"");
+		String descriptor = getDescriptor();
 		msRun.append(",\n\t\t\"descriptor\":");
 		if (descriptor == null)
 			msRun.append("null");
 		else msRun.append("\"").append(descriptor).append("\"");
+		String mangledPeakListFilename = getMangledPeakListFilename();
 		msRun.append(",\n\t\t\"mangled\":");
 		if (mangledPeakListFilename == null)
 			msRun.append("null");
 		else msRun.append("\"").append(mangledPeakListFilename).append("\"");
+		String uploadedPeakListPath = getUploadedPeakListPath();
 		msRun.append(",\n\t\t\"uploaded\":");
 		if (uploadedPeakListPath == null)
 			msRun.append("null");
 		else msRun.append("\"").append(uploadedPeakListPath).append("\"");
+		String mappedPeakListPath = getMappedPeakListPath();
 		msRun.append(",\n\t\t\"mapped\":");
 		if (mappedPeakListPath == null)
 			msRun.append("null");

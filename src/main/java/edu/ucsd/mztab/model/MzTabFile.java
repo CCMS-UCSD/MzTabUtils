@@ -43,92 +43,6 @@ public class MzTabFile
 	}
 	
 	/*========================================================================
-	 * Public interface methods
-	 *========================================================================*/
-	public static Map<Integer, MzTabMsRun> parseMsRuns(File mzTabFile) {
-		if (mzTabFile == null)
-			return null;
-		Map<Integer, MzTabMsRun> msRuns = new TreeMap<Integer, MzTabMsRun>();
-		BufferedReader reader = null;
-		int highestIndex = 0;
-		try {
-			reader = new BufferedReader(new FileReader(mzTabFile));
-			String line = null;
-			int lineNumber = 0;
-			while (true) {
-				line = reader.readLine();
-				if (line == null)
-					break;
-				lineNumber++;
-				// don't keep reading if we're past the metadata section
-				if (line.startsWith("MTD") == false &&
-					line.startsWith("COM") == false &&
-					line.trim().equals("") == false)
-					break;
-				// get spectrum file data, if this is a file location line
-				Matcher matcher =
-					MzTabConstants.FILE_LINE_PATTERN.matcher(line);
-				if (matcher.matches()) {
-					int index = Integer.parseInt(matcher.group(1));
-					if (index > highestIndex)
-						highestIndex = index;
-					// make sure this mapping hasn't already been recorded
-					if (msRuns.get(index) != null)
-						throw new IllegalArgumentException(String.format(
-							"Line %d of mzTab file [%s] is invalid:\n" +
-							"----------\n%s\n----------\n" +
-							"\"ms_run[1-n]-location\" index (%d) was " +
-							"already seen previously in this file.",
-							lineNumber, mzTabFile.getAbsolutePath(), line,
-							index));
-					else msRuns.put(
-						index, new MzTabMsRun(index, matcher.group(2)));
-				}
-			}
-		} catch (RuntimeException error) {
-			throw error;
-		} catch (Throwable error) {
-			throw new RuntimeException(error);
-		} finally {
-			try { reader.close(); }
-			catch (Throwable error) {}
-		}
-		return msRuns;
-	}
-	
-	@Override
-	public String toString() {
-		StringBuilder mzTab = new StringBuilder("{");
-		mzTab.append("\n\t\"file\":\"").append(getFile().getAbsolutePath());
-		mzTab.append("\",\n\t\"descriptor\":");
-		if (descriptor == null)
-			mzTab.append("null");
-		else mzTab.append("\"").append(descriptor).append("\"");
-		mzTab.append("\",\n\t\"mangled\":");
-		if (mangledResultFilename == null)
-			mzTab.append("null");
-		else mzTab.append("\"").append(mangledResultFilename).append("\"");
-		mzTab.append(",\n\t\"uploaded\":");
-		if (uploadedResultPath == null)
-			mzTab.append("null");
-		else mzTab.append("\"").append(uploadedResultPath).append("\"");
-		mzTab.append(",\n\t\"mapped\":");
-		if (mappedResultPath == null)
-			mzTab.append("null");
-		else mzTab.append("\"").append(mappedResultPath).append("\"");
-		mzTab.append(",\n\t\"ms_runs\":[");
-		for (Integer msRunIndex : msRuns.keySet()) {
-			mzTab.append("\n\t\t").append(msRuns.get(msRunIndex).toString());
-			mzTab.append(",");
-		}
-		// chomp trailing comma
-		if (mzTab.charAt(mzTab.length() - 1) == ',')
-			mzTab.setLength(mzTab.length() - 1);
-		mzTab.append("\n\t]\n}");
-		return mzTab.toString();
-	}
-	
-	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
 	public File getFile() {
@@ -274,5 +188,96 @@ public class MzTabFile
 	
 	public MzTabMsRun getMsRun(int msRun) {
 		return msRuns.get(msRun);
+	}
+	
+	/*========================================================================
+	 * Public interface methods
+	 *========================================================================*/
+	public static Map<Integer, MzTabMsRun> parseMsRuns(File mzTabFile) {
+		if (mzTabFile == null)
+			return null;
+		Map<Integer, MzTabMsRun> msRuns = new TreeMap<Integer, MzTabMsRun>();
+		BufferedReader reader = null;
+		int highestIndex = 0;
+		try {
+			reader = new BufferedReader(new FileReader(mzTabFile));
+			String line = null;
+			int lineNumber = 0;
+			while (true) {
+				line = reader.readLine();
+				if (line == null)
+					break;
+				lineNumber++;
+				// don't keep reading if we're past the metadata section
+				if (line.startsWith("MTD") == false &&
+					line.startsWith("COM") == false &&
+					line.trim().equals("") == false)
+					break;
+				// get spectrum file data, if this is a file location line
+				Matcher matcher =
+					MzTabConstants.FILE_LINE_PATTERN.matcher(line);
+				if (matcher.matches()) {
+					int index = Integer.parseInt(matcher.group(1));
+					if (index > highestIndex)
+						highestIndex = index;
+					// make sure this mapping hasn't already been recorded
+					if (msRuns.get(index) != null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:\n" +
+							"----------\n%s\n----------\n" +
+							"\"ms_run[1-n]-location\" index (%d) was " +
+							"already seen previously in this file.",
+							lineNumber, mzTabFile.getAbsolutePath(), line,
+							index));
+					else msRuns.put(
+						index, new MzTabMsRun(index, matcher.group(2)));
+				}
+			}
+		} catch (RuntimeException error) {
+			throw error;
+		} catch (Throwable error) {
+			throw new RuntimeException(error);
+		} finally {
+			try { reader.close(); }
+			catch (Throwable error) {}
+		}
+		return msRuns;
+	}
+	
+	@Override
+	public String toString() {
+		StringBuilder mzTab = new StringBuilder("{");
+		mzTab.append("\n\t\"file\":");
+		mzTab.append("\"").append(getFile().getAbsolutePath()).append("\"");
+		String descriptor = getDescriptor();
+		mzTab.append(",\n\t\"descriptor\":");
+		if (descriptor == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(descriptor).append("\"");
+		String mangledResultFilename = getMangledResultFilename();
+		mzTab.append(",\n\t\"mangled\":");
+		if (mangledResultFilename == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(mangledResultFilename).append("\"");
+		String uploadedResultPath = getUploadedResultPath();
+		mzTab.append(",\n\t\"uploaded\":");
+		if (uploadedResultPath == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(uploadedResultPath).append("\"");
+		String mappedResultPath = getMappedResultPath();
+		mzTab.append(",\n\t\"mapped\":");
+		if (mappedResultPath == null)
+			mzTab.append("null");
+		else mzTab.append("\"").append(mappedResultPath).append("\"");
+		mzTab.append(",\n\t\"ms_runs\":[");
+		for (Integer msRunIndex : msRuns.keySet()) {
+			mzTab.append("\n\t\t").append(msRuns.get(msRunIndex).toString());
+			mzTab.append(",");
+		}
+		// chomp trailing comma
+		if (mzTab.charAt(mzTab.length() - 1) == ',')
+			mzTab.setLength(mzTab.length() - 1);
+		mzTab.append("\n\t]\n}");
+		return mzTab.toString();
 	}
 }
