@@ -1,5 +1,7 @@
 package edu.ucsd.mztab.model;
 
+import org.apache.commons.io.FilenameUtils;
+
 import edu.ucsd.util.CommonUtils;
 
 public class MzTabMsRun
@@ -147,7 +149,13 @@ public class MzTabMsRun
 			path = getUploadedPeakListPath();
 		if (path == null)
 			path = getMangledPeakListFilename();
+		if (path == null)
+			path = getCleanedMsRunLocation();
 		return path;
+	}
+	
+	public String getPeakListFilename() {
+		return FilenameUtils.getName(getPeakListPath());
 	}
 	
 	/*========================================================================
