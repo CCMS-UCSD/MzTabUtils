@@ -47,6 +47,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	 * Properties
 	 *========================================================================*/
 	private Metadata           metadata;
+	private MZTabColumnFactory proteinColumnFactory;
+	private MZTabColumnFactory peptideColumnFactory;
 	private MZTabColumnFactory psmColumnFactory;
 	
 	/*========================================================================
@@ -106,13 +108,19 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	@Override
 	protected MZTabColumnFactory convertProteinColumnFactory() {
 		System.out.println("Converting Protein column factory...");
-		return MZTabColumnFactory.getInstance(Section.Protein_Header);
+		if (proteinColumnFactory == null)
+			proteinColumnFactory =
+				MZTabColumnFactory.getInstance(Section.Protein_Header);
+		return proteinColumnFactory;
 	}
 	
 	@Override
 	protected MZTabColumnFactory convertPeptideColumnFactory() {
 		System.out.println("Converting Peptide column factory...");
-		return MZTabColumnFactory.getInstance(Section.Peptide_Header);
+		if (peptideColumnFactory == null)
+			peptideColumnFactory =
+				MZTabColumnFactory.getInstance(Section.Peptide_Header);
+		return peptideColumnFactory;
 	}
 	
 	@Override
@@ -140,7 +148,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (proteinRecords != null) {
 			for (String accession : proteinRecords.keySet()) {
 				ProteinRecord record = proteinRecords.get(accession);
-				Protein protein = new Protein();
+				Protein protein = new Protein(proteinColumnFactory);
 				protein.setAccession(accession);
 				// set PSM counts
 				SortedMap<Integer, MsRun> msRunMap = metadata.getMsRunMap();
@@ -175,10 +183,12 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				PeptideRecord record = peptideRecords.get(sequence);
 				Collection<String> accessions = record.getAccessions();
 				if (accessions == null || accessions.isEmpty()) {
-					Peptide peptide = new Peptide(metadata);
+					Peptide peptide =
+						new Peptide(peptideColumnFactory, metadata);
 					peptide.setSequence(sequence);
 				} else for (String accession : record.getAccessions()) {
-					Peptide peptide = new Peptide(metadata);
+					Peptide peptide =
+						new Peptide(peptideColumnFactory, metadata);
 					peptide.setSequence(sequence);
 				}
 			}
@@ -350,7 +360,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	private void processPeptide(PeptideRecord record, String accession) {
 		if (record == null)
 			return;
-		Peptide peptide = new Peptide(metadata);
+		Peptide peptide = new Peptide(peptideColumnFactory, metadata);
 		peptide.setSequence(record.getSequence());
 		if (accession != null)
 			peptide.setAccession(accession);
