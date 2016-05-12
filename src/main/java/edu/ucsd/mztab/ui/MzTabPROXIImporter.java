@@ -18,10 +18,10 @@ public class MzTabPROXIImporter
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabPROXIImporter" +
 		"\n\t-mztab    <MzTabDirectory>" +
+		"\n\t-peak     <PeakListFilesDirectory>" +
 		"\n\t-params   <ProteoSAFeParametersFile>" +
-		"\n\t[-dataset <TaskID> <DatasetID> <DatasetRelativePath>]" +
-		"\n\t[-task    <TaskID> <Username> <MzTabRelativePath> " +
-			"<PeakListRelativePath>]";
+		"\n\t[-dataset <TaskID> <DatasetID>]" +
+		"\n\t[-task    <TaskID> <Username>]";
 	public static final String DATASET_ID_PREFIX = "MSV";
 	
 	/*========================================================================
@@ -42,12 +42,11 @@ public class MzTabPROXIImporter
 			TaskMzTabContext context = null;
 			if (importer.datasetID == null)
 				context = new TaskMzTabContext(
-					importer.mzTabDirectory, importer.parameters,
-					importer.mzTabRelativePath, importer.peakListRelativePath);
+					importer.mzTabDirectory, importer.peakListDirectory,
+					importer.parameters);
 			else context = new TaskMzTabContext(
-					importer.mzTabDirectory, importer.parameters,
-					importer.mzTabRelativePath, importer.peakListRelativePath,
-					generateDatasetIDString(importer.datasetID));
+					importer.mzTabDirectory, importer.peakListDirectory,
+					importer.parameters, importer.username);
 			System.out.println(String.format(
 				"Parsed files in mzTab directory [%s] and parameters file " +
 				"[%s] to build ProteoSAFe task filename context in %s.",
@@ -97,19 +96,18 @@ public class MzTabPROXIImporter
 		 *====================================================================*/
 		private MzTabImportMode mode;
 		private File            mzTabDirectory;
+		private File            peakListDirectory;
 		private File            parameters;
-		private String          mzTabRelativePath;
-		private String          peakListRelativePath;
 		private String          taskID;
+		private String          username;
 		private Integer         datasetID;
 		
 		/*====================================================================
 		 * Constructors
 		 *====================================================================*/
 		public MzTabImportOperation(
-			String mode, File mzTabDirectory, File parameters,
-			String taskID, String datasetID, String username,
-			String path, String peakListPath
+			String mode, File mzTabDirectory, File peakListDirectory,
+			File parameters, String taskID, String datasetID, String username
 		) {
 			// initialize nullable properties
 			this.datasetID = null;
@@ -127,6 +125,7 @@ public class MzTabPROXIImporter
 				if (datasetID == null)
 					throw new NullPointerException("Dataset ID cannot be " +
 						"null when importing dataset mzTab files.");
+				else this.username = datasetID;
 				// record task and dataset ID
 				try { this.datasetID = parseDatasetIDString(datasetID); }
 				catch (Throwable error) {
@@ -134,45 +133,13 @@ public class MzTabPROXIImporter
 						"Dataset ID string [%s] could not be parsed into " +
 						"a valid dataset ID.", datasetID), error);
 				}
-				// record dataset relative paths
-				StringBuilder relativePath = new StringBuilder();
-				if (path != null && path.trim().isEmpty() == false) {
-					relativePath.append(path);
-					// ensure a trailing slash is present
-					if (relativePath.charAt(relativePath.length() - 1) != '/')
-						relativePath.append("/");
-				}
-				mzTabRelativePath = String.format(
-					"%sccms_result", relativePath.toString());
-				peakListRelativePath = String.format(
-					"%speak", relativePath.toString());
 			}
 			// if mode is "task", then username is required
 			else if (this.mode.equals(MzTabImportMode.TASK)) {
 				if (username == null)
 					throw new NullPointerException("Username cannot be null " +
 						"when importing workflow result mzTab files.");
-				// record task relative paths
-				if (path == null)
-					throw new NullPointerException(
-						"MzTab relative path cannot be null.");
-				else {
-					StringBuilder relativePath = new StringBuilder(path);
-					// chomp trailing slash
-					if (relativePath.charAt(relativePath.length() - 1) == '/')
-						relativePath.setLength(relativePath.length() - 1);
-					mzTabRelativePath = relativePath.toString();
-				}
-				if (peakListPath == null)
-					throw new NullPointerException(
-						"Peak list file relative path cannot be null.");
-				else {
-					StringBuilder relativePath = new StringBuilder(path);
-					// chomp trailing slash
-					if (relativePath.charAt(relativePath.length() - 1) == '/')
-						relativePath.setLength(relativePath.length() - 1);
-					peakListRelativePath = relativePath.toString();
-				}
+				else this.username = username;
 			}
 			// the only recognized import modes are "dataset" and "task"
 			else throw new IllegalArgumentException(String.format(
@@ -190,6 +157,19 @@ public class MzTabPROXIImporter
 					String.format("MzTab directory [%s] must be readable.",
 						mzTabDirectory.getAbsolutePath()));
 			else this.mzTabDirectory = mzTabDirectory;
+			// validate peak list files directory
+			if (peakListDirectory == null)
+				throw new NullPointerException(
+					"Peak list files directory cannot be null.");
+			else if (peakListDirectory.isDirectory() == false)
+				throw new IllegalArgumentException(String.format(
+					"Peak list files directory [%s] must be a directory.",
+					peakListDirectory.getAbsolutePath()));
+			else if (peakListDirectory.canRead() == false)
+				throw new IllegalArgumentException(String.format(
+					"Peak list files directory [%s] must be readable.",
+					peakListDirectory.getAbsolutePath()));
+			else this.peakListDirectory = peakListDirectory;
 			// validate params.xml file
 			if (parameters == null)
 				throw new NullPointerException(
@@ -210,12 +190,11 @@ public class MzTabPROXIImporter
 			return null;
 		String mode = null;
 		File mzTabDirectory = null;
+		File peakListDirectory = null;
 		File parameters = null;
-		String datasetID = null;
 		String taskID = null;
+		String datasetID = null;
 		String username = null;
-		String path = null;
-		String peakListPath = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -227,42 +206,33 @@ public class MzTabPROXIImporter
 				String value = args[i];
 				if (argument.equals("-mztab"))
 					mzTabDirectory = new File(value);
+				else if (argument.equals("-peak"))
+					peakListDirectory = new File(value);
 				else if (argument.equals("-params"))
 					parameters = new File(value);
 				else if (argument.equals("-dataset")) {
 					mode = "DATASET";
 					taskID = value;
-					// next two arguments are relevant in this case
+					// next argument is relevant in this case
 					i++;
 					if (i >= args.length)
 						return null;
 					datasetID = args[i];
-					i++;
-					if (i < args.length)
-						path = args[i];
 				} else if (argument.equals("-task")) {
 					mode = "TASK";
 					taskID = value;
-					// next three arguments are relevant in this case
+					// next argument is relevant in this case
 					i++;
 					if (i >= args.length)
 						return null;
 					username = args[i];
-					i++;
-					if (i >= args.length)
-						return null;
-					path = args[i];
-					i++;
-					if (i >= args.length)
-						return null;
-					peakListPath = args[i];
 				} else return null;
 			}
 		}
 		try {
 			return new MzTabImportOperation(
-				mode, mzTabDirectory, parameters,
-				taskID, datasetID, username, path, peakListPath);
+				mode, mzTabDirectory, peakListDirectory,
+				parameters, taskID, datasetID, username);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
@@ -285,10 +255,6 @@ public class MzTabPROXIImporter
 				"Dataset ID string [%s] does not end with " +
 				"a valid integer ID.", datasetID), error);
 		}
-	}
-	
-	private  static String generateDatasetIDString(int datasetID) {
-		return String.format("%s%09d", DATASET_ID_PREFIX, datasetID);
 	}
 	
 	private static void die(String message) {

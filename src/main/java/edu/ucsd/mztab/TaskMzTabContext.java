@@ -29,20 +29,18 @@ public class TaskMzTabContext
 	 * Constructors
 	 *========================================================================*/
 	public TaskMzTabContext(File mzTabDirectory, File parametersFile) {
-		this(mzTabDirectory, parametersFile, null, null, null);
+		this(mzTabDirectory, null, parametersFile);
 	}
 	
 	public TaskMzTabContext(
-		File mzTabDirectory, File parametersFile,
-		String mzTabRelativePath, String peakListRelativePath
+		File mzTabDirectory, File peakListDirectory, File parametersFile
 	) {
-		this(mzTabDirectory, parametersFile,
-			mzTabRelativePath, peakListRelativePath, null);
+		this(mzTabDirectory, peakListDirectory, parametersFile, null);
 	}
 	
 	public TaskMzTabContext(
-		File mzTabDirectory, File parametersFile,
-		String mzTabRelativePath, String peakListRelativePath, String datasetID
+		File mzTabDirectory, File peakListDirectory, File parametersFile,
+		String datasetID
 	) {
 		// validate mzTab directory
 		if (mzTabDirectory == null)
@@ -56,6 +54,17 @@ public class TaskMzTabContext
 			throw new IllegalArgumentException(
 				String.format("MzTab directory [%s] must be readable.",
 					mzTabDirectory.getAbsolutePath()));
+		// validate peak list files directory (can be null)
+		if (peakListDirectory != null) {
+			if (peakListDirectory.isDirectory() == false)
+				throw new IllegalArgumentException(String.format(
+					"Peak list files directory [%s] must be a directory.",
+					peakListDirectory.getAbsolutePath()));
+			else if (peakListDirectory.canRead() == false)
+				throw new IllegalArgumentException(String.format(
+					"Peak list files directory [%s] must be readable.",
+					peakListDirectory.getAbsolutePath()));
+		}
 		// validate params.xml file
 		if (parametersFile == null)
 			throw new NullPointerException(
@@ -100,6 +109,22 @@ public class TaskMzTabContext
 				"There was an error extracting a parameter from params.xml",
 				error);
 		}
+		// if a dataset ID was specified, then the mzTab and peak list
+		// directories had better be found under that dataset!
+		String relativePrefix = null;
+		if (datasetID != null)
+			relativePrefix = datasetID;
+		// otherwise, these directories had better be found under the
+		// task indicated by the username/task ID from params.xml!
+		else relativePrefix = String.format("%s/%s", username, taskID);
+		// determine mzTab and peak list relative paths, based on
+		// whether this is a dataset or a regular ProteoSAFe task
+		String mzTabRelativePath = extractRelativePath(
+			mzTabDirectory.getAbsolutePath(), relativePrefix);
+		String peakListRelativePath = null;
+		if (peakListDirectory != null)
+			peakListRelativePath = extractRelativePath(
+				peakListDirectory.getAbsolutePath(), relativePrefix);
 		// initialize mzTab file mapping collection
 		File[] files = mzTabDirectory.listFiles();
 		// sort files alphabetically
@@ -169,6 +194,25 @@ public class TaskMzTabContext
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
+	private static String extractRelativePath(
+		String absolutePath, String relativePrefix
+	) {
+		if (absolutePath == null || relativePrefix == null)
+			return null;
+		int relativePathStart = absolutePath.indexOf(relativePrefix);
+		if (relativePathStart < 0)
+			return null;
+		String relativePath = absolutePath.substring(relativePathStart);
+		// trim off relative prefix
+		relativePath = relativePath.substring(relativePrefix.length());
+		// trim off leading slash, if present
+		if (relativePath.startsWith("/"))
+			relativePath = relativePath.substring(1);
+		if (relativePath.trim().isEmpty())
+			return null;
+		else return relativePath;
+	}
+	
 	private void mapMzTab(MzTabFile mzTab, Document parameters)
 	throws TransformerException {
 		if (mzTab == null || parameters == null)
