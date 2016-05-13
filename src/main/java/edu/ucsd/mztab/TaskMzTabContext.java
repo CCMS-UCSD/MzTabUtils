@@ -116,7 +116,8 @@ public class TaskMzTabContext
 			relativePrefix = datasetID;
 		// otherwise, these directories had better be found under the
 		// task indicated by the username/task ID from params.xml!
-		else relativePrefix = String.format("%s/%s", username, taskID);
+		else relativePrefix = String.format(
+			"%s%s%s", username, File.separator, taskID);
 		// determine mzTab and peak list relative paths, based on
 		// whether this is a dataset or a regular ProteoSAFe task
 		String mzTabRelativePath = extractRelativePath(
@@ -179,6 +180,21 @@ public class TaskMzTabContext
 		return context.toString();
 	}
 	
+	/**
+	 * Test main method to simply print out the context for a task
+	 */
+	public static void main(String[] args) {
+		File mzTabDirectory = new File(args[0]);
+		File peakListDirectory = new File(args[1]);
+		File paramsFile = new File(args[2]);
+		String datasetID = null;
+		if (args.length >= 4)
+			datasetID = args[3];
+		TaskMzTabContext context = new TaskMzTabContext(
+			mzTabDirectory, peakListDirectory, paramsFile, datasetID);
+		System.out.println(context.toString());
+	}
+	
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
@@ -194,7 +210,7 @@ public class TaskMzTabContext
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private static String extractRelativePath(
+	private String extractRelativePath(
 		String absolutePath, String relativePrefix
 	) {
 		if (absolutePath == null || relativePrefix == null)
@@ -206,7 +222,7 @@ public class TaskMzTabContext
 		// trim off relative prefix
 		relativePath = relativePath.substring(relativePrefix.length());
 		// trim off leading slash, if present
-		if (relativePath.startsWith("/"))
+		if (relativePath.startsWith(File.separator))
 			relativePath = relativePath.substring(1);
 		if (relativePath.trim().isEmpty())
 			return null;
