@@ -22,7 +22,7 @@ public class MzTabPROXIImporter
 		"\n\t-params   <ProteoSAFeParametersFile>" +
 		"\n\t[-dataset <TaskID> <DatasetID>]" +
 		"\n\t[-task    <TaskID> <Username>]";
-	public static final String DATASET_ID_PREFIX = "MSV";
+	private static final String DATASET_ID_PREFIX = "MSV";
 	
 	/*========================================================================
 	 * Public interface methods
