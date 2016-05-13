@@ -127,15 +127,9 @@ public class TaskMzTabContext
 			peakListRelativePath = extractRelativePath(
 				peakListDirectory.getAbsolutePath(), relativePrefix);
 		// initialize mzTab file mapping collection
-		File[] files = mzTabDirectory.listFiles();
-		// sort files alphabetically
-		Arrays.sort(files);
-		if (files == null || files.length < 1)
+		mzTabs = findMzTabFiles(mzTabDirectory);
+		if (mzTabs == null)
 			mzTabs = new ArrayList<MzTabFile>();
-		else mzTabs = new ArrayList<MzTabFile>(files.length);
-		// read all mzTab files, parse out ms_run declarations
-		for (File file : files)
-			mzTabs.add(new MzTabFile(file));
 		// iterate through all mzTab and ms_run mappings
 		// and fill them out with params.xml knowledge
 		for (MzTabFile mzTab : mzTabs) try {
@@ -210,6 +204,29 @@ public class TaskMzTabContext
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
+	private Collection<MzTabFile> findMzTabFiles(File mzTabDirectory) {
+		if (mzTabDirectory == null || mzTabDirectory.canRead() == false ||
+			mzTabDirectory.isDirectory() == false)
+			return null;
+		File[] files = mzTabDirectory.listFiles();
+		if (files == null || files.length < 1)
+			return null;
+		// sort files alphabetically
+		Arrays.sort(files);
+		// add all found mzTabs to collection
+		Collection<MzTabFile> mzTabs = new ArrayList<MzTabFile>();
+		for (File file : files) {
+			// recurse into subdirectories
+			if (file.isDirectory()) {
+				Collection<MzTabFile> descendantMzTabs = findMzTabFiles(file);
+				if (descendantMzTabs != null &&
+					descendantMzTabs.isEmpty() == false)
+					mzTabs.addAll(descendantMzTabs);
+			} else mzTabs.add(new MzTabFile(file));
+		}
+		return mzTabs;
+	}
+	
 	private String extractRelativePath(
 		String absolutePath, String relativePrefix
 	) {
