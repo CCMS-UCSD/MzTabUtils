@@ -15,9 +15,9 @@ public class MzTabMsRunCleaner
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabMsRunCleaner" +
 		"\n\t-mztab    <MzTabDirectory>" +
-		"\n\t-peak     <PeakListFilesDirectory>" +
 		"\n\t-params   <ProteoSAFeParametersFile>" +
 		"\n\t-output   <CleanedMzTabDirectory>" +
+		"\n\t[-peak    <PeakListFilesDirectory>]" +
 		"\n\t[-dataset <DatasetID>]";
 	
 	/*========================================================================
@@ -78,18 +78,17 @@ public class MzTabMsRunCleaner
 					String.format("MzTab directory [%s] must be readable.",
 						mzTabDirectory.getAbsolutePath()));
 			else this.mzTabDirectory = mzTabDirectory;
-			// validate peak list files directory
-			if (peakListDirectory == null)
-				throw new NullPointerException(
-					"Peak list files directory cannot be null.");
-			else if (peakListDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(String.format(
-					"Peak list files directory [%s] must be a directory.",
-					peakListDirectory.getAbsolutePath()));
-			else if (peakListDirectory.canRead() == false)
-				throw new IllegalArgumentException(String.format(
-					"Peak list files directory [%s] must be readable.",
-					peakListDirectory.getAbsolutePath()));
+			// validate peak list files directory (can be null)
+			if (peakListDirectory != null) {
+				if (peakListDirectory.isDirectory() == false)
+					throw new IllegalArgumentException(String.format(
+						"Peak list files directory [%s] must be a directory.",
+						peakListDirectory.getAbsolutePath()));
+				else if (peakListDirectory.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"Peak list files directory [%s] must be readable.",
+						peakListDirectory.getAbsolutePath()));
+			}
 			// validate params.xml file
 			if (parameters == null)
 				throw new NullPointerException(
