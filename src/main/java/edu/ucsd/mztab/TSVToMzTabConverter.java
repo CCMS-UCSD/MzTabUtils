@@ -111,6 +111,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (proteinColumnFactory == null)
 			proteinColumnFactory =
 				MZTabColumnFactory.getInstance(Section.Protein_Header);
+		proteinColumnFactory.addDefaultStableColumns();
 		return proteinColumnFactory;
 	}
 	
@@ -120,6 +121,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (peptideColumnFactory == null)
 			peptideColumnFactory =
 				MZTabColumnFactory.getInstance(Section.Peptide_Header);
+		peptideColumnFactory.addDefaultStableColumns();
 		return peptideColumnFactory;
 	}
 	
@@ -130,6 +132,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		if (psmColumnFactory == null)
 			psmColumnFactory =
 				MZTabColumnFactory.getInstance(Section.PSM_Header);
+		psmColumnFactory.addDefaultStableColumns();
 		// add optional columns
 		psmColumnFactory.addOptionalColumn("valid", String.class);
 		psmColumnFactory.addOptionalColumn("invalid_reason", String.class);
@@ -239,11 +242,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 	) {
 		if (peptide == null || elements == null)
 			return;
-		PSM psm = new PSM(psmColumnFactory, metadata);
-		// set PSM integer ID
-		psm.setPSM_ID(id);
 		// formulate "spectra_ref" value for this row
-		StringBuffer spectraRef = new StringBuffer();
+		StringBuilder spectraRef = new StringBuilder();
 		// first get the "ms_run" corresponding to the
 		// spectrum filename extracted from this row
 		SortedMap<Integer, MsRun> msRunMap = metadata.getMsRunMap();
@@ -270,91 +270,112 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// finally, append the actual ID value extracted from this row
 		spectraRef.append(extractMixtureElement(
 			elements[params.getColumnIndex("spectrum_id")], index));
-		psm.setSpectraRef(spectraRef.toString());
-		// set (cleaned) peptide string
-		psm.setSequence(ProteomicsUtils.cleanPeptide(peptide));
+		// formulate (cleaned) peptide string
+		String cleanedPeptide = ProteomicsUtils.cleanPeptide(peptide);
 		// try to extract "pre" and "post" values from the peptide sequence
-		psm.setPre(getPre(peptide));
-		psm.setPost(getPost(peptide));
-		// formulate "modifications" value for this row
+		String pre = getPre(peptide);
+		String post = getPost(peptide);
+		// get modifications for this row
 		String stripped = stripPreAndPost(peptide);
 		ImmutablePair<String, Collection<Modification>> extracted =
 			extractPTMsFromPSM(stripped, params.getModifications());
-		// mark this row as "INVALID" if any mods were
-		// left unparsed from the peptide string
 		String cleaned = extracted.getLeft();
-		if (isPeptideClean(cleaned))
-			psm.setOptionColumnValue("valid", "VALID");
-		else {
-			psm.setOptionColumnValue("valid", "INVALID");
-			psm.setOptionColumnValue("invalid_reason", String.format(
-				"The parsed peptide string [%s] for this row was still " +
-				"found to contain non-amino acid characters, even after " +
-				"extracting all expected modifications.", cleaned));
-		}
 		Collection<Modification> mods = extracted.getRight();
-		if (mods != null && mods.isEmpty() == false)
-			for (Modification mod : mods)
-				psm.addModification(mod);
-		else psm.setModifications((String)null);
-		// initialize non-required column values to null,
-		// in case any are not specified in the parameters
-		psm.setAccession(null);
-		psm.setDatabase(null);
-		psm.setDatabaseVersion(null);
-		psm.setSearchEngine((String)null);
-		psm.setRetentionTime((String)null);
-		psm.setCharge((String)null);
-		psm.setExpMassToCharge((String)null);
-		psm.setCalcMassToCharge((String)null);
-		psm.setStart((String)null);
-		psm.setEnd((String)null);
-		// set remaining column values
-		for (String column : params.getColumns()) {
-			if (column == null)
-				continue;
-			String value = extractMixtureElement(
-				elements[params.getColumnIndex(column)], index);
-			if (value == null)
-				continue;
-			if (column.equals("accession"))
-				psm.setAccession(value);
-			else if (column.equals("unique"))
-				psm.setUnique(value);
-			else if (column.equals("database"))
-				psm.setDatabase(value);
-			else if (column.equals("database_version"))
-				psm.setDatabaseVersion(value);
-			// TODO: deal with search engines and scores
-			else if (column.equals("retention_time"))
-				psm.setRetentionTime(value);
-			else if (column.equals("charge"))
-				psm.setCharge(value);
-			else if (column.equals("exp_mass_to_charge"))
-				psm.setExpMassToCharge(value);
-			else if (column.equals("calc_mass_to_charge"))
-				psm.setCalcMassToCharge(value);
-			else if (column.equals("pre"))
-				psm.setPre(value);
-			else if (column.equals("post"))
-				psm.setPost(value);
-			else if (column.equals("start"))
-				psm.setStart(value);
-			else if (column.equals("end"))
-				psm.setEnd(value);
+		// add a separate PSM row, having the same PSM_ID,
+		// for each protein matched to this PSM
+		String[] proteins = null;
+		Integer proteinIndex = params.getColumnIndex("accession");
+		if (proteinIndex == null)
+			proteins = new String[]{null};
+		else proteins =
+			extractMixtureElement(elements[proteinIndex], index).split(";");
+		for (String protein : proteins) {
+			PSM psm = new PSM(psmColumnFactory, metadata);
+			// set PSM integer ID
+			psm.setPSM_ID(id);
+			// set "spectra_ref" value for this row
+			psm.setSpectraRef(spectraRef.toString());
+			// set (cleaned) peptide string
+			psm.setSequence(cleanedPeptide);
+			// try to extract "pre" and "post" values from the peptide sequence
+			psm.setPre(pre);
+			psm.setPost(post);;
+			// mark this row as "INVALID" if any mods were
+			// left unparsed from the peptide string
+			if (isPeptideClean(cleaned))
+				psm.setOptionColumnValue("valid", "VALID");
+			else {
+				psm.setOptionColumnValue("valid", "INVALID");
+				psm.setOptionColumnValue("invalid_reason", String.format(
+					"The parsed peptide string [%s] for this row was still " +
+					"found to contain non-amino acid characters, even after " +
+					"extracting all expected modifications.", cleaned));
+			}
+			// formulate "modifications" value for this row
+			if (mods != null && mods.isEmpty() == false)
+				for (Modification mod : mods)
+					psm.addModification(mod);
+			else psm.setModifications((String)null);
+			// initialize non-required column values to null,
+			// in case any are not specified in the parameters
+			psm.setAccession(null);
+			psm.setDatabase(null);
+			psm.setDatabaseVersion(null);
+			psm.setSearchEngine((String)null);
+			psm.setRetentionTime((String)null);
+			psm.setCharge((String)null);
+			psm.setExpMassToCharge((String)null);
+			psm.setCalcMassToCharge((String)null);
+			psm.setStart((String)null);
+			psm.setEnd((String)null);
+			// set remaining column values
+			for (String column : params.getColumns()) {
+				if (column == null)
+					continue;
+				String value = extractMixtureElement(
+					elements[params.getColumnIndex(column)], index);
+				if (value == null)
+					continue;
+				// only add the currently parsed protein to this particular PSM
+				if (column.equals("accession") && protein != null)
+					psm.setAccession(protein);
+				else if (column.equals("unique"))
+					psm.setUnique(value);
+				else if (column.equals("database"))
+					psm.setDatabase(value);
+				else if (column.equals("database_version"))
+					psm.setDatabaseVersion(value);
+				// TODO: deal with search engines and scores
+				else if (column.equals("retention_time"))
+					psm.setRetentionTime(value);
+				else if (column.equals("charge"))
+					psm.setCharge(value);
+				else if (column.equals("exp_mass_to_charge"))
+					psm.setExpMassToCharge(value);
+				else if (column.equals("calc_mass_to_charge"))
+					psm.setCalcMassToCharge(value);
+				else if (column.equals("pre"))
+					psm.setPre(value);
+				else if (column.equals("post"))
+					psm.setPost(value);
+				else if (column.equals("start"))
+					psm.setStart(value);
+				else if (column.equals("end"))
+					psm.setEnd(value);
+			}
+			// add extra columns
+			for (String column : params.getExtraColumns()) {
+				if (column == null)
+					continue;
+				String value = extractMixtureElement(
+					elements[params.getExtraColumnIndex(column)], index);
+				if (value == null)
+					continue;
+				else psm.setOptionColumnValue(column, value);
+			}
+			// add fully initialized PSM to collection
+			psms.add(psm);
 		}
-		// add extra columns
-		for (String column : params.getExtraColumns()) {
-			if (column == null)
-				continue;
-			String value = extractMixtureElement(
-				elements[params.getExtraColumnIndex(column)], index);
-			if (value == null)
-				continue;
-			else psm.setOptionColumnValue(column, value);
-		}
-		// add fully initialized PSM to collection
-		psms.add(psm);
 	}
 	
 	private void processPeptide(PeptideRecord record, String accession) {
@@ -564,8 +585,8 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		else if (message.endsWith(".") == false)
 			message += ".";
 		System.err.println(message);
-//		if (error != null)
-//			error.printStackTrace();
+		if (error != null)
+			error.printStackTrace();
 		System.exit(1);
 	}
 }

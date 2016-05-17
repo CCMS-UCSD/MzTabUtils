@@ -277,27 +277,32 @@ public class TSVToMzTabParameters
 					// every row should have a filename column value
 					if (msRun == null)
 						throw new IllegalStateException();
-					// get protein record for this accession
-					String accession = elements[accessionIndex];
-					ProteinRecord record = proteins.get(accession);
-					if (record == null)
-						record = new ProteinRecord(accession);
-					// add this PSM to this protein
-					record.addPSM(msRun);
-					// get this row's peptide and add it to this protein
-					String peptide =
-						elements[columnIndices.get("modified_sequence")];
-					record.addPeptide(
-						msRun, ProteomicsUtils.cleanPeptide(peptide));
-					// get this row's modifications and add them to this protein
-					ImmutablePair<String, Collection<Modification>> extracted =
-						TSVToMzTabConverter.extractPTMsFromPSM(
+					// split accession column value into separate
+					// proteins, since they may be "rolled up"
+					String[] accessions = elements[accessionIndex].split(";");
+					for (String accession : accessions) {
+						// get protein record for this accession
+						ProteinRecord record = proteins.get(accession);
+						if (record == null)
+							record = new ProteinRecord(accession);
+						// add this PSM to this protein
+						record.addPSM(msRun);
+						// get this row's peptide and add it to this protein
+						String peptide =
+							elements[columnIndices.get("modified_sequence")];
+						record.addPeptide(
+							msRun, ProteomicsUtils.cleanPeptide(peptide));
+						// get this row's modifications
+						// and add them to this protein
+						ImmutablePair<String, Collection<Modification>>
+						extracted = TSVToMzTabConverter.extractPTMsFromPSM(
 							peptide, getModifications());
-					Collection<Modification> mods = extracted.getRight();
-					if (mods != null)
-						for (Modification mod : mods)
-							record.addModification(mod);
-					proteins.put(accession, record);
+						Collection<Modification> mods = extracted.getRight();
+						if (mods != null)
+							for (Modification mod : mods)
+								record.addModification(mod);
+						proteins.put(accession, record);
+					}
 				}
 				lineNumber++;
 			}
