@@ -1,5 +1,7 @@
 package edu.ucsd.mztab.model;
 
+import java.io.File;
+
 import org.apache.commons.io.FilenameUtils;
 
 import edu.ucsd.util.CommonUtils;
@@ -82,14 +84,17 @@ public class MzTabMsRun
 			peakListRelativePath.trim().isEmpty())
 			peakListRelativePath = "peak";
 		// append the relative path of the peak list directory
-		descriptor.append("/").append(peakListRelativePath);
+		descriptor.append(File.separator).append(peakListRelativePath);
 		// append the final file path under the mzTab directory
-		descriptor.append("/");
+		descriptor.append(File.separator);
 		// if this is a dataset file, then it should have a mapped file path
-		String mappedPath = getMappedPeakListPath();
-		if (mappedPath != null)
-			descriptor.append(mappedPath);
-		else descriptor.append(getCleanedMsRunLocation());
+		String filePath = getMappedPeakListPath();
+		if (filePath == null)
+			filePath = getCleanedMsRunLocation();
+		// trim off leading slash, if present
+		if (filePath.startsWith(File.separator))
+			filePath = filePath.substring(1);
+		descriptor.append(filePath);
 		this.descriptor = descriptor.toString();
 	}
 	
@@ -103,19 +108,22 @@ public class MzTabMsRun
 		}
 		// build descriptor appropriately based on parameters
 		StringBuilder descriptor = new StringBuilder("u.");
-		descriptor.append(username).append("/").append(taskID);
+		descriptor.append(username).append(File.separator).append(taskID);
 		// append the relative path of the peak list directory, if specified
 		if (peakListRelativePath != null &&
 			peakListRelativePath.trim().isEmpty() == false)
-			descriptor.append("/").append(peakListRelativePath);
+			descriptor.append(File.separator).append(peakListRelativePath);
 		// append the final file path under the mzTab directory
-		descriptor.append("/");
+		descriptor.append(File.separator);
 		// if this is a task file, then it should either have a mangled filename
 		// or the file itself should be present in the task peak list directory
-		String mangledFilename = getMangledPeakListFilename();
-		if (mangledFilename != null)
-			descriptor.append(mangledFilename);
-		else descriptor.append(getCleanedMsRunLocation());
+		String filePath = getMangledPeakListFilename();
+		if (filePath == null)
+			filePath = getCleanedMsRunLocation();
+		// trim off leading slash, if present
+		if (filePath.startsWith(File.separator))
+			filePath = filePath.substring(1);
+		descriptor.append(filePath);
 		this.descriptor = descriptor.toString();
 	}
 	

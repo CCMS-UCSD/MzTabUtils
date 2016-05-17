@@ -74,14 +74,17 @@ public class MzTabFile
 		if (mzTabRelativePath == null || mzTabRelativePath.trim().isEmpty())
 			mzTabRelativePath = "ccms_result";
 		// append the relative path of the mzTab directory
-		descriptor.append("/").append(mzTabRelativePath);
+		descriptor.append(File.separator).append(mzTabRelativePath);
 		// append the final file path under the mzTab directory
-		descriptor.append("/");
+		descriptor.append(File.separator);
 		// if this is a dataset file, then it should have a mapped file path
-		String mappedPath = getMappedMzTabPath();
-		if (mappedPath != null)
-			descriptor.append(mappedPath);
-		else descriptor.append(file.getName());
+		String filePath = getMappedMzTabPath();
+		if (filePath == null)
+			filePath = file.getName();
+		// trim off leading slash, if present
+		if (filePath.startsWith(File.separator))
+			filePath = filePath.substring(1);
+		descriptor.append(filePath);
 		this.descriptor = descriptor.toString();
 	}
 	
@@ -95,19 +98,22 @@ public class MzTabFile
 		}
 		// build descriptor appropriately based on parameters
 		StringBuilder descriptor = new StringBuilder("u.");
-		descriptor.append(username).append("/").append(taskID);
+		descriptor.append(username).append(File.separator).append(taskID);
 		// append the relative path of the mzTab directory, if specified
 		if (mzTabRelativePath != null &&
 			mzTabRelativePath.trim().isEmpty() == false)
-			descriptor.append("/").append(mzTabRelativePath);
+			descriptor.append(File.separator).append(mzTabRelativePath);
 		// append the final file path under the mzTab directory
-		descriptor.append("/");
+		descriptor.append(File.separator);
 		// if this is a task file, then it should either have a mangled filename
 		// or the file itself should be present in the task mzTab directory
-		String mangledFilename = getMangledMzTabFilename();
-		if (mangledFilename != null)
-			descriptor.append(mangledFilename);
-		else descriptor.append(file.getName());
+		String filePath = getMangledMzTabFilename();
+		if (filePath == null)
+			filePath = file.getName();
+		// trim off leading slash, if present
+		if (filePath.startsWith(File.separator))
+			filePath = filePath.substring(1);
+		descriptor.append(filePath);
 		this.descriptor = descriptor.toString();
 	}
 	
