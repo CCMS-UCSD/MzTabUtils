@@ -1,6 +1,7 @@
 package edu.ucsd.mztab.ui;
 
 import java.io.File;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 
 import edu.ucsd.mztab.MzTabReader;
@@ -18,7 +19,7 @@ public class MzTabMsRunCleaner
 		"\n\t-params   <ProteoSAFeParametersFile>" +
 		"\n\t-output   <CleanedMzTabDirectory>" +
 		"\n\t[-peak    <PeakListFilesDirectory>]" +
-		"\n\t[-dataset <DatasetID>]";
+		"\n\t[-dataset <DatasetID>|<DatasetIDFile>]";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -144,8 +145,25 @@ public class MzTabMsRunCleaner
 					parameters = new File(value);
 				else if (argument.equals("-output"))
 					outputDirectory = new File(value);
-				else if (argument.equals("-dataset"))
-					datasetID = value;
+				else if (argument.equals("-dataset")) {
+					// if this argument is a file, read it to get dataset ID
+					File datasetIDFile = new File(value);
+					if (datasetIDFile.isFile() && datasetIDFile.canRead()) {
+						RandomAccessFile input = null;
+						try {
+							input = new RandomAccessFile(datasetIDFile, "r");
+							datasetID = input.readLine();
+						} catch (Throwable error) {
+							die(String.format(
+								"Could not read dataset ID from file [%s].",
+								datasetIDFile.getAbsolutePath()), error);
+						} finally {
+							try { input.close(); } catch (Throwable error) {}
+						}
+					}
+					// otherwise treat the argument as the literal dataset ID
+					else datasetID = value;
+				}
 				else return null;
 			}
 		}
