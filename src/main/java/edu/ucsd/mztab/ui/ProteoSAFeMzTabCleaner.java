@@ -15,7 +15,7 @@ public class ProteoSAFeMzTabCleaner
 	 * Constants
 	 *========================================================================*/
 	private static final String USAGE =
-		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MassIVEMzTabCleaner" +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.ProteoSAFeMzTabCleaner" +
 		"\n\t-mztab    <MzTabDirectory>" +
 		"\n\t-params   <ProteoSAFeParametersFile>" +
 		"\n\t-output   <CleanedMzTabDirectory>" +
