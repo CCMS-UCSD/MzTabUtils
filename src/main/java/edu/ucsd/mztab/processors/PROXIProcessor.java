@@ -113,8 +113,8 @@ public class PROXIProcessor implements MzTabProcessor
 		if (line.startsWith("PRH")) {
 			if (prtHeader != null)
 				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n" +
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n" +
 					"A \"PRH\" row was already seen previously in this file.",
 					lineNumber, mzTabFilename, line));
 			prtHeader = new MzTabSectionHeader(line);
@@ -124,8 +124,8 @@ public class PROXIProcessor implements MzTabProcessor
 			incrementRowCount("PRT");
 			if (prtHeader == null)
 				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n" +
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n" +
 					"A \"PRT\" row was found before any \"PRH\" row.",
 					lineNumber, mzTabFilename, line));
 			else prtHeader.validateMzTabRow(line);
@@ -146,8 +146,8 @@ public class PROXIProcessor implements MzTabProcessor
 				incrementRowCount("invalid_PRT");
 				// print warning and continue
 				System.err.println(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n%s",
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n%s",
 					lineNumber, mzTabFilename, line,
 					getRootCause(error).getMessage()));
 				//error.printStackTrace();
@@ -157,8 +157,8 @@ public class PROXIProcessor implements MzTabProcessor
 		else if (line.startsWith("PEH")) {
 			if (pepHeader != null)
 				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n" +
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n" +
 					"A \"PEH\" row was already seen previously in this file.",
 					lineNumber, mzTabFilename, line));
 			pepHeader = new MzTabSectionHeader(line);
@@ -168,8 +168,8 @@ public class PROXIProcessor implements MzTabProcessor
 			incrementRowCount("PEP");
 			if (pepHeader == null)
 				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n" +
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n" +
 					"A \"PEP\" row was found before any \"PEH\" row.",
 					lineNumber, mzTabFilename, line));
 			else pepHeader.validateMzTabRow(line);
@@ -202,8 +202,8 @@ public class PROXIProcessor implements MzTabProcessor
 		else if (line.startsWith("PSH")) {
 			if (psmHeader != null)
 				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n" +
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n" +
 					"A \"PSH\" row was already seen previously in this file.",
 					lineNumber, mzTabFilename, line));
 			psmHeader = new MzTabSectionHeader(line);
@@ -213,8 +213,8 @@ public class PROXIProcessor implements MzTabProcessor
 			incrementRowCount("PSM");
 			if (psmHeader == null)
 				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n" +
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n" +
 					"A \"PSM\" row was found before any \"PSH\" row.",
 					lineNumber, mzTabFilename, line));
 			else psmHeader.validateMzTabRow(line);
@@ -240,8 +240,8 @@ public class PROXIProcessor implements MzTabProcessor
 				incrementRowCount("invalid_PSM");
 				// print warning and continue
 				System.err.println(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n%s",
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n%s",
 					lineNumber, mzTabFilename, line,
 					getRootCause(error).getMessage()));
 				//error.printStackTrace();
