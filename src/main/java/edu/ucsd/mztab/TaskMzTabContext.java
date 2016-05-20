@@ -28,19 +28,25 @@ public class TaskMzTabContext
 	/*========================================================================
 	 * Constructors
 	 *========================================================================*/
-	public TaskMzTabContext(File mzTabDirectory, File parametersFile) {
-		this(mzTabDirectory, null, parametersFile);
-	}
-	
 	public TaskMzTabContext(
-		File mzTabDirectory, File peakListDirectory, File parametersFile
+		File mzTabDirectory, String mzTabRelativePath, File parametersFile
 	) {
-		this(mzTabDirectory, peakListDirectory, parametersFile, null);
+		this(mzTabDirectory, mzTabRelativePath, null, null, parametersFile);
 	}
 	
 	public TaskMzTabContext(
-		File mzTabDirectory, File peakListDirectory, File parametersFile,
-		String datasetID
+		File mzTabDirectory, String mzTabRelativePath,
+		File peakListDirectory, String peakListRelativePath,
+		File parametersFile
+	) {
+		this(mzTabDirectory, mzTabRelativePath,
+			peakListDirectory, peakListRelativePath, parametersFile, null);
+	}
+	
+	public TaskMzTabContext(
+		File mzTabDirectory, String mzTabRelativePath,
+		File peakListDirectory, String peakListRelativePath,
+		File parametersFile, String datasetID
 	) {
 		// validate mzTab directory
 		if (mzTabDirectory == null)
@@ -118,12 +124,12 @@ public class TaskMzTabContext
 		// task indicated by the username/task ID from params.xml!
 		else relativePrefix = String.format(
 			"%s%s%s", username, File.separator, taskID);
-		// determine mzTab and peak list relative paths, based on
-		// whether this is a dataset or a regular ProteoSAFe task
-		String mzTabRelativePath = extractRelativePath(
-			mzTabDirectory.getAbsolutePath(), relativePrefix);
-		String peakListRelativePath = null;
-		if (peakListDirectory != null)
+		// if mzTab and peak list relative paths were not provided, determine
+		//them based on whether this is a dataset or a regular ProteoSAFe task
+		if (mzTabRelativePath == null)
+			mzTabRelativePath = extractRelativePath(
+				mzTabDirectory.getAbsolutePath(), relativePrefix);
+		if (peakListRelativePath == null && peakListDirectory != null)
 			peakListRelativePath = extractRelativePath(
 				peakListDirectory.getAbsolutePath(), relativePrefix);
 		// initialize mzTab file mapping collection
@@ -178,20 +184,43 @@ public class TaskMzTabContext
 	 * Test main method to simply print out the context for a task
 	 */
 	public static void main(String[] args) {
-		File mzTabDirectory = new File(args[0]);
-		File peakListDirectory = new File(args[1]);
-		File paramsFile = new File(args[2]);
-		String datasetID = null;
-		if (args.length >= 4)
-			datasetID = args[3];
-		TaskMzTabContext context = new TaskMzTabContext(
-			mzTabDirectory, peakListDirectory, paramsFile, datasetID);
-		System.out.println(context.toString());
+		String usage =
+			"java -cp MassIVEUtils.jar edu.ucsd.mztab.TaskMzTabContext " +
+			"<MzTabDirectory> <MzTabRelativePath> " +
+			"<PeakListDirectory> <PeakListRelativePath> " +
+			"<ProteoSAFeParametersFile> [<DatasetID>]";
+		try {
+			File mzTabDirectory = new File(args[0]);
+			String mzTabRelativePath = args[1];
+			if (mzTabRelativePath.trim().isEmpty())
+				mzTabRelativePath = null;
+			File peakListDirectory = new File(args[2]);
+			String peakListRelativePath = args[3];
+			if (peakListRelativePath.trim().isEmpty())
+				peakListRelativePath = null;
+			File paramsFile = new File(args[4]);
+			String datasetID = null;
+			if (args.length >= 6)
+				datasetID = args[5];
+			TaskMzTabContext context = new TaskMzTabContext(
+				mzTabDirectory, mzTabRelativePath,
+				peakListDirectory, peakListRelativePath,
+				paramsFile, datasetID);
+			System.out.println(context.toString());
+		} catch (Throwable error) {
+			System.out.println(usage);
+		}
 	}
 	
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
+	public Collection<MzTabFile> getMzTabFiles() {
+		if (mzTabs == null)
+			return null;
+		else return new ArrayList<MzTabFile>(mzTabs);
+	}
+	
 	public MzTabFile getMzTabFile(File mzTabFile) {
 		if (mzTabFile == null)
 			return null;
@@ -369,6 +398,7 @@ public class TaskMzTabContext
 		NodeList mappings = XPathAPI.selectNodeList(
 			parameters, "//parameter[@name='upload_file_mapping']");
 		if (mappings != null && mappings.getLength() > 0) {
+			// first try exact matches
 			for (int i=0; i<mappings.getLength(); i++) {
 				String value =
 					mappings.item(i).getFirstChild().getNodeValue();
@@ -382,22 +412,43 @@ public class TaskMzTabContext
 						"is invalid - it should contain two tokens " +
 						"separated by a pipe (\"|\") character.", value));
 				// if an upload mapping exists for this ms_run,
-				// then there are three possible scenarios:
+				// then there are two possible exact match scenarios:
 				// 1. the ms_run-location value is the mangled filename,
 				// e.g. analysis workflows with mzTab conversion integrated
 				if (tokens[0].equals(cleanedMsRun) ||
 				// 2. the ms_run-location value is some ending portion of the
 				// uploaded peak list file path, e.g. the convert-tsv workflow
-					tokens[1].endsWith(cleanedMsRun) ||
-				// 3. a "result_file_mapping" exists and its value is some
-				// ending portion of the uploaded peak list file path, e.g.
-				// MassIVE dataset submission or any workflow with file mapping
-					(uploadedPeakListMatch != null &&
-						tokens[1].endsWith(uploadedPeakListMatch))) {
+					tokens[1].endsWith(cleanedMsRun)) {
 					msRun.setMangledPeakListFilename(tokens[0]);
 					msRun.setUploadedPeakListPath(tokens[1]);
 					return;
 				}
+			}
+		}
+		// if no exact matches were found, try to match the mapped
+		// value with the first uploaded path that matches it
+		for (int i=0; i<mappings.getLength(); i++) {
+			String value =
+				mappings.item(i).getFirstChild().getNodeValue();
+			// each "upload_file_mapping" parameter should have
+			// as its value a string with the following format:
+			// <mangled_filename>|<source_filename>
+			String[] tokens = value.split("\\|");
+			if (tokens == null || tokens.length != 2)
+				throw new IllegalArgumentException(String.format(
+					"\"upload_file_mapping\" parameter value [%s] " +
+					"is invalid - it should contain two tokens " +
+					"separated by a pipe (\"|\") character.", value));
+			// if an upload mapping exists for this ms_run,
+			// then the best match scenario we could hope for is that
+			// a "result_file_mapping" exists, and its value is some
+			// ending portion of the uploaded peak list file path, e.g.
+			// MassIVE dataset submission or any workflow with file mapping
+			if (uploadedPeakListMatch != null &&
+				tokens[1].endsWith(uploadedPeakListMatch)) {
+				msRun.setMangledPeakListFilename(tokens[0]);
+				msRun.setUploadedPeakListPath(tokens[1]);
+				return;
 			}
 		}
 	}

@@ -42,10 +42,11 @@ public class MzTabPROXIImporter
 			TaskMzTabContext context = null;
 			if (importer.datasetID == null)
 				context = new TaskMzTabContext(
-					importer.mzTabDirectory, importer.peakListDirectory,
-					importer.parameters);
+					importer.mzTabDirectory, null,
+					importer.peakListDirectory, null, importer.parameters);
 			else context = new TaskMzTabContext(
-					importer.mzTabDirectory, importer.peakListDirectory,
+					importer.mzTabDirectory, null,
+					importer.peakListDirectory, null,
 					importer.parameters, importer.username);
 			System.out.println(String.format(
 				"Parsed files in mzTab directory [%s] and parameters file " +

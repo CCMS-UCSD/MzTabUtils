@@ -119,7 +119,8 @@ public class ProteoSAFeMzTabCleaner
 			else this.outputDirectory = outputDirectory;
 			// build mzTab file-mapping context
 			context = new TaskMzTabContext(
-				mzTabDirectory, peakListDirectory, parameters, datasetID);
+				mzTabDirectory, null, peakListDirectory, null,
+				parameters, datasetID);
 		}
 	}
 	

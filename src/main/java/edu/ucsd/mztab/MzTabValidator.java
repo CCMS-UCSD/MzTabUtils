@@ -8,6 +8,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -23,6 +24,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import edu.ucsd.mztab.model.MzTabFile;
+import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.FileIOUtils;
 
@@ -35,6 +38,10 @@ public class MzTabValidator
 		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabValidator" +
 		"\n\t-params     <ParameterFile>" +
 		"\n\t-mztab      <MzTabDirectory>" +
+		"\n\t[-mztabPath <MzTabRelativePath> (if not under MzTabDirectory)]" +
+		"\n\t[-peak      <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath  <PeakListRelativePath> " +
+			"(if not under PeakListFilesDirectory)]" +
 		"\n\t[-scans     <ScansDirectory>]" +
 		"\n\t[-result    <UploadedResultDirectory>]" +
 		"\n\t-output     <OutputFile>" +
@@ -44,8 +51,6 @@ public class MzTabValidator
 		"temp_modified_result.mzTab";
 	private static final Pattern FILE_REFERENCE_PATTERN =
 		Pattern.compile("ms_run\\[(\\d+)\\]");
-	private static final Pattern FILE_LINE_PATTERN =
-		Pattern.compile("^MTD\\s+ms_run\\[(\\d+)\\]-location\\s+(.+)$");
 	private static final Pattern SCAN_PATTERN = Pattern.compile("scan=(\\d+)");
 	private static final Pattern INDEX_PATTERN =
 		Pattern.compile("index=(\\d+)");
@@ -61,10 +66,6 @@ public class MzTabValidator
 			die(USAGE);
 		PrintWriter writer = null;
 		try {
-			// build mzTab file context
-			MassIVEMzTabContext context = new MassIVEMzTabContext(
-				validation.parameters, validation.mzTabDirectory,
-				validation.scansDirectory);
 			// set up output file writer
 			if (validation.outputFile.exists() == false &&
 				validation.outputFile.createNewFile() == false)
@@ -79,7 +80,8 @@ public class MzTabValidator
 			Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
 				scans = new LinkedHashMap<String,
 					ImmutablePair<Collection<Integer>, Collection<Integer>>>();
-			Collection<File> scansFiles = context.getScansFiles();
+			Collection<File> scansFiles =
+				Arrays.asList(validation.scansDirectory.listFiles());
 			if (scansFiles != null) {
 				for (File scansFile : scansFiles) {
 					ImmutablePair<Collection<Integer>, Collection<Integer>>
@@ -96,22 +98,24 @@ public class MzTabValidator
 				mzidSpectrumIDCache =
 					new LinkedHashMap<Document,
 						Map<String, Map<String, Collection<String>>>>();
-			Collection<File> mzTabFiles = context.getMzTabFiles();
+			Collection<MzTabFile> mzTabFiles =
+				validation.context.getMzTabFiles();
 			if (mzTabFiles == null || mzTabFiles.isEmpty()) {
 				System.out.println("No files were submitted in the " +
 					"\"RESULT\" category for this dataset, so it will be " +
 					"marked as an unsupported (i.e. partial) submission.");
-			} else for (File mzTabFile : mzTabFiles) {
+			} else for (MzTabFile mzTabFile : mzTabFiles) {
 				// extract counts for PSMs, invalid PSMs, proteins and peptides
-				int[] counts = validateMzTabFile(mzTabFile, context, scans,
-					validation.uploadedResultDirectory, parsedMzidFileCache,
-					mzidSpectrumIDCache, validation.countOnly);
-				String mzTabFilename = mzTabFile.getName();
+				int[] counts = validateMzTabFile(mzTabFile, validation.context,
+					scans, validation.uploadedResultDirectory,
+					parsedMzidFileCache, mzidSpectrumIDCache,
+					validation.countOnly);
+				String mzTabFilename = mzTabFile.getMzTabFilename();
 				// get original uploaded result filename for this mzTab file,
 				// if present; it may not be, if this is a count-only TSV
 				// conversion
 				String uploadedResultFilename =
-					context.getUploadedResultFilename(mzTabFilename);
+					mzTabFile.getUploadedResultPath();
 				if (uploadedResultFilename == null)
 					uploadedResultFilename = mzTabFilename;
 				if (counts == null || counts.length != 7)
@@ -126,11 +130,11 @@ public class MzTabValidator
 				if (percentage > validation.failureThreshold) {
 					// log the filename map values, since that's
 					// the most likely reason for this failure
-					//System.err.println(context.toJSON());
-					die(String.format("Result file [%s] contains %s%% invalid " +
-						"PSM rows. Please correct the file and ensure that " +
-						"its referenced spectra are accessible within linked " +
-						"peak list files, and then re-submit.",
+					System.err.println(validation.context.toString());
+					die(String.format("Result file [%s] contains %s%% " +
+						"invalid PSM rows. Please correct the file and " +
+						"ensure that its referenced spectra are accessible " +
+						"within linked peak list files, and then re-submit.",
 						uploadedResultFilename, percentage));
 				}
 				int foundPSMs = counts[2];
@@ -169,8 +173,7 @@ public class MzTabValidator
 		/*====================================================================
 		 * Properties
 		 *====================================================================*/
-		private File    parameters;
-		private File    mzTabDirectory;
+		private TaskMzTabContext context;
 		private File    scansDirectory;
 		private File    uploadedResultDirectory;
 		private File    outputFile;
@@ -181,9 +184,10 @@ public class MzTabValidator
 		 * Constructors
 		 *====================================================================*/
 		public MzTabValidationOperation(
-			File parameters, File mzTabDirectory, File scansDirectory,
-			File resultDirectory, File outputFile, boolean countOnly,
-			String failureThreshold
+			File parameters, File mzTabDirectory, String mzTabRelativePath,
+			File peakListDirectory, String peakListRelativePath,
+			File scansDirectory, File resultDirectory, File outputFile,
+			boolean countOnly, String failureThreshold
 		) {
 			// validate parameters file
 			if (parameters == null)
@@ -198,7 +202,6 @@ public class MzTabValidator
 				throw new IllegalArgumentException(
 					String.format("Parameters file [%s] must be readable.",
 						parameters.getAbsolutePath()));
-			else this.parameters = parameters;
 			// validate mzTab directory
 			if (mzTabDirectory == null)
 				throw new NullPointerException(
@@ -211,31 +214,46 @@ public class MzTabValidator
 				throw new IllegalArgumentException(
 					String.format("MzTab directory [%s] must be readable.",
 						mzTabDirectory.getAbsolutePath()));
-			else this.mzTabDirectory = mzTabDirectory;
+			// validate peak list files directory (can be null)
+			if (peakListDirectory != null) {
+				if (peakListDirectory.isDirectory() == false)
+					throw new IllegalArgumentException(String.format(
+						"Peak list files directory [%s] must be a directory.",
+						peakListDirectory.getAbsolutePath()));
+				else if (peakListDirectory.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"Peak list files directory [%s] must be readable.",
+						peakListDirectory.getAbsolutePath()));
+			}
+			// build mzTab context
+			this.context = new TaskMzTabContext(
+				mzTabDirectory, mzTabRelativePath,
+				peakListDirectory, peakListRelativePath,
+				parameters);
 			// validate scans directory (can be null)
-			if (scansDirectory == null)
-				this.scansDirectory = null;
-			else if (scansDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(String.format(
-					"Spectrum ID files directory [%s] must be a directory.",
-					scansDirectory.getAbsolutePath()));
-			else if (scansDirectory.canRead() == false)
-				throw new IllegalArgumentException(String.format(
-					"Spectrum ID files directory [%s] must be readable.",
-					scansDirectory.getAbsolutePath()));
-			else this.scansDirectory = scansDirectory;
+			if (scansDirectory != null) {
+				if (scansDirectory.isDirectory() == false)
+					throw new IllegalArgumentException(String.format(
+						"Spectrum ID files directory [%s] must be a directory.",
+						scansDirectory.getAbsolutePath()));
+				else if (scansDirectory.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"Spectrum ID files directory [%s] must be readable.",
+						scansDirectory.getAbsolutePath()));
+			}
+			this.scansDirectory = scansDirectory;
 			// validate uploaded result directory (can be null)
-			if (resultDirectory == null)
-				this.uploadedResultDirectory = null;
-			else if (resultDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(String.format(
-					"Uploaded result files directory [%s] must be a " +
-					"directory.", resultDirectory.getAbsolutePath()));
-			else if (resultDirectory.canRead() == false)
-				throw new IllegalArgumentException(String.format(
-					"Uploaded result files directory [%s] must be " +
-					"readable.", resultDirectory.getAbsolutePath()));
-			else this.uploadedResultDirectory = resultDirectory;
+			if (resultDirectory != null) {
+				if (resultDirectory.isDirectory() == false)
+					throw new IllegalArgumentException(String.format(
+						"Uploaded result files directory [%s] must be a " +
+						"directory.", resultDirectory.getAbsolutePath()));
+				else if (resultDirectory.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"Uploaded result files directory [%s] must be " +
+						"readable.", resultDirectory.getAbsolutePath()));
+			}
+			this.uploadedResultDirectory = resultDirectory;
 			// validate output file
 			if (outputFile == null)
 				throw new NullPointerException("Output file cannot be null.");
@@ -266,6 +284,9 @@ public class MzTabValidator
 			return null;
 		File params = null;
 		File mzTabDirectory = null;
+		String mzTabRelativePath = null;
+		File peakListDirectory = null;
+		String peakListRelativePath = null;
 		File scansDirectory = null;
 		File resultDirectory = null;
 		File output = null;
@@ -286,6 +307,12 @@ public class MzTabValidator
 					params = new File(value);
 				else if (argument.equals("-mztab"))
 					mzTabDirectory = new File(value);
+				else if (argument.equals("-mztabPath"))
+					mzTabRelativePath = value;
+				else if (argument.equals("-peak"))
+					peakListDirectory = new File(value);
+				else if (argument.equals("-peakPath"))
+					peakListRelativePath = value;
 				else if (argument.equals("-scans"))
 					scansDirectory = new File(value);
 				else if (argument.equals("-result"))
@@ -299,6 +326,7 @@ public class MzTabValidator
 		}
 		try {
 			return new MzTabValidationOperation(params, mzTabDirectory,
+				mzTabRelativePath, peakListDirectory, peakListRelativePath,
 				scansDirectory, resultDirectory, output, countOnly,
 				failureThreshold);
 		} catch (Throwable error) {
@@ -373,7 +401,7 @@ public class MzTabValidator
 	}
 	
 	private static int[] validateMzTabFile(
-		File mzTabFile, MassIVEMzTabContext context,
+		MzTabFile mzTabFile, TaskMzTabContext context,
 		Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
 		spectra, File uploadedResults,
 		Map<String, Document> parsedMzidFileCache,
@@ -382,33 +410,13 @@ public class MzTabValidator
 	) throws Exception {
 		if (mzTabFile == null)
 			throw new NullPointerException("MzTab file is null.");
-		else if (mzTabFile.isFile() == false || mzTabFile.canRead() == false)
-			throw new IllegalArgumentException(String.format(
-				"Argument mzTab file [%s] is not a readable file.",
-				mzTabFile.getName()));
 		else if (context == null)
 			throw new NullPointerException(
 				"MzTab file mapping context is null.");
 		else if (spectra == null)
 			throw new NullPointerException(
 				"Peak list file spectra ID collection is null.");
-		// get original uploaded result filename for this mzTab file, if
-		// present; it may not be, if this is a count-only TSV conversion
-		String resultFilename =
-			context.getUploadedResultFilename(mzTabFile.getName());
-		if (resultFilename == null)
-			resultFilename = mzTabFile.getName();
-		// extract all peak list file references from mzTab file
-		Map<Integer, String> peakListFiles = null;
-		try {
-			peakListFiles = extractMsRunFilenames(mzTabFile);
-		} catch (Throwable error) {
-			throw new RuntimeException(error);
-		}
-		if (peakListFiles == null || peakListFiles.isEmpty())
-			throw new IllegalArgumentException(String.format(
-				"No valid \"ms_run[1-n]-location\" lines were found " +
-				"in mzTab conversion of result file [%s].", resultFilename));
+		String mzTabFilename = mzTabFile.getMzTabFilename();
 		// validate mzTab file's PSMs
 		Collection<PSMRecord> uniquePSMs = new LinkedHashSet<PSMRecord>();
 		Collection<String> foundPeptides = new LinkedHashSet<String>();
@@ -421,7 +429,7 @@ public class MzTabValidator
 		PrintWriter writer = null;
 		File output = new File(TEMPORARY_MZTAB_FILE);
 		try {
-			reader = new BufferedReader(new FileReader(mzTabFile));
+			reader = new BufferedReader(new FileReader(mzTabFile.getFile()));
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(output, false)));
 			String line = null;
@@ -449,7 +457,7 @@ public class MzTabValidator
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo tab-delimited " +
 							"column header elements were found.",
-							lineCount, resultFilename, line));
+							lineCount, mzTabFilename, line));
 					else for (int i=0; i<headerCount; i++) {
 						String header = headers[i];
 						if (header == null)
@@ -473,25 +481,25 @@ public class MzTabValidator
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"sequence\" " +
 							"column header element was found.",
-							lineCount, resultFilename, line));
+							lineCount, mzTabFilename, line));
 					else if (accessionIndex < 0)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"accession\" " +
 							"column header element was found.",
-							lineCount, resultFilename, line));
+							lineCount, mzTabFilename, line));
 					else if (modsIndex < 0)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo " +
 							"\"modifications\" column header element was " +
-							"found.", lineCount, resultFilename, line));
+							"found.", lineCount, mzTabFilename, line));
 					else if (spectraRefIndex < 0)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
 							"column header element was found.",
-							lineCount, resultFilename, line));
+							lineCount, mzTabFilename, line));
 					// add extra validity optional columns, if necessary
 					if (validIndex < 0) {
 						line = line.trim() + "\topt_global_valid";
@@ -522,7 +530,7 @@ public class MzTabValidator
 					throw new IllegalArgumentException(String.format(
 						"A \"PSM\" row (line %d) was found before the " +
 						"\"PSH\" row in mzTab file [%s].",
-						lineCount, resultFilename));
+						lineCount, mzTabFilename));
 				else psmRowCount++;
 				// validate this PSM row
 				String[] columns = line.split("\\t");
@@ -533,26 +541,26 @@ public class MzTabValidator
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"sequence\" " +
 							"column element was found (expected at index %d).",
-							lineCount, resultFilename, line, sequenceIndex));
+							lineCount, mzTabFilename, line, sequenceIndex));
 					else if (columns.length <= accessionIndex)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"accession\" " +
 							"column element was found (expected at index %d).",
-							lineCount, resultFilename, line, accessionIndex));
+							lineCount, mzTabFilename, line, accessionIndex));
 					else if (columns.length <= modsIndex)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo " +
 							"\"modifications\" column element was found " +
 							"(expected at index %d).",
-							lineCount, resultFilename, line, modsIndex));
+							lineCount, mzTabFilename, line, modsIndex));
 					else if (columns.length <= spectraRefIndex)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:\n" +
 							"----------\n%s\n----------\nNo \"spectra_ref\" " +
 							"column element was found (expected at index %d).",
-							lineCount, resultFilename, line, spectraRefIndex));
+							lineCount, mzTabFilename, line, spectraRefIndex));
 					// check existing validity status, if any
 					if (validIndex < columns.length) {
 						String validity = columns[validIndex];
@@ -580,9 +588,8 @@ public class MzTabValidator
 							"<nativeID-formatted identifier string>"));
 					PSMRecord psm = validatePSMRow(columns[sequenceIndex],
 						columns[modsIndex], tokens[0], tokens[1], context,
-						spectra, peakListFiles, lineCount, resultFilename,
-						uploadedResults, parsedMzidFileCache,
-						mzidSpectrumIDCache, countOnly);
+						spectra, lineCount, mzTabFile, uploadedResults,
+						parsedMzidFileCache, mzidSpectrumIDCache, countOnly);
 					uniquePSMs.add(psm);
 					// add this row's peptide and protein to found lists,
 					// if present and valid
@@ -660,7 +667,7 @@ public class MzTabValidator
 		// overwrite input mzTab file with updated temporary file,
 		// if appropriate
 		if (countOnly == false)
-			FileIOUtils.copyFile(output, mzTabFile);
+			FileIOUtils.copyFile(output, mzTabFile.getFile());
 		if (output.delete() == false)
 			throw new IOException(String.format(
 				"Could not delete temporary mzTab file [%s]",
@@ -672,53 +679,11 @@ public class MzTabValidator
 		};
 	}
 	
-	private static Map<Integer, String> extractMsRunFilenames(File mzTabFile)
-	throws Exception {
-		if (mzTabFile == null)
-			throw new NullPointerException("MzTab file is null.");
-		else if (mzTabFile.isFile() == false || mzTabFile.canRead() == false)
-			throw new IllegalArgumentException(String.format(
-				"Argument mzTab file [%s] is not a readable file.",
-				mzTabFile.getName()));
-		// collect file references from the mzTab file's metadata section
-		Map<Integer, String> peakListFiles =
-			new LinkedHashMap<Integer, String>();
-		BufferedReader reader = null;
-		try {
-			reader = new BufferedReader(new FileReader(mzTabFile));
-			String line = null;
-			while (true) {
-				line = reader.readLine();
-				if (line == null)
-					break;
-				// don't keep reading if we're past the metadata section
-				else if (line.startsWith("MTD") == false &&
-					line.startsWith("COM") == false &&
-					line.trim().equals("") == false)
-					break;
-				// get spectrum file data, if this is a file location line
-				Matcher matcher = FILE_LINE_PATTERN.matcher(line);
-				if (matcher.matches())
-					peakListFiles.put(
-						Integer.parseInt(matcher.group(1)), matcher.group(2));
-			}
-		} catch (Throwable error) {
-			throw new RuntimeException(error);
-		} finally {
-			try { reader.close(); }
-			catch (Throwable error) {}
-		}
-		if (peakListFiles == null || peakListFiles.isEmpty())
-			return null;
-		else return peakListFiles;
-	}
-	
 	private static PSMRecord validatePSMRow(
 		String sequence, String modifications, String msRunID, String nativeID,
-		MassIVEMzTabContext context, Map<String,
+		TaskMzTabContext context, Map<String,
 			ImmutablePair<Collection<Integer>, Collection<Integer>>> spectra,
-		Map<Integer, String> peakListFiles, int lineNumber,
-		String mzTabFilename, File uploadedResults,
+		int lineNumber, MzTabFile mzTabFile, File uploadedResults,
 		Map<String, Document> parsedMzidFileCache,
 		Map<Document, Map<String, Map<String, Collection<String>>>>
 		mzidSpectrumIDCache, boolean countOnly
@@ -738,54 +703,46 @@ public class MzTabValidator
 		else if (spectra == null)
 			throw new NullPointerException(
 				"Peak list file spectra ID collection is null.");
-		else if (peakListFiles == null)
-			throw new NullPointerException(
-				"\"ms_run[1-n]-location\" map is null.");
-		else if (mzTabFilename == null)
-			throw new NullPointerException("MzTab filename is null.");
+		else if (mzTabFile == null)
+			throw new NullPointerException("MzTab file is null.");
 		Matcher matcher = FILE_REFERENCE_PATTERN.matcher(msRunID);
 		if (matcher.matches() == false)
 			throw new InvalidPSMException(String.format(
 				"Invalid \"ms_run\" reference [%s]: this value is expected " +
 				"to conform to string format [%s].", msRunID, "ms_run[1-n]"));
-		int msRun = Integer.parseInt(matcher.group(1));
-		String msRunLocation = peakListFiles.get(msRun);
-		if (msRunLocation == null)
-			throw new InvalidPSMException(String.format(
-				"Invalid \"ms_run\" reference [%s]: a file location for " +
-				"\"ms_run\" index %d was not found in the metadata section " +
-				"of this file.", msRunID, msRun));
+		int msRunIndex = Integer.parseInt(matcher.group(1));;
 		String verifiedNativeID = nativeID;
 		if (countOnly == false) {
-			String scanFilename =
-				context.getScanFilename(mzTabFilename, msRunLocation);
-			if (scanFilename == null)
+			MzTabMsRun msRun = mzTabFile.getMsRun(msRunIndex);
+			String mangledPeakListFilename = msRun.getMangledPeakListFilename();
+			if (msRun == null || mangledPeakListFilename == null)
 				throw new InvalidPSMException(String.format(
-					"\"ms_run\" reference [%s], corresponding to file " +
-					"location [%s], could not be mapped back to any " +
-					"submitted peak list file that was parsed for " +
-					"validation against its spectra contents.",
-					msRunID, msRunLocation));
+					"Invalid \"ms_run\" reference [%s]: a file mapping " +
+					"for \"ms_run\" index %d could not be resolved.",
+					msRunID, msRunIndex));
+			String scanFilename = String.format(
+				"%s.scans", FilenameUtils.getBaseName(mangledPeakListFilename));
 			ImmutablePair<Collection<Integer>, Collection<Integer>> scans =
 				spectra.get(scanFilename);
 			if (scans == null)
 				throw new InvalidPSMException(String.format(
 					"No spectra were found for \"ms_run\" reference " +
-					"[%s], corresponding to file location [%s] (parsed " +
+					"[%s], corresponding to peak list file [%s] (parsed " +
 					"into spectra summary file [%s]).",
-					msRunID, msRunLocation, scanFilename));
+					msRunID, msRun.getPeakListFilename(), scanFilename));
 			verifiedNativeID = validateSpectraRef(nativeID, scans, lineNumber,
-				mzTabFilename, CommonUtils.cleanFileURL(msRunLocation),
+				mzTabFile, CommonUtils.cleanFileURL(msRun.getMsRunLocation()),
 				context, sequence, uploadedResults, parsedMzidFileCache,
 				mzidSpectrumIDCache);
 		}
-		return new PSMRecord(msRun, verifiedNativeID, sequence, modifications);
+		return new PSMRecord(
+			msRunIndex, verifiedNativeID, sequence, modifications);
 	}
 	
 	private static String validateSpectraRef(String nativeID,
 		ImmutablePair<Collection<Integer>, Collection<Integer>> scans,
-		int lineNumber, String mzTabFilename, String peakListFilename,
-		MassIVEMzTabContext context, String sequence, File uploadedResults,
+		int lineNumber, MzTabFile mzTabFile, String peakListFilename,
+		TaskMzTabContext context, String sequence, File uploadedResults,
 		Map<String, Document> parsedMzidFileCache,
 		Map<Document, Map<String, Map<String, Collection<String>>>>
 		mzidSpectrumIDCache
@@ -796,8 +753,8 @@ public class MzTabValidator
 		else if (scans == null)
 			throw new NullPointerException(
 				"Spectra summary collection is null.");
-		else if (mzTabFilename == null)
-			throw new NullPointerException("MzTab filename is null.");
+		else if (mzTabFile == null)
+			throw new NullPointerException("MzTab file is null.");
 		else if (peakListFilename == null)
 			throw new NullPointerException("Peak list filename is null.");
 		else if (context == null)
@@ -833,7 +790,7 @@ public class MzTabValidator
 				// index, so look it up in the source mzid file, if there is one
 				else try {
 					value = Integer.parseInt(nativeID);
-					if (isScan(mzTabFilename, sequence, value, uploadedResults,
+					if (isScan(mzTabFile, sequence, value, uploadedResults,
 						context, parsedMzidFileCache, mzidSpectrumIDCache)
 						== false) {
 						nativeID = String.format("index=%d", value);
@@ -876,14 +833,14 @@ public class MzTabValidator
 	}
 	
 	private static boolean isScan(
-		String mzTabFilename, String sequence, int id,
-		File uploadedResultDirectory, MassIVEMzTabContext context,
+		MzTabFile mzTabFile, String sequence, int id,
+		File uploadedResultDirectory, TaskMzTabContext context,
 		Map<String, Document> parsedMzidFileCache,
 		Map<Document, Map<String, Map<String, Collection<String>>>>
 		mzidSpectrumIDCache
 	) throws InvalidPSMException {
-		if (mzTabFilename == null)
-			throw new NullPointerException("MzTab filename is null.");
+		if (mzTabFile == null)
+			throw new NullPointerException("MzTab file is null.");
 		else if (sequence == null)
 			throw new NullPointerException("\"sequence\" string is null.");
 		else if (context == null)
@@ -896,8 +853,7 @@ public class MzTabValidator
 				"submitted mzIdentML file could be found to verify whether " +
 				"this identifier represents an index or scan number.", id));
 		// get mangled result filename
-		String mangledResultFilename =
-			context.getMangledResultFilename(mzTabFilename);
+		String mangledResultFilename = mzTabFile.getMangledResultFilename();
 		// get original mzid file that this mzTab was converted from, if any
 		File mzidFile = getUploadedMzIdentMLFile(
 			mangledResultFilename, uploadedResultDirectory);
@@ -922,7 +878,7 @@ public class MzTabValidator
 				"Invalid NativeID-formatted spectrum identifier [%d]: " +
 				"submitted mzIdentML file [%s] could not be parsed to verify " +
 				"whether this identifier represents an index or scan number.",
-				id, mzTabFilename));
+				id, mzidFile.getName()));
 		}
 		// check cache for processed mzid document,
 		// to avoid redundant XML processing
@@ -945,7 +901,7 @@ public class MzTabValidator
 					"could not find an entry for peptide sequence [%s] in " +
 					"submitted mzIdentML file [%s] to verify whether this " +
 					"identifier represents an index or scan number.",
-					id, sequence, mzTabFilename));
+					id, sequence, mzidFile.getName()));
 			for (int i=0; i<peptides.getLength(); i++) {
 				Node peptide = peptides.item(i);
 				NodeList spectrumIDs = null;
@@ -995,7 +951,7 @@ else System.out.print("!");
 				"Invalid NativeID-formatted spectrum identifier [%d]: " +
 				"no evidence could be found in submitted mzIdentML file [%s] " +
 				"to verify whether this identifier represents an index or " +
-				"scan number.", id, mzTabFilename));
+				"scan number.", id, mzidFile.getName()));
 		else if (nativeID.equals(String.format("scan=%d", id)))
 			return true;
 		// need to decrement the ID printed in the mzTab file by
@@ -1007,7 +963,7 @@ else System.out.print("!");
 			"Invalid NativeID-formatted spectrum identifier [%d]: " +
 			"found spectrum ID [%s] in submitted mzIdentML file [%s], " +
 			"but the NativeID format is not recognized.",
-			id, nativeID, mzTabFilename));
+			id, nativeID, mzidFile.getName()));
 	}
 	
 	@SuppressWarnings("unused")

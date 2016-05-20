@@ -36,7 +36,7 @@ public class MzTabCounter
 		try {
 			// parse out file mapping context for this task from params.xml
 			TaskMzTabContext context = new TaskMzTabContext(
-				count.mzTabDirectory, count.parameters);
+				count.mzTabDirectory, null, count.parameters);
 			// set up output file writer
 			if (count.outputFile.exists() == false &&
 				count.outputFile.createNewFile() == false)
