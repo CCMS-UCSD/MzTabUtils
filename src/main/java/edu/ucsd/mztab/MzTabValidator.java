@@ -156,7 +156,7 @@ public class MzTabValidator
 					foundProteins));
 			}
 		} catch (Throwable error) {
-			die(getRootCause(error).getMessage());
+			die(getRootCause(error).getMessage(), error);
 		} finally {
 			try { writer.close(); }
 			catch (Throwable error) {}
@@ -1216,8 +1216,7 @@ else System.out.print("!");
 	
 	private static void die(String message, Throwable error) {
 		if (message == null)
-			message = "There was an error validating " +
-				"the mzTab files of a MassIVE dataset";
+			message = "There was an error validating mzTab files.";
 		if (error == null) {
 			if (message.endsWith(".") == false)
 				message += ".";
