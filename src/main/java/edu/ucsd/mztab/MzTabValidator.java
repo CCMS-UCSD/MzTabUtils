@@ -73,8 +73,8 @@ public class MzTabValidator
 					validation.outputFile.getAbsolutePath()));
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(validation.outputFile, false)));
-			writer.println("MzTab_file\tUploaded_file\tPSM_rows\t" +
-				"Invalid_PSM_rows\tFound_PSMs\tPeptide_rows\t" +
+			writer.println("MzTab_file\tUploaded_file\tFile_descriptor\t" +
+				"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPeptide_rows\t" +
 				"Found_Peptides\tProtein_rows\tFound_Proteins");
 			// read all scans files
 			Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
@@ -112,14 +112,13 @@ public class MzTabValidator
 					scans, validation.uploadedResultDirectory,
 					parsedMzidFileCache, mzidSpectrumIDCache,
 					validation.countOnly);
-				String mzTabFilename = mzTabFile.getMzTabFilename();
 				// get original uploaded result filename for this mzTab file,
 				// if present; it may not be, if this is a count-only TSV
 				// conversion
 				String uploadedResultFilename =
 					mzTabFile.getUploadedResultPath();
 				if (uploadedResultFilename == null)
-					uploadedResultFilename = mzTabFilename;
+					uploadedResultFilename = mzTabFile.getMzTabFilename();
 				if (counts == null || counts.length != 7)
 					die(String.format(
 						"Result file [%s] could not be parsed for validation.",
@@ -151,11 +150,15 @@ public class MzTabValidator
 				if (proteinRows > 0)
 					foundProteins = 0;
 				// if it's good, write this mzTab file's row counts to the file
+				String mangledMzTabFilename =
+					mzTabFile.getMangledMzTabFilename();
+				if (mangledMzTabFilename == null)
+					mangledMzTabFilename = mzTabFile.getMzTabFilename();
 				writer.println(String.format(
-					"%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
-					mzTabFilename, uploadedResultFilename, psmRows, invalidRows,
-					foundPSMs, peptideRows, foundPeptides, proteinRows,
-					foundProteins));
+					"%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+					mangledMzTabFilename, uploadedResultFilename,
+					mzTabFile.getDescriptor(), psmRows, invalidRows, foundPSMs,
+					peptideRows, foundPeptides, proteinRows, foundProteins));
 			}
 		} catch (Throwable error) {
 			die(getRootCause(error).getMessage(), error);
