@@ -16,11 +16,15 @@ public class ProteoSAFeMzTabCleaner
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.ProteoSAFeMzTabCleaner" +
-		"\n\t-mztab    <MzTabDirectory>" +
-		"\n\t-params   <ProteoSAFeParametersFile>" +
-		"\n\t-output   <CleanedMzTabDirectory>" +
-		"\n\t[-peak    <PeakListFilesDirectory>]" +
-		"\n\t[-dataset <DatasetID>|<DatasetIDFile>]";
+		"\n\t-mztab      <MzTabDirectory>" +
+		"\n\t[-mztabPath <MzTabRelativePath> (if not under MzTabDirectory)]" +
+		"\n\t[-peak      <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath  <PeakListRelativePath> " +
+			"(if not under PeakListFilesDirectory)]" +
+		"\n\t-params     <ProteoSAFeParametersFile>" +
+		"\n\t-output     <CleanedMzTabDirectory>" +
+		"\n\t[-peak      <PeakListFilesDirectory>]" +
+		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -69,8 +73,9 @@ public class ProteoSAFeMzTabCleaner
 		 * Constructors
 		 *====================================================================*/
 		public ProteoSAFeMzTabCleanupOperation(
-			File mzTabDirectory, File peakListDirectory, File parameters,
-			File outputDirectory, String datasetID
+			File mzTabDirectory, String mzTabRelativePath,
+			File peakListDirectory, String peakListRelativePath,
+			File parameters, File outputDirectory, String datasetID
 		) {
 			// validate mzTab directory
 			if (mzTabDirectory == null)
@@ -119,7 +124,8 @@ public class ProteoSAFeMzTabCleaner
 			else this.outputDirectory = outputDirectory;
 			// build mzTab file-mapping context
 			context = new TaskMzTabContext(
-				mzTabDirectory, null, peakListDirectory, null,
+				mzTabDirectory, mzTabRelativePath,
+				peakListDirectory, peakListRelativePath,
 				parameters, datasetID);
 		}
 	}
@@ -131,7 +137,9 @@ public class ProteoSAFeMzTabCleaner
 		if (args == null || args.length < 1)
 			return null;
 		File mzTabDirectory = null;
+		String mzTabRelativePath = null;
 		File peakListDirectory = null;
+		String peakListRelativePath = null;
 		File parameters = null;
 		File outputDirectory = null;
 		String datasetID = null;
@@ -146,8 +154,12 @@ public class ProteoSAFeMzTabCleaner
 				String value = args[i];
 				if (argument.equals("-mztab"))
 					mzTabDirectory = new File(value);
+				else if (argument.equals("-mztabPath"))
+					mzTabRelativePath = value;
 				else if (argument.equals("-peak"))
 					peakListDirectory = new File(value);
+				else if (argument.equals("-peakPath"))
+					peakListRelativePath = value;
 				else if (argument.equals("-params"))
 					parameters = new File(value);
 				else if (argument.equals("-output"))
@@ -176,8 +188,9 @@ public class ProteoSAFeMzTabCleaner
 		}
 		try {
 			return new ProteoSAFeMzTabCleanupOperation(
-				mzTabDirectory, peakListDirectory, parameters,
-				outputDirectory, datasetID);
+				mzTabDirectory, mzTabRelativePath,
+				peakListDirectory, peakListRelativePath,
+				parameters, outputDirectory, datasetID);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
