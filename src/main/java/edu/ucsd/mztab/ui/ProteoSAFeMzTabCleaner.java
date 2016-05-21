@@ -23,7 +23,6 @@ public class ProteoSAFeMzTabCleaner
 			"(if not under PeakListFilesDirectory)]" +
 		"\n\t-params     <ProteoSAFeParametersFile>" +
 		"\n\t-output     <CleanedMzTabDirectory>" +
-		"\n\t[-peak      <PeakListFilesDirectory>]" +
 		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
 	
 	/*========================================================================
