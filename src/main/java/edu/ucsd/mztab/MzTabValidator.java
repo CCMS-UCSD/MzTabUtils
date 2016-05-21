@@ -80,8 +80,10 @@ public class MzTabValidator
 			Map<String, ImmutablePair<Collection<Integer>, Collection<Integer>>>
 				scans = new LinkedHashMap<String,
 					ImmutablePair<Collection<Integer>, Collection<Integer>>>();
-			Collection<File> scansFiles =
-				Arrays.asList(validation.scansDirectory.listFiles());
+			Collection<File> scansFiles = null;
+			if (validation.scansDirectory != null)
+				scansFiles =
+					Arrays.asList(validation.scansDirectory.listFiles());
 			if (scansFiles != null) {
 				for (File scansFile : scansFiles) {
 					ImmutablePair<Collection<Integer>, Collection<Integer>>
