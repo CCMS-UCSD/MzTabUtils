@@ -5,8 +5,16 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import org.apache.xpath.XPathAPI;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+
+import edu.ucsd.util.FileIOUtils;
 
 public class TSVToMzTabParamGenerator
 {
@@ -37,6 +45,7 @@ public class TSVToMzTabParamGenerator
 	private boolean              scanMode;
 	private Map<String, String>  columnIdentifiers;
 	private Map<String, Integer> columnIndices;
+	private Collection<String>   fixedMods;
 	private String               modPattern;
 	
 	/*========================================================================
@@ -101,6 +110,8 @@ public class TSVToMzTabParamGenerator
 			hasHeader.equals("0") == false)
 			throw new IllegalArgumentException(String.format(
 				"Unrecognized \"header_line\" value: [%s]", hasHeader));
+		// initialize mod collections
+		fixedMods = new HashSet<String>();
 		// set mod pattern
 		if (modPattern == null)
 			throw new NullPointerException("\"mod_pattern\" cannot be null.");
@@ -203,23 +214,38 @@ public class TSVToMzTabParamGenerator
 			catch (Throwable error) {}
 		}
 		// parse params.xml file to match found mods against user-declared ones
-//		try {
-//			System.out.println(String.format(
-//				"Reading input XML parameters file [%s]...",
-//				inputParams.getName()));
-//			// parse input file as an XML document
-//			Document document = FileIOUtils.parseXML(inputParams);
-//			if (document == null)
-//				throw new NullPointerException(
-//					"Parameters XML document could not be parsed.");
-//			// TODO: read declared mods, note them
-//			// TODO: compare found mods to declared mods to find best match
-//			// TODO: write found mods to converter params file, using the best
-//			// matched declared mod CV term, and the actual mod specifier
-//			// string found in the TSV file
-//		} catch (Throwable error) {
-//			die(null, error);
-//		}
+		try {
+			System.out.println(String.format(
+				"Reading input XML parameters file [%s]...",
+				inputParams.getName()));
+			// parse input file as an XML document
+			Document document = FileIOUtils.parseXML(inputParams);
+			if (document == null)
+				throw new NullPointerException(
+					"Parameters XML document could not be parsed.");
+			// look for standard/legacy params.xml
+			// mod parameters and transfer them
+			Node parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='cysteine_protease.cysteine']");
+			if (parameter != null) {
+				String cysteine = parameter.getFirstChild().getNodeValue();
+				if (cysteine != null && cysteine.trim().isEmpty() == false) {
+					if (cysteine.trim().equals("c57"))
+						fixedMods.add("[UNIMOD,UNIMOD:4,Carbamidomethyl,C]");
+					else if (cysteine.trim().equals("c58"))
+						fixedMods.add("[UNIMOD,UNIMOD:6,Carboxymethyl,C]");
+					else if (cysteine.trim().equals("c99"))
+						fixedMods.add("[UNIMOD,UNIMOD:17,NIPCAM,C]");
+				}
+			}
+			// TODO: read declared mods, note them
+			// TODO: compare found mods to declared mods to find best match
+			// TODO: write found mods to converter params file, using the best
+			// matched declared mod CV term, and the actual mod specifier
+			// string found in the TSV file
+		} catch (Throwable error) {
+			die(null, error);
+		}
 	}
 	
 	/*========================================================================
@@ -244,6 +270,16 @@ public class TSVToMzTabParamGenerator
 			// write generic catch-all unknown variable mod specifier
 			output.println(String.format("variable_mods=" +
 				"[MS,MS:1001460,unknown modification,\"%s\"]", modPattern));
+			// write fixed mods
+			if (fixedMods != null && fixedMods.isEmpty()) {;
+				StringBuilder mods = new StringBuilder("fixed_mods=");
+				for (String fixedMod : fixedMods)
+					mods.append(fixedMod).append("|");
+				// chomp trailing pipe ("|")
+				if (mods.charAt(mods.length() - 1) == '|')
+					mods.setLength(mods.length() - 1);
+				output.println(mods.toString());
+			}
 			// write filename column identifier
 			output.println(String.format("filename=%s",
 				columnIdentifiers.get("filename")));
