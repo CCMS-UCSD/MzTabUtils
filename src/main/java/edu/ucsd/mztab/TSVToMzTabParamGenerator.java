@@ -22,7 +22,7 @@ public class TSVToMzTabParamGenerator
 	 * Constants
 	 *========================================================================*/
 	private static final String USAGE = "---------- Usage: ----------\n" +
-		"java -cp MzTabUtils.jar edu.ucsd.mztab.TSVToMzTabConverter " +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.TSVToMzTabParamGenerator " +
 		"\n\t-tsv               <InputTSVFile>" +
 		"\n\t-params            <ProteoSAFeParametersFile>" +
 		"\n\t-output            <OutputTSVToMzTabParametersFile>" +
@@ -271,7 +271,7 @@ public class TSVToMzTabParamGenerator
 			output.println(String.format("variable_mods=" +
 				"[MS,MS:1001460,unknown modification,\"%s\"]", modPattern));
 			// write fixed mods
-			if (fixedMods != null && fixedMods.isEmpty()) {;
+			if (fixedMods != null && fixedMods.isEmpty() == false) {
 				StringBuilder mods = new StringBuilder("fixed_mods=");
 				for (String fixedMod : fixedMods)
 					mods.append(fixedMod).append("|");
