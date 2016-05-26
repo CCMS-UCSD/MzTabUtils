@@ -9,11 +9,13 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
 
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.FileIOUtils;
 
 public class TSVToMzTabParamGenerator
@@ -372,19 +374,33 @@ public class TSVToMzTabParamGenerator
 	) {
 		String scan = elements[scanColumn];
 		String index = elements[indexColumn];
+		// first try to parse scan number as a nativeID
+		Integer value = null;
+		Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(scan);
+		if (matcher.find())
+			value = Integer.parseInt(matcher.group(1));
+		// then try to parse scan number as a plain integer
+		if (value == null || value <= 0) try {
+			value = Integer.parseInt(scan);
+		} catch (NumberFormatException error) {}
 		// if the scan column value is parsable as a positive integer,
 		// then we can assume that the file uses scan numbers
-		try {
-			if (Integer.parseInt(scan) > 0)
-				return true;
+		if (value != null && value > 0)
+			return true;
+		// otherwise, try to parse index as a nativeID
+		value = null;
+		matcher = MzTabConstants.INDEX_PATTERN.matcher(scan);
+		if (matcher.find())
+			value = Integer.parseInt(matcher.group(1));
+		// then try to parse index as a plain integer
+		if (value == null || value <= 0) try {
+			value = Integer.parseInt(scan);
 		} catch (NumberFormatException error) {}
-		// otherwise, if the index column value is parsable as a positive
-		// integer, then we can assume that the file uses spectrum indices
-		try {
-			if (Integer.parseInt(index) > 0)
-				return false;
-		} catch (NumberFormatException error) {}
-		throw new IllegalArgumentException(String.format("Could not " +
+		// if the index column value is parsable as a positive integer,
+		// then we can assume that the file uses spectrum indices
+		if (value != null && value > 0)
+			return false;
+		else throw new IllegalArgumentException(String.format("Could not " +
 			"determine the spectrum ID type of the input TSV file, since the " +
 			"values of neither the scan column [%s] nor the index column " +
 			"[%s] in the first data row were parsable as valid integers.",

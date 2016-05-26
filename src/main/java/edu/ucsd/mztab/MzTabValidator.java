@@ -24,6 +24,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.util.CommonUtils;
@@ -51,9 +52,6 @@ public class MzTabValidator
 		"temp_modified_result.mzTab";
 	private static final Pattern FILE_REFERENCE_PATTERN =
 		Pattern.compile("ms_run\\[(\\d+)\\]");
-	private static final Pattern SCAN_PATTERN = Pattern.compile("scan=(\\d+)");
-	private static final Pattern INDEX_PATTERN =
-		Pattern.compile("index=(\\d+)");
 	private static final Pattern FILE_PATTERN = Pattern.compile("file=(.+)");
 	private static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	
@@ -774,12 +772,12 @@ public class MzTabValidator
 		boolean scan = true;
 		Integer value = null;
 		// first try to extract a scan number
-		Matcher matcher = SCAN_PATTERN.matcher(nativeID);
+		Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(nativeID);
 		if (matcher.find())
 			value = Integer.parseInt(matcher.group(1));
 		else {
 			// then try to extract an index
-			matcher = INDEX_PATTERN.matcher(nativeID);
+			matcher = MzTabConstants.INDEX_PATTERN.matcher(nativeID);
 			if (matcher.find()) {
 				value = Integer.parseInt(matcher.group(1));
 				scan = false;

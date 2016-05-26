@@ -16,6 +16,8 @@ public class MzTabConstants
 	// as seen in PSM rows
 	public static final Pattern SPECTRA_REF_PATTERN = Pattern.compile(
 		"ms_run\\[(\\d+)\\]:(.+)");
+	public static final Pattern SCAN_PATTERN = Pattern.compile("scan=(\\d+)");
+	public static final Pattern INDEX_PATTERN = Pattern.compile("index=(\\d+)");
 	
 	// constants pertaining to mzTab "modifications" column values,
 	// as seen in PRT, PEP and PSM rows
