@@ -150,8 +150,15 @@ public class TaskMzTabContext
 				MzTabMsRun msRun = msRuns.get(msRunIndex);
 				// fill out this ms_run's file mappings
 				mapMsRun(msRun, mzTab.getMappedResultPath(), parameters);
-				if (datasetID != null)
-					msRun.setDatasetDescriptor(datasetID, peakListRelativePath);
+				if (datasetID != null) {
+					// only set the dataset descriptor with the given relative
+					// path if this is not already a dataset-imported file
+					String uploaded = msRun.getUploadedPeakListPath();
+					if (uploaded == null ||
+						uploaded.matches("^MSV[0-9]{9}/.*$") == false)
+						msRun.setDatasetDescriptor(
+							datasetID, peakListRelativePath);
+				}
 				// only try to use a task descriptor if there's no upload
 				// mapping; peak list files should always have such a mapping
 				else if (msRun.getUploadedPeakListPath() == null)
