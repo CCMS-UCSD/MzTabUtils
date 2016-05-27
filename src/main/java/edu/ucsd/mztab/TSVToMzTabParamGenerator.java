@@ -377,8 +377,9 @@ public class TSVToMzTabParamGenerator
 		// first try to parse scan number as a nativeID
 		Integer value = null;
 		Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(scan);
-		if (matcher.find())
+		if (matcher.find()) try {
 			value = Integer.parseInt(matcher.group(1));
+		} catch (NumberFormatException error) {}
 		// then try to parse scan number as a plain integer
 		if (value == null || value <= 0) try {
 			value = Integer.parseInt(scan);
@@ -390,11 +391,12 @@ public class TSVToMzTabParamGenerator
 		// otherwise, try to parse index as a nativeID
 		value = null;
 		matcher = MzTabConstants.INDEX_PATTERN.matcher(index);
-		if (matcher.find())
+		if (matcher.find()) try {
 			value = Integer.parseInt(matcher.group(1));
+		} catch (NumberFormatException error) {}
 		// then try to parse index as a plain integer
 		if (value == null || value <= 0) try {
-			value = Integer.parseInt(scan);
+			value = Integer.parseInt(index);
 		} catch (NumberFormatException error) {}
 		// if the index column value is parsable as a positive integer,
 		// then we can assume that the file uses spectrum indices
