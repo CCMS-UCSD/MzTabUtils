@@ -399,7 +399,7 @@ public class TSVToMzTabParamGenerator
 			value = Integer.parseInt(matcher.group(1));
 		} catch (NumberFormatException error) {}
 		// then try to parse scan number as a plain integer
-		if (value == null || value <= 0) try {
+		if (value == null) try {
 			value = Integer.parseInt(scan);
 		} catch (NumberFormatException error) {}
 		// if the scan column value is parsable as a positive integer,
@@ -413,17 +413,24 @@ public class TSVToMzTabParamGenerator
 			value = Integer.parseInt(matcher.group(1));
 		} catch (NumberFormatException error) {}
 		// then try to parse index as a plain integer
-		if (value == null || value <= 0) try {
+		if (value == null) try {
 			value = Integer.parseInt(index);
 		} catch (NumberFormatException error) {}
-		// if the index column value is parsable as a positive integer,
+		// if the index column value is parsable as a valid integer,
 		// then we can assume that the file uses spectrum indices
-		if (value != null && value > 0)
-			return false;
-		else throw new IllegalArgumentException(String.format("Could not " +
+		if (value != null) {
+			// verify the validity of the parsed index based on
+			// whether or not 0 is considered a valid index
+			if ((zeroBased && value >= 0) ||
+				(zeroBased == false && value > 0))
+				return false;
+		}
+		// if neither column could be validated, then the
+		// row is bad and therefore so is the file
+		throw new IllegalArgumentException(String.format("Could not " +
 			"determine the spectrum ID type of the input TSV file, since the " +
 			"values of neither the scan column [%s] nor the index column " +
-			"[%s] in the first data row were parsable as valid integers.",
+			"[%s] in the first data row were valid for their type.",
 			scan, index));
 	}
 	
