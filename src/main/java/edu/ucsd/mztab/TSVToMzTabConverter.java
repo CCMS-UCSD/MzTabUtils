@@ -16,6 +16,7 @@ import java.util.regex.Matcher;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
@@ -263,13 +264,23 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				"Error creating PSM record: no registered \"ms_run\" " +
 				"metadata element could be found to match TSV " +
 				"\"filename\" column value [%s]", filename));
-		// then set the proper nativeID key
-		if (params.isScanMode())
-			spectraRef.append("scan=");
-		else spectraRef.append("index=");
-		// finally, append the actual ID value extracted from this row
-		spectraRef.append(extractMixtureElement(
-			elements[params.getColumnIndex("spectrum_id")], index));
+		// then extract the proper ID value from this row and
+		// package it in a nativeID of the proper format
+		String spectrumID = extractMixtureElement(
+			elements[params.getColumnIndex("spectrum_id")], index);
+		if (params.isScanMode()) {
+			// if value is formatted as a nativeID, parse it out
+			Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(spectrumID);
+			if (matcher.find())
+				spectrumID = matcher.group(1);
+			spectraRef.append(String.format("scan=%d", spectrumID));
+		} else {
+			// if value is formatted as a nativeID, parse it out
+			Matcher matcher = MzTabConstants.INDEX_PATTERN.matcher(spectrumID);
+			if (matcher.find())
+				spectrumID = matcher.group(1);
+			spectraRef.append(String.format("index=%d", spectrumID));
+		}
 		// formulate (cleaned) peptide string
 		String cleanedPeptide = ProteomicsUtils.cleanPeptide(peptide);
 		// try to extract "pre" and "post" values from the peptide sequence
