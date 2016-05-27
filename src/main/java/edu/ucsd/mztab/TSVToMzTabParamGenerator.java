@@ -282,11 +282,11 @@ public class TSVToMzTabParamGenerator
 				output.println("spectrum_id_type=scan");
 			else {
 				output.println("spectrum_id_type=index");
+				// write index numbering
+				if (zeroBased)
+					output.println("index_numbering=0");
+				else output.println("index_numbering=1");
 			}
-			// write spectrum ID numbering
-			if (zeroBased)
-				output.println("spectrum_id_numbering=0");
-			else output.println("spectrum_id_numbering=1");
 			// write generic catch-all unknown variable mod specifier
 			output.println(String.format("variable_mods=" +
 				"[MS,MS:1001460,unknown modification,\"%s\"]", modPattern));
