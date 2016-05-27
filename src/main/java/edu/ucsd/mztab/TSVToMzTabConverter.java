@@ -273,13 +273,13 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(spectrumID);
 			if (matcher.find())
 				spectrumID = matcher.group(1);
-			spectraRef.append(String.format("scan=%d", spectrumID));
+			spectraRef.append(String.format("scan=%s", spectrumID));
 		} else {
 			// if value is formatted as a nativeID, parse it out
 			Matcher matcher = MzTabConstants.INDEX_PATTERN.matcher(spectrumID);
 			if (matcher.find())
 				spectrumID = matcher.group(1);
-			spectraRef.append(String.format("index=%d", spectrumID));
+			spectraRef.append(String.format("index=%s", spectrumID));
 		}
 		// formulate (cleaned) peptide string
 		String cleanedPeptide = ProteomicsUtils.cleanPeptide(peptide);
