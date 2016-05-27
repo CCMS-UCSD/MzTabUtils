@@ -279,7 +279,24 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			Matcher matcher = MzTabConstants.INDEX_PATTERN.matcher(spectrumID);
 			if (matcher.find())
 				spectrumID = matcher.group(1);
-			spectraRef.append(String.format("index=%s", spectrumID));
+			// mzTab files must encode spectrum indices as 0-based; if the input
+			// TSV file uses 0-based indices, then they can be recorded as-is
+			if (params.isZeroBased())
+				spectraRef.append(String.format("index=%s", spectrumID));
+			// otherwise the index must be decremented before being recorded
+			else {
+				Integer spectrumIndex = null;
+				try {
+					spectrumIndex = Integer.parseInt(spectrumID);
+				} catch (NumberFormatException error) {
+					throw new IllegalArgumentException(String.format(
+						"Error creating PSM record: spectrum index [%s] " +
+						"from PSM %d of input TSV file could not be parsed " +
+						"as an integer.", spectrumID, id));
+				}
+				spectraRef.append(
+					String.format("index=%d", (spectrumIndex - 1)));
+			}
 		}
 		// formulate (cleaned) peptide string
 		String cleanedPeptide = ProteomicsUtils.cleanPeptide(peptide);

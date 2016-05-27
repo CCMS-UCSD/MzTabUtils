@@ -44,6 +44,7 @@ public class TSVToMzTabParameters
 	private File                       mzTabFile;
 	private boolean                    hasHeader;
 	private boolean                    scanMode;
+	private boolean                    zeroBased;
 	private Map<String, Integer>       columnIndices;
 	private Map<String, Integer>       extraColumns;
 	private Collection<ModRecord>      modifications;
@@ -109,6 +110,7 @@ public class TSVToMzTabParameters
 		// initialize tab-delimited content parameters
 		hasHeader = false;
 		scanMode = false;
+		zeroBased = true;
 		Map<String, String> columns = new LinkedHashMap<String, String>();
 		// read all parameters from input parameters file
 		Properties properties = new Properties();
@@ -140,6 +142,15 @@ public class TSVToMzTabParameters
 					throw new IllegalArgumentException(String.format(
 						"Unrecognized \"spectrum_id_type\" value: [%s]",
 						value));
+			}
+			// set whether spectrum indices in the input file
+			// are ordered with 0-based or 1-based numbering
+			else if (parameter.equalsIgnoreCase("index_numbering")) {
+				if (value.equals("1"))
+					zeroBased = false;
+				else if (value.equals("0") == false)
+					throw new IllegalArgumentException(String.format(
+						"Unrecognized \"index_numbering\" value: [%s]", value));
 			}
 			// add all fixed mods
 			else if (parameter.equalsIgnoreCase("fixed_mods")) {
@@ -333,6 +344,10 @@ public class TSVToMzTabParameters
 	
 	public boolean isScanMode() {
 		return scanMode;
+	}
+	
+	public boolean isZeroBased() {
+		return zeroBased;
 	}
 	
 	public Collection<ModRecord> getModifications() {

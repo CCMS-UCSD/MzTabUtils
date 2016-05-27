@@ -25,18 +25,24 @@ public class TSVToMzTabParamGenerator
 	 *========================================================================*/
 	private static final String USAGE = "---------- Usage: ----------\n" +
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.TSVToMzTabParamGenerator " +
-		"\n\t-tsv               <InputTSVFile>" +
-		"\n\t-params            <ProteoSAFeParametersFile>" +
-		"\n\t-output            <OutputTSVToMzTabParametersFile>" +
-		"\n\t-header_line       \"true\"/\"false\"" +
-		"\n\t-filename          <SpectrumFilenameColumnHeaderOrIndex>" +
-		"\n\t-modified_sequence <ModifiedPeptideSequenceColumnHeaderOrIndex>" +
-		"\n\t-mod_pattern       <ModificationStringFormat>" +
-		"\n\t[-spectrum_id_type \"scan\"/\"index\"]" +
-		"\n\t[-scan             <ScanColumnHeaderOrIndex>]" +
-		"\n\t[-index            <SpectrumIndexColumnHeaderOrIndex>]" +
-		"\n\t[-accession        <ProteinAccessionColumnHeaderOrIndex>]" +
-		"\n\t[-charge           <PrecursorChargeColumnHeaderOrIndex>]";
+		"\n\t-tsv                    <InputTSVFile>" +
+		"\n\t-params                 <ProteoSAFeParametersFile>" +
+		"\n\t-output                 <OutputTSVToMzTabParametersFile>" +
+		"\n\t-header_line            \"true\"/\"false\"" +
+		"\n\t-filename               <SpectrumFilenameColumnHeaderOrIndex>" +
+		"\n\t-modified_sequence      " +
+			"<ModifiedPeptideSequenceColumnHeaderOrIndex>" +
+		"\n\t-mod_pattern            <ModificationStringFormat>" +
+		"\n\t[-spectrum_id_type      \"scan\"/\"index\"]" +
+		"\n\t[-scan                  <ScanColumnHeaderOrIndex> "+
+			"(if -spectrum_id_type=\"scan\")]" +
+		"\n\t[-index                 <SpectrumIndexColumnHeaderOrIndex> " +
+			"(if -spectrum_id_type=\"index\")]" +
+		"\n\t[-index_numbering       0/1 " +
+			"(if -spectrum_id_type=\"index\", " +
+			"specify 0-based/1-based numbering, default 0)]" +
+		"\n\t[-accession             <ProteinAccessionColumnHeaderOrIndex>]" +
+		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]";
 	
 	/*========================================================================
 	 * Properties
@@ -45,6 +51,7 @@ public class TSVToMzTabParamGenerator
 	private File                 paramsFile;
 	private boolean              hasHeader;
 	private boolean              scanMode;
+	private boolean              zeroBased;
 	private Map<String, String>  columnIdentifiers;
 	private Map<String, Integer> columnIndices;
 	private Collection<String>   fixedMods;
@@ -57,7 +64,7 @@ public class TSVToMzTabParamGenerator
 		File inputParams, File tsvFile, File paramsFile, String hasHeader,
 		String filenameColumn, String sequenceColumn, String modPattern,
 		String specIDType, String scanColumn, String indexColumn,
-		String accessionColumn, String chargeColumn
+		String indexNumbering, String accessionColumn, String chargeColumn
 	) throws IOException {
 		// validate input parameter file
 		if (inputParams == null)
@@ -200,6 +207,11 @@ public class TSVToMzTabParamGenerator
 			if (scanMode)
 				columnIdentifiers.put("spectrum_id", scanColumn);
 			else columnIdentifiers.put("spectrum_id", indexColumn);
+			// set whether spectrum indices in the input file
+			// are ordered with 0-based or 1-based numbering
+			zeroBased = true;
+			if (indexNumbering != null && indexNumbering.trim().equals("1"))
+				zeroBased = false;
 			// read the remaining lines of the file to collect all found
 			// mods from the values of the modified_sequence column
 //			reader.reset();
@@ -268,7 +280,13 @@ public class TSVToMzTabParamGenerator
 			// write spectrum ID mode
 			if (scanMode)
 				output.println("spectrum_id_type=scan");
-			else output.println("spectrum_id_type=index");
+			else {
+				output.println("spectrum_id_type=index");
+			}
+			// write spectrum ID numbering
+			if (zeroBased)
+				output.println("spectrum_id_numbering=0");
+			else output.println("spectrum_id_numbering=1");
 			// write generic catch-all unknown variable mod specifier
 			output.println(String.format("variable_mods=" +
 				"[MS,MS:1001460,unknown modification,\"%s\"]", modPattern));
@@ -433,6 +451,7 @@ public class TSVToMzTabParamGenerator
 		String specIDType = null;
 		String scanColumn = null;
 		String indexColumn = null;
+		String indexNumbering = null;
 		String accessionColumn = null;
 		String chargeColumn = null;
 		for (int i=0; i<args.length; i++) {
@@ -460,6 +479,8 @@ public class TSVToMzTabParamGenerator
 					modPattern = value;
 				else if (argument.equalsIgnoreCase("-spectrum_id_type"))
 					specIDType = value;
+				else if (argument.equalsIgnoreCase("-index_numbering"))
+					indexNumbering = value;
 				else if (argument.equalsIgnoreCase("-scan"))
 					scanColumn = value;
 				else if (argument.equalsIgnoreCase("-index"))
@@ -478,7 +499,7 @@ public class TSVToMzTabParamGenerator
 			return new TSVToMzTabParamGenerator(inputParams, tsvFile,
 				paramsFile, hasHeader, filenameColumn, sequenceColumn,
 				modPattern, specIDType, scanColumn, indexColumn,
-				accessionColumn, chargeColumn);
+				indexNumbering, accessionColumn, chargeColumn);
 		} catch (IOException error) {
 			throw new RuntimeException(error);
 		}
