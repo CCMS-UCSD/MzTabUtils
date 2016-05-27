@@ -389,7 +389,7 @@ public class TSVToMzTabParamGenerator
 			return true;
 		// otherwise, try to parse index as a nativeID
 		value = null;
-		matcher = MzTabConstants.INDEX_PATTERN.matcher(scan);
+		matcher = MzTabConstants.INDEX_PATTERN.matcher(index);
 		if (matcher.find())
 			value = Integer.parseInt(matcher.group(1));
 		// then try to parse index as a plain integer
