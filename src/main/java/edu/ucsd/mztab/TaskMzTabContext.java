@@ -413,9 +413,9 @@ public class TaskMzTabContext
 						"separated by a pipe (\"|\") character.", value));
 				// if an upload mapping exists for this ms_run,
 				// then there are two possible exact match scenarios:
-				// 1. the ms_run-location value is the mangled filename,
+				// 1. the ms_run-location value ends with the mangled filename,
 				// e.g. analysis workflows with mzTab conversion integrated
-				if (tokens[0].equals(cleanedMsRun) ||
+				if (cleanedMsRun.endsWith(tokens[0]) ||
 				// 2. the ms_run-location value is some ending portion of the
 				// uploaded peak list file path, e.g. the convert-tsv workflow
 					tokens[1].endsWith(cleanedMsRun)) {
