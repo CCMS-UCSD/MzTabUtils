@@ -33,6 +33,7 @@ public class TSVToMzTabParamGenerator
 		"\n\t-modified_sequence      " +
 			"<ModifiedPeptideSequenceColumnHeaderOrIndex>" +
 		"\n\t-mod_pattern            <ModificationStringFormat>" +
+		"\n\t[-fixed_mods_reported   \"true\"/\"false\" (default \"false\")]" +
 		"\n\t[-spectrum_id_type      \"scan\"/\"index\"]" +
 		"\n\t[-scan                  <ScanColumnHeaderOrIndex> "+
 			"(if -spectrum_id_type=\"scan\")]" +
@@ -50,6 +51,7 @@ public class TSVToMzTabParamGenerator
 	private File                 tsvFile;
 	private File                 paramsFile;
 	private boolean              hasHeader;
+	private boolean              fixedModsReported;
 	private boolean              scanMode;
 	private boolean              zeroBased;
 	private Map<String, String>  columnIdentifiers;
@@ -63,8 +65,9 @@ public class TSVToMzTabParamGenerator
 	public TSVToMzTabParamGenerator(
 		File inputParams, File tsvFile, File paramsFile, String hasHeader,
 		String filenameColumn, String sequenceColumn, String modPattern,
-		String specIDType, String scanColumn, String indexColumn,
-		String indexNumbering, String accessionColumn, String chargeColumn
+		String fixedModsReported, String specIDType, String scanColumn,
+		String indexColumn, String indexNumbering, String accessionColumn,
+		String chargeColumn
 	) throws IOException {
 		// validate input parameter file
 		if (inputParams == null)
@@ -125,6 +128,11 @@ public class TSVToMzTabParamGenerator
 		if (modPattern == null)
 			throw new NullPointerException("\"mod_pattern\" cannot be null.");
 		else this.modPattern = modPattern;
+		// set whether fixed mods are explicitly written to
+		// the input TSV file's modified peptide strings
+		if (fixedModsReported == null)
+			this.fixedModsReported = false;
+		else this.fixedModsReported = Boolean.parseBoolean(fixedModsReported);
 		// parse and process the input tab-delimited result file
 		BufferedReader reader = null;
 		String line = null;
@@ -299,6 +307,9 @@ public class TSVToMzTabParamGenerator
 				if (mods.charAt(mods.length() - 1) == '|')
 					mods.setLength(mods.length() - 1);
 				output.println(mods.toString());
+				// write whether fixed mods are reported
+				if (fixedModsReported)
+					output.println("fixed_mods_reported=true");
 			}
 			// write filename column identifier
 			output.println(String.format("filename=%s",
@@ -455,6 +466,7 @@ public class TSVToMzTabParamGenerator
 		String filenameColumn = null;
 		String sequenceColumn = null;
 		String modPattern = null;
+		String fixedModsReported = null;
 		String specIDType = null;
 		String scanColumn = null;
 		String indexColumn = null;
@@ -484,6 +496,8 @@ public class TSVToMzTabParamGenerator
 					sequenceColumn = value;
 				else if (argument.equalsIgnoreCase("-mod_pattern"))
 					modPattern = value;
+				else if (argument.equalsIgnoreCase("-fixed_mods_reported"))
+					fixedModsReported = value;
 				else if (argument.equalsIgnoreCase("-spectrum_id_type"))
 					specIDType = value;
 				else if (argument.equalsIgnoreCase("-index_numbering"))
@@ -505,8 +519,8 @@ public class TSVToMzTabParamGenerator
 		try {
 			return new TSVToMzTabParamGenerator(inputParams, tsvFile,
 				paramsFile, hasHeader, filenameColumn, sequenceColumn,
-				modPattern, specIDType, scanColumn, indexColumn,
-				indexNumbering, accessionColumn, chargeColumn);
+				modPattern, fixedModsReported, specIDType, scanColumn,
+				indexColumn, indexNumbering, accessionColumn, chargeColumn);
 		} catch (IOException error) {
 			throw new RuntimeException(error);
 		}
