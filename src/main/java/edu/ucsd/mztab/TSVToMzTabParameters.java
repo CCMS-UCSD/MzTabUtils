@@ -45,6 +45,7 @@ public class TSVToMzTabParameters
 	private boolean                    hasHeader;
 	private boolean                    scanMode;
 	private boolean                    zeroBased;
+	private boolean                    fixedModsReported;
 	private Map<String, Integer>       columnIndices;
 	private Map<String, Integer>       extraColumns;
 	private Collection<ModRecord>      modifications;
@@ -111,6 +112,7 @@ public class TSVToMzTabParameters
 		hasHeader = false;
 		scanMode = false;
 		zeroBased = true;
+		fixedModsReported = false;
 		Map<String, String> columns = new LinkedHashMap<String, String>();
 		// read all parameters from input parameters file
 		Properties properties = new Properties();
@@ -152,13 +154,26 @@ public class TSVToMzTabParameters
 					throw new IllegalArgumentException(String.format(
 						"Unrecognized \"index_numbering\" value: [%s]", value));
 			}
+			// set whether fixed mods are explicitly reported in
+			// the input TSV file's modified peptide strings
+			else if (parameter.equalsIgnoreCase("fixed_mods_reported")) {
+				if (value.equalsIgnoreCase("true") ||
+					value.equalsIgnoreCase("yes") || value.equals("1"))
+					fixedModsReported = true;
+				else if (value.equalsIgnoreCase("false") == false &&
+					value.equalsIgnoreCase("no") == false &&
+					value.equals("0") == false)
+					throw new IllegalArgumentException(String.format(
+						"Unrecognized \"fixed_mods_reported\" value: [%s]",
+						value));
+			}
 			// add all fixed mods
 			else if (parameter.equalsIgnoreCase("fixed_mods")) {
 				String[] cvTerms = value.split("\\|");
 				if (cvTerms == null || cvTerms.length < 1)
 					continue;
 				else for (int i=0; i<cvTerms.length; i++)
-					addFixedMod(cvTerms[i]);
+					addFixedMod(cvTerms[i], fixedModsReported);
 			}
 			// add all variable mods
 			else if (parameter.equalsIgnoreCase("variable_mods")) {
@@ -363,12 +378,12 @@ public class TSVToMzTabParameters
 		return null;
 	}
 	
-	public void addFixedMod(String cvTerm) {
-		addMod(cvTerm, true);
+	public void addFixedMod(String cvTerm, boolean reported) {
+		addMod(cvTerm, true, reported);
 	}
 	
 	public void addVariableMod(String cvTerm) {
-		addMod(cvTerm, false);
+		addMod(cvTerm, false, true);
 	}
 	
 	public Collection<URL> getSpectrumFiles() {
@@ -406,12 +421,12 @@ public class TSVToMzTabParameters
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private void addMod(String cvTerm, boolean fixed) {
+	private void addMod(String cvTerm, boolean fixed, boolean reported) {
 		if (cvTerm == null)
 			return;
 		else if (modifications == null)
 			modifications = new LinkedHashSet<ModRecord>();
-		ModRecord mod = new ModRecord(cvTerm, fixed);
+		ModRecord mod = new ModRecord(cvTerm, fixed, reported);
 		String pattern = mod.getPattern();
 		// it should be impossible for a newly instantiated
 		// mod record to have a null pattern

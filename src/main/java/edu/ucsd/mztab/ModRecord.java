@@ -43,12 +43,13 @@ public class ModRecord
 	private Collection<Character> sites;
 	private Pattern               pattern;
 	private boolean               fixed;
+	private boolean               reported;
 	private boolean               generic;
 	
 	/*========================================================================
 	 * Constructors
 	 *========================================================================*/
-	public ModRecord(String paramDescriptor, boolean fixed) {
+	public ModRecord(String paramDescriptor, boolean fixed, boolean reported) {
 		// set default status as a non-generic mod; if the mod is in fact
 		// generic, then this will be overwritten when the ID string is parsed
 		this.generic = false;
@@ -102,6 +103,7 @@ public class ModRecord
 		setParam(param);
 		// set fixed/variable status
 		this.fixed = fixed;
+		this.reported = reported;
 	}
 	
 	/*========================================================================
@@ -154,10 +156,10 @@ public class ModRecord
 			// since the matcher ensures that the mod is present in the PSM
 			else throw new IllegalStateException();
 		}
-		// if this mod is fixed, then also iterate over the characters of the
-		// cleaned peptide string, since the mod was probably not explicitly
-		// written into the PSM string by the upstream search engine
-		if (isFixed()) {
+		// if this mod is fixed but not reported, then also iterate over the
+		// characters of the cleaned peptide string, since the mod was not
+		// explicitly  written into the PSM string by the upstream search engine
+		if (isFixed() && isReported() == false) {
 			int index = 0;
 			for (int i=0; i<cleaned.length(); i++) {
 				// only count amino acid characters to
@@ -265,6 +267,15 @@ public class ModRecord
 	
 	public boolean isVariable() {
 		return fixed == false;
+	}
+	
+	/**
+	 * Returns true if this mod is actually explicitly written into the
+	 * upstream search engine result file's peptide strings. If this is a
+	 * variable mod then this method should always return true.
+	 */
+	public boolean isReported() {
+		return reported;
 	}
 	
 	public boolean isGeneric() {
