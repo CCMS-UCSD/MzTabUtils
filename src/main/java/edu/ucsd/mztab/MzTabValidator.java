@@ -129,7 +129,7 @@ public class MzTabValidator
 				// indicated percentage of invalid PSMs, then fail
 				double percentage =
 					(double)invalidRows / (double)psmRows * 100.0;
-				if (validation.countOnly &&
+				if (validation.countOnly == false &&
 					percentage > validation.failureThreshold) {
 					// log the filename map values, since that's
 					// the most likely reason for this failure
