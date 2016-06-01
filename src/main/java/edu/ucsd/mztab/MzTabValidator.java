@@ -84,10 +84,11 @@ public class MzTabValidator
 					Arrays.asList(validation.scansDirectory.listFiles());
 			if (scansFiles != null) {
 				for (File scansFile : scansFiles) {
-					ImmutablePair<Collection<Integer>, Collection<Integer>>
-						spectra = readScansFile(scansFile);
-					if (scansFile != null)
+					if (scansFile != null) {
+						ImmutablePair<Collection<Integer>, Collection<Integer>>
+							spectra = readScansFile(scansFile);
 						scans.put(scansFile.getName(), spectra);
+					}
 				}
 			}
 			// read all mzTab files, ensure that all referenced spectra
@@ -121,15 +122,18 @@ public class MzTabValidator
 					die(String.format(
 						"Result file [%s] could not be parsed for validation.",
 						uploadedResultFilename));
-				// if this mzTab file has more than 10% invalid PSMs, it's bad
 				int psmRows = counts[0];
 				int invalidRows = counts[1];
+				// if this is a regular validation operation (i.e. not
+				// count-only), and the mzTab file has more than the
+				// indicated percentage of invalid PSMs, then fail
 				double percentage =
 					(double)invalidRows / (double)psmRows * 100.0;
-				if (percentage > validation.failureThreshold) {
+				if (validation.countOnly &&
+					percentage > validation.failureThreshold) {
 					// log the filename map values, since that's
 					// the most likely reason for this failure
-					System.err.println(validation.context.toString());
+					//System.err.println(validation.context.toString());
 					die(String.format("Result file [%s] contains %s%% " +
 						"invalid PSM rows. Please correct the file and " +
 						"ensure that its referenced spectra are accessible " +
