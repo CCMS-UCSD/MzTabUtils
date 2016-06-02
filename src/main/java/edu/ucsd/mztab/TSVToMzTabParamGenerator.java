@@ -17,6 +17,7 @@ import org.w3c.dom.Node;
 
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.util.ProteomicsUtils;
 
 public class TSVToMzTabParamGenerator
 {
@@ -57,6 +58,7 @@ public class TSVToMzTabParamGenerator
 	private Map<String, String>  columnIdentifiers;
 	private Map<String, Integer> columnIndices;
 	private Collection<String>   fixedMods;
+	private Collection<String>   variableMods;
 	private String               modPattern;
 	
 	/*========================================================================
@@ -124,6 +126,7 @@ public class TSVToMzTabParamGenerator
 				"Unrecognized \"header_line\" value: [%s]", hasHeader));
 		// initialize mod collections
 		fixedMods = new HashSet<String>();
+		variableMods = new HashSet<String>();
 		// set mod pattern
 		if (modPattern == null)
 			throw new NullPointerException("\"mod_pattern\" cannot be null.");
@@ -253,12 +256,94 @@ public class TSVToMzTabParamGenerator
 				String cysteine = parameter.getFirstChild().getNodeValue();
 				if (cysteine != null && cysteine.trim().isEmpty() == false) {
 					if (cysteine.trim().equals("c57"))
-						fixedMods.add("[UNIMOD,UNIMOD:4,Carbamidomethyl,C]");
+						fixedMods.add(String.format(
+							"[UNIMOD,UNIMOD:4,Carbamidomethyl,\"%s\"]",
+							getModFormatString(
+								modPattern, "C", "57.021464",
+								this.fixedModsReported == false)));
 					else if (cysteine.trim().equals("c58"))
-						fixedMods.add("[UNIMOD,UNIMOD:6,Carboxymethyl,C]");
+						fixedMods.add(String.format(
+							"[UNIMOD,UNIMOD:6,Carboxymethyl,\"%s\"]",
+							getModFormatString(
+								modPattern, "C", "58.005479",
+								this.fixedModsReported == false)));
 					else if (cysteine.trim().equals("c99"))
-						fixedMods.add("[UNIMOD,UNIMOD:17,NIPCAM,C]");
+						fixedMods.add(String.format(
+							"[UNIMOD,UNIMOD:17,NIPCAM,\"%s\"]",
+							getModFormatString(
+								modPattern, "C", "99.068414",
+								this.fixedModsReported == false)));
 				}
+			}
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='ptm.DEAMIDATION']");
+			if (parameter != null) {
+				String present = parameter.getFirstChild().getNodeValue();
+				if (present != null && present.trim().equalsIgnoreCase("on"))
+					variableMods.add(String.format(
+						"[UNIMOD,UNIMOD:7,Deamidated,\"%s\"]",
+						getModFormatString(
+							modPattern, "NQ", "0.984016", false)));
+			}
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='ptm.LYSINE_METHYLATION']");
+			if (parameter != null) {
+				String present = parameter.getFirstChild().getNodeValue();
+				if (present != null && present.trim().equalsIgnoreCase("on"))
+					variableMods.add(String.format(
+						"[UNIMOD,UNIMOD:34,Methyl,\"%s\"]",
+						getModFormatString(
+							modPattern, "K", "14.015650", false)));
+			}
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='ptm.NTERM_ACETYLATION']");
+			if (parameter != null) {
+				String present = parameter.getFirstChild().getNodeValue();
+				if (present != null && present.trim().equalsIgnoreCase("on"))
+					variableMods.add(String.format(
+						"[UNIMOD,UNIMOD:1,Acetyl,\"%s\"]",
+						getModFormatString(
+							modPattern, "*", "42.010565", false)));
+			}
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='ptm.NTERM_CARBAMYLATION']");
+			if (parameter != null) {
+				String present = parameter.getFirstChild().getNodeValue();
+				if (present != null && present.trim().equalsIgnoreCase("on"))
+					variableMods.add(String.format(
+						"[UNIMOD,UNIMOD:5,Carbamyl,\"%s\"]",
+						getModFormatString(
+							modPattern, "*", "43.005814", false)));
+			}
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='ptm.OXIDATION']");
+			if (parameter != null) {
+				String present = parameter.getFirstChild().getNodeValue();
+				if (present != null && present.trim().equalsIgnoreCase("on"))
+					variableMods.add(String.format(
+						"[UNIMOD,UNIMOD:35,Oxidation,\"%s\"]",
+						getModFormatString(
+							modPattern, "M", "15.994915", false)));
+			}
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='ptm.PHOSPHORYLATION']");
+			if (parameter != null) {
+				String present = parameter.getFirstChild().getNodeValue();
+				if (present != null && present.trim().equalsIgnoreCase("on"))
+					variableMods.add(String.format(
+						"[UNIMOD,UNIMOD:21,Phospho,\"%s\"]",
+						getModFormatString(
+							modPattern, "STY", "79.966331", false)));
+			}
+			parameter = XPathAPI.selectSingleNode(
+				document, "//parameter[@name='ptm.PYROGLUTAMATE_FORMATION']");
+			if (parameter != null) {
+				String present = parameter.getFirstChild().getNodeValue();
+				if (present != null && present.trim().equalsIgnoreCase("on"))
+					variableMods.add(String.format(
+						"[UNIMOD,UNIMOD:28,Gln->pyro-Glu,\"%s\"]",
+						getModFormatString(
+							modPattern, "Q", "-17.026549", false)));
 			}
 			// TODO: read declared mods, note them
 			// TODO: compare found mods to declared mods to find best match
@@ -443,6 +528,63 @@ public class TSVToMzTabParamGenerator
 			"values of neither the scan column [%s] nor the index column " +
 			"[%s] in the first data row were valid for their type.",
 			scan, index));
+	}
+	
+	private String getModFormatString(
+		String modPattern, String aminoAcids, String mass,
+		boolean fixedModNotReported
+	) {
+		// ensure a valid amino acid set is present
+		if (aminoAcids == null)
+			aminoAcids = "*";
+		else {
+			aminoAcids = ProteomicsUtils.cleanPeptide(aminoAcids);
+			if (aminoAcids == null || aminoAcids.trim().isEmpty())
+				aminoAcids = "*";
+		}
+		// if this is a fixed mod, and it's not explicitly shown
+		// in the TSV  file, just return the amino acid set
+		if (fixedModNotReported)
+			return aminoAcids;
+		// otherwise, ensure a valid mod pattern is present
+		if (modPattern == null)
+			modPattern = "#";
+		// insert the amino acid set into the proper
+		// place in the mod format string
+		String modFormatString = null;
+		// if there is no placeholder for amino acids in the mod pattern,
+		// then just put the amino acid set at the beginning
+		if (modPattern.indexOf('*') < 0)
+			modFormatString = String.format("%s%s", aminoAcids, modPattern);
+		// otherwise splice in the amino acid set where the placeholder is
+		else modFormatString = modPattern.replaceFirst("\\*", aminoAcids);
+		// if there is no mass string, then this is
+		// a generic mod and can be returned as-is
+		if (mass == null)
+			return modFormatString;
+		// if there is no placeholder for mass in the mod pattern,
+		// then put the mass immediately after the amino acids
+		else if (modFormatString.indexOf('#') < 0) {
+			// when the mass comes immediately after the amino acids,
+			// then by convention add a "+" before the mass value
+			if (mass.startsWith("+") == false)
+				mass = String.format("+%s", mass);
+			int aminoAcidPosition = modFormatString.indexOf(aminoAcids);
+			modFormatString = String.format("%s%s%s%s",
+				modFormatString.substring(0, aminoAcidPosition), aminoAcids,
+				mass, modFormatString.substring(
+					aminoAcidPosition + aminoAcids.length(),
+					modFormatString.length()));
+		}
+		// otherwise splice in the mass where the placeholder is
+		else {
+			// if the placeholder is at the end of the mod pattern,
+			// then by convention add a "+" before the mass value
+			if (modFormatString.endsWith("#") && mass.startsWith("+") == false)
+				mass = String.format("+%s", mass);
+			modFormatString = modFormatString.replaceFirst("#", mass);
+		}
+		return modFormatString;
 	}
 	
 	/*========================================================================

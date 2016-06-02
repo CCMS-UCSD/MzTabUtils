@@ -45,6 +45,19 @@ public class ProteomicsUtils
 	/*========================================================================
 	 * Public interface methods
 	 *========================================================================*/
+	public static boolean isPeptide(String value) {
+		if (value == null || value.isEmpty())
+			return false;
+		// check every character of the string value
+		// to ensure that they are all amino acids
+		else for (int i=0; i<value.length(); i++) {
+			char current = value.charAt(i);
+			if (AMINO_ACID_MASSES.containsKey(current) == false)
+				return false;
+		}
+		return true;
+	}
+	
 	public static String cleanPeptide(String psm) {
 		if (psm == null)
 			return null;
