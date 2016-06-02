@@ -9,6 +9,7 @@ import java.util.regex.PatternSyntaxException;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.OntologyUtils;
 import edu.ucsd.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
@@ -29,10 +30,6 @@ public class ModRecord
 		"\\s*\"?([^\"]*)\"?," +			// name
 		"\\s*\"?([^\"]*)\"?" +			// value
 		"\\s*\\]$");
-	private static final String FLOAT_PATTERN_STRING = 
-		"((?:[+-]?\\d+\\.?\\d*)|(?:[+-]?\\d*\\.?\\d+))";
-	private static final Pattern FLOAT_PATTERN = Pattern.compile(
-		FLOAT_PATTERN_STRING);
 	
 	/*========================================================================
 	 * Properties
@@ -367,7 +364,7 @@ public class ModRecord
 							"references had already been found in the same " +
 							"string.", i, modID));
 					else foundHash = true;
-					pattern.append(FLOAT_PATTERN_STRING);
+					pattern.append(MzTabConstants.SIMPLE_FLOAT_PATTERN_STRING);
 					this.generic = true;
 					continue;
 				}
@@ -450,7 +447,7 @@ public class ModRecord
 		if (isGeneric())
 			return;
 		// try to extract the mass value from this string
-		Matcher matcher = FLOAT_PATTERN.matcher(modID);
+		Matcher matcher = MzTabConstants.SIMPLE_FLOAT_PATTERN.matcher(modID);
 		if (matcher.find() == false)
 			throw new IllegalArgumentException(String.format(
 				"No numerical mass value could be extracted " +
