@@ -6,16 +6,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-import javax.xml.transform.TransformerException;
-
 import org.apache.commons.io.FilenameUtils;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
+import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
 import edu.ucsd.util.FileIOUtils;
 
 public class TaskMzTabContext
@@ -125,7 +123,7 @@ public class TaskMzTabContext
 		else relativePrefix = String.format(
 			"%s%s%s", username, File.separator, taskID);
 		// if mzTab and peak list relative paths were not provided, determine
-		//them based on whether this is a dataset or a regular ProteoSAFe task
+		// them based on whether this is a dataset or a regular ProteoSAFe task
 		if (mzTabRelativePath == null)
 			mzTabRelativePath = extractRelativePath(
 				mzTabDirectory.getAbsolutePath(), relativePrefix);
@@ -136,11 +134,14 @@ public class TaskMzTabContext
 		mzTabs = findMzTabFiles(mzTabDirectory);
 		if (mzTabs == null)
 			mzTabs = new ArrayList<MzTabFile>();
+		// extract file mapping context from params.xml
+		ProteoSAFeFileMappingContext mappings =
+			new ProteoSAFeFileMappingContext(parameters);
 		// iterate through all mzTab and ms_run mappings
 		// and fill them out with params.xml knowledge
-		for (MzTabFile mzTab : mzTabs) try {
+		for (MzTabFile mzTab : mzTabs) {
 			// fill out this mzTab's file mappings
-			mapMzTab(mzTab, parameters);
+			mapMzTab(mzTab, mappings);
 			// set descriptor appropriately based on parameters
 			if (datasetID != null)
 				mzTab.setDatasetDescriptor(datasetID, mzTabRelativePath);
@@ -149,7 +150,7 @@ public class TaskMzTabContext
 			for (Integer msRunIndex : msRuns.keySet()) {
 				MzTabMsRun msRun = msRuns.get(msRunIndex);
 				// fill out this ms_run's file mappings
-				mapMsRun(msRun, mzTab.getMappedResultPath(), parameters);
+				mapMsRun(msRun, mzTab.getMappedResultPath(), mappings);
 				if (datasetID != null) {
 					// only set the dataset descriptor with the given relative
 					// path if this is not already a dataset-imported file
@@ -165,10 +166,6 @@ public class TaskMzTabContext
 					msRun.setTaskDescriptor(
 						username, taskID, peakListRelativePath);
 			}
-		} catch (Throwable error) {
-			throw new IllegalArgumentException(
-				"There was an error extracting file mappings from params.xml",
-				error);
 		}
 	}
 	
@@ -282,9 +279,10 @@ public class TaskMzTabContext
 		else return relativePath;
 	}
 	
-	private void mapMzTab(MzTabFile mzTab, Document parameters)
-	throws TransformerException {
-		if (mzTab == null || parameters == null)
+	private void mapMzTab(
+		MzTabFile mzTab, ProteoSAFeFileMappingContext mappings
+	) {
+		if (mzTab == null || mappings == null)
 			return;
 		// get known mzTab file properties
 		String mzTabFilename = mzTab.getFile().getName();
@@ -292,32 +290,19 @@ public class TaskMzTabContext
 		// if this mzTab file is based on an input collection file, then its
 		// name should be mangled, and should therefore be mapped to an original
 		// user-uploaded result file via some "upload_file_mapping" parameter
-		NodeList mappings = XPathAPI.selectNodeList(
-			parameters, "//parameter[@name='upload_file_mapping']");
-		if (mappings != null && mappings.getLength() > 0) {
-			for (int i=0; i<mappings.getLength(); i++) {
-				String value =
-					mappings.item(i).getFirstChild().getNodeValue();
-				// each "upload_file_mapping" parameter should have
-				// as its value a string with the following format:
-				// <mangled_filename>|<source_filename>
-				String[] tokens = value.split("\\|");
-				if (tokens == null || tokens.length != 2)
-					throw new IllegalArgumentException(String.format(
-						"\"upload_file_mapping\" parameter value [%s] " +
-						"is invalid - it should contain two tokens " +
-						"separated by a pipe (\"|\") character.", value));
-				// the mzTab file may be part of the original upload collection,
-				// or it may be converted from a file of that collection, in
-				// which case only the filename bases will match (e.g. it was
-				// converted from mzIdentML to mzTab)
-				String mangledFilenameBase =
-					FilenameUtils.getBaseName(tokens[0]);
-				if (tokens[0].equals(mzTabFilename) ||
-					mangledFilenameBase.equals(resultFilenameBase)) {
-					mzTab.setMangledResultFilename(tokens[0]);
-					mzTab.setUploadedResultPath(tokens[1]);
-				}
+		for (String mangledFilename : mappings.getMangledFilenames()) {
+			// the mzTab file may be part of the original upload collection,
+			// or it may be converted from a file of that collection, in
+			// which case only the filename bases will match (e.g. it was
+			// converted from mzIdentML to mzTab)
+			String mangledFilenameBase =
+				FilenameUtils.getBaseName(mangledFilename);
+			if (mangledFilename.equals(mzTabFilename) ||
+				mangledFilenameBase.equals(resultFilenameBase)) {
+				mzTab.setMangledResultFilename(mangledFilename);
+				mzTab.setUploadedResultPath(
+					mappings.getUploadedFilePath(mangledFilename));
+				break;
 			}
 		}
 		// if the mzTab file has an uploaded path, then it is based
@@ -325,42 +310,20 @@ public class TaskMzTabContext
 		// relative path recorded in "result_file_mapping" parameters
 		String uploadedResultPath = mzTab.getUploadedResultPath();
 		if (uploadedResultPath != null) {
-			mappings = XPathAPI.selectNodeList(
-				parameters, "//parameter[@name='result_file_mapping']");
-			if (mappings != null && mappings.getLength() > 0) {
-				for (int i=0; i<mappings.getLength(); i++) {
-					String value =
-						mappings.item(i).getFirstChild().getNodeValue();
-					// each "result_file_mapping" parameter should have
-					// as its value a string with the following format:
-					// <result_file>#<referenced_filename>|<source_filename>
-					String[] tokens = value.split("\\|");
-					if (tokens == null || tokens.length != 2)
-						throw new IllegalArgumentException(String.format(
-							"\"result_file_mapping\" parameter value [%s] " +
-							"is invalid - it should contain two tokens " +
-							"separated by a pipe (\"|\") character.", value));
-					// split the mapped value to extract the referenced filename
-					String[] mapped = tokens[0].split("#");
-					if (mapped == null || mapped.length != 2)
-						throw new IllegalArgumentException(String.format(
-							"\"result_file_mapping\" parameter value [%s] " +
-							"is invalid - its first token ([%s]) should " +
-							"consist of two values separated by a hash " +
-							"(\"#\") character.", value, tokens[0]));
-					if (uploadedResultPath.endsWith(mapped[0])) {
-						mzTab.setMappedResultPath(mapped[0]);
-						break;
-					}
+			for (String resultFilename : mappings.getResultFilenames()) {
+				if (uploadedResultPath.endsWith(resultFilename)) {
+					mzTab.setMappedResultPath(resultFilename);
+					break;
 				}
 			}
 		}
 	}
 	
 	private void mapMsRun(
-		MzTabMsRun msRun, String mappedResultPath, Document parameters
-	) throws TransformerException {
-		if (msRun == null || parameters == null)
+		MzTabMsRun msRun, String mappedResultPath,
+		ProteoSAFeFileMappingContext mappings
+	) {
+		if (msRun == null || mappings == null)
 			return;
 		// get known ms_run file properties
 		String cleanedMsRun = msRun.getCleanedMsRunLocation();
@@ -368,93 +331,60 @@ public class TaskMzTabContext
 		// on an input collection file and therefore may have its peak list
 		// mappings recorded in "result_file_mapping" parameters
 		if (mappedResultPath != null) {
-			NodeList mappings = XPathAPI.selectNodeList(
-				parameters, "//parameter[@name='result_file_mapping']");
-			if (mappings != null && mappings.getLength() > 0) {
-				for (int i=0; i<mappings.getLength(); i++) {
-					String value =
-						mappings.item(i).getFirstChild().getNodeValue();
-					// each "result_file_mapping" parameter should have
-					// as its value a string with the following format:
-					// <result_file>#<referenced_filename>|<source_filename>
-					String[] tokens = value.split("\\|");
-					if (tokens == null || tokens.length != 2)
-						throw new IllegalArgumentException(String.format(
-							"\"result_file_mapping\" parameter value [%s] " +
-							"is invalid - it should contain two tokens " +
-							"separated by a pipe (\"|\") character.", value));
-					// split the mapped value to extract the referenced filename
-					String[] mapped = tokens[0].split("#");
-					if (mapped == null || mapped.length != 2)
-						throw new IllegalArgumentException(String.format(
-							"\"result_file_mapping\" parameter value [%s] " +
-							"is invalid - its first token ([%s]) should " +
-							"consist of two values separated by a hash " +
-							"(\"#\") character.", value, tokens[0]));
-					if (mappedResultPath.endsWith(mapped[0]) &&
-						cleanedMsRun.equals(mapped[1])) {
-						msRun.setMappedPeakListPath(tokens[1]);
-						break;
+			boolean found = false;
+			for (String resultFilename : mappings.getResultFilenames()) {
+				Collection<String> msRunLocations =
+					mappings.getResultFileMsRunLocations(resultFilename);
+				if (msRunLocations != null) {
+					for (String msRunLocation : msRunLocations) {
+						if (mappedResultPath.endsWith(resultFilename) &&
+							cleanedMsRun.equals(msRunLocation)) {
+							msRun.setMappedPeakListPath(
+								mappings.getResultFileMsRunMapping(
+									resultFilename, msRunLocation));
+							found = true;
+							break;
+						}
 					}
 				}
+				if (found)
+					break;
 			}
 		}
 		// now try to find the best match for this ms_run peak list file
 		// from among this task's "upload_file_mapping" parameters
 		String uploadedPeakListMatch = msRun.getMappedPeakListPath();
-		NodeList mappings = XPathAPI.selectNodeList(
-			parameters, "//parameter[@name='upload_file_mapping']");
-		if (mappings != null && mappings.getLength() > 0) {
-			// first try exact matches
-			for (int i=0; i<mappings.getLength(); i++) {
-				String value =
-					mappings.item(i).getFirstChild().getNodeValue();
-				// each "upload_file_mapping" parameter should have
-				// as its value a string with the following format:
-				// <mangled_filename>|<source_filename>
-				String[] tokens = value.split("\\|");
-				if (tokens == null || tokens.length != 2)
-					throw new IllegalArgumentException(String.format(
-						"\"upload_file_mapping\" parameter value [%s] " +
-						"is invalid - it should contain two tokens " +
-						"separated by a pipe (\"|\") character.", value));
-				// if an upload mapping exists for this ms_run,
-				// then there are two possible exact match scenarios:
-				// 1. the ms_run-location value ends with the mangled filename,
-				// e.g. analysis workflows with mzTab conversion integrated
-				if (cleanedMsRun.endsWith(tokens[0]) ||
-				// 2. the ms_run-location value is some ending portion of the
-				// uploaded peak list file path, e.g. the convert-tsv workflow
-					tokens[1].endsWith(cleanedMsRun)) {
-					msRun.setMangledPeakListFilename(tokens[0]);
-					msRun.setUploadedPeakListPath(tokens[1]);
-					return;
-				}
+		// first try exact matches
+		for (String mangledFilename : mappings.getMangledFilenames()) {
+			String uploadedPeakListPath =
+				mappings.getUploadedFilePath(mangledFilename);
+			// if an upload mapping exists for this ms_run,
+			// then there are two possible exact match scenarios:
+			// 1. the ms_run-location value ends with the mangled filename,
+			// e.g. analysis workflows with mzTab conversion integrated
+			if (cleanedMsRun.endsWith(mangledFilename) ||
+			// 2. the ms_run-location value is some ending portion of the
+			// uploaded peak list file path, e.g. the convert-tsv workflow
+				uploadedPeakListPath.endsWith(cleanedMsRun)) {
+				msRun.setMangledPeakListFilename(mangledFilename);
+				msRun.setUploadedPeakListPath(uploadedPeakListPath);
+				return;
 			}
 		}
 		// if no exact matches were found, try to match the mapped
 		// value with the first uploaded path that matches it
-		for (int i=0; i<mappings.getLength(); i++) {
-			String value =
-				mappings.item(i).getFirstChild().getNodeValue();
-			// each "upload_file_mapping" parameter should have
-			// as its value a string with the following format:
-			// <mangled_filename>|<source_filename>
-			String[] tokens = value.split("\\|");
-			if (tokens == null || tokens.length != 2)
-				throw new IllegalArgumentException(String.format(
-					"\"upload_file_mapping\" parameter value [%s] " +
-					"is invalid - it should contain two tokens " +
-					"separated by a pipe (\"|\") character.", value));
+		for (String mangledFilename : mappings.getMangledFilenames()) {
+			String uploadedPeakListPath =
+				mappings.getUploadedFilePath(mangledFilename);
 			// if an upload mapping exists for this ms_run,
 			// then the best match scenario we could hope for is that
 			// a "result_file_mapping" exists, and its value is some
 			// ending portion of the uploaded peak list file path, e.g.
 			// MassIVE dataset submission or any workflow with file mapping
 			if (uploadedPeakListMatch != null &&
-				tokens[1].endsWith(uploadedPeakListMatch)) {
-				msRun.setMangledPeakListFilename(tokens[0]);
-				msRun.setUploadedPeakListPath(tokens[1]);
+				uploadedPeakListPath.endsWith(uploadedPeakListMatch)) {
+				msRun.setMangledPeakListFilename(mangledFilename);
+				msRun.setUploadedPeakListPath(uploadedPeakListPath);
 				return;
 			}
 		}
