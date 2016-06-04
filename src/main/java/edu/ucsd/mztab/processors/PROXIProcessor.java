@@ -121,37 +121,37 @@ public class PROXIProcessor implements MzTabProcessor
 			prtHeader.validateHeaderExpectations(
 				MzTabSection.PRT, Arrays.asList(RELEVANT_PRT_COLUMNS));
 		} else if (line.startsWith("PRT")) {
-			incrementRowCount("PRT");
-			if (prtHeader == null)
-				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n" +
-					"A \"PRT\" row was found before any \"PRH\" row.",
-					lineNumber, mzTabFilename, line));
-			else prtHeader.validateMzTabRow(line);
-			// extract insertable elements from this PRT row
-			String[] columns = line.split("\\t");
-			// record this protein
-			Collection<Modification> modifications =
-				ProteomicsUtils.getModifications(
-					columns[prtHeader.getColumnIndex("modifications")]);
-			try {
-				cascadeProtein(
-					columns[prtHeader.getColumnIndex("accession")],
-					modifications);
-				connection.commit();
-			} catch (Throwable error) {
-				try { connection.rollback(); } catch (Throwable innerError) {}
-				// log this insertion failure
-				incrementRowCount("invalid_PRT");
-				// print warning and continue
-				System.err.println(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n%s",
-					lineNumber, mzTabFilename, line,
-					getRootCause(error).getMessage()));
-				//error.printStackTrace();
-			}
+//			incrementRowCount("PRT");
+//			if (prtHeader == null)
+//				throw new IllegalArgumentException(String.format(
+//					"Line %d of mzTab file [%s] is invalid:" +
+//					"\n----------\n%s\n----------\n" +
+//					"A \"PRT\" row was found before any \"PRH\" row.",
+//					lineNumber, mzTabFilename, line));
+//			else prtHeader.validateMzTabRow(line);
+//			// extract insertable elements from this PRT row
+//			String[] columns = line.split("\\t");
+//			// record this protein
+//			Collection<Modification> modifications =
+//				ProteomicsUtils.getModifications(
+//					columns[prtHeader.getColumnIndex("modifications")]);
+//			try {
+//				cascadeProtein(
+//					columns[prtHeader.getColumnIndex("accession")],
+//					modifications);
+//				connection.commit();
+//			} catch (Throwable error) {
+//				try { connection.rollback(); } catch (Throwable innerError) {}
+//				// log this insertion failure
+//				incrementRowCount("invalid_PRT");
+//				// print warning and continue
+//				System.err.println(String.format(
+//					"Line %d of mzTab file [%s] is invalid:" +
+//					"\n----------\n%s\n----------\n%s",
+//					lineNumber, mzTabFilename, line,
+//					getRootCause(error).getMessage()));
+//				//error.printStackTrace();
+//			}
 		}
 		// peptide section
 		else if (line.startsWith("PEH")) {
@@ -164,39 +164,39 @@ public class PROXIProcessor implements MzTabProcessor
 			pepHeader = new MzTabSectionHeader(line);
 			pepHeader.validateHeaderExpectations(
 				MzTabSection.PEP, Arrays.asList(RELEVANT_PEP_COLUMNS));
-		} else if (line.startsWith("PEP")) {
-			incrementRowCount("PEP");
-			if (pepHeader == null)
-				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n" +
-					"A \"PEP\" row was found before any \"PEH\" row.",
-					lineNumber, mzTabFilename, line));
-			else pepHeader.validateMzTabRow(line);
-			// extract insertable elements from this PEP row
-			String[] columns = line.split("\\t");
-			// record this peptide
-			Collection<Modification> modifications =
-				ProteomicsUtils.getModifications(
-					columns[pepHeader.getColumnIndex("modifications")]);
-			try {
-				cascadePeptide(
-					columns[pepHeader.getColumnIndex("sequence")],
-					columns[pepHeader.getColumnIndex("accession")],
-					modifications);
-				connection.commit();
-			} catch (Throwable error) {
-				try { connection.rollback(); } catch (Throwable innerError) {}
-				// log this insertion failure
-				incrementRowCount("invalid_PEP");
-				// print warning and continue
-				System.err.println(String.format(
-					"Line %d of mzTab file [%s] is invalid:\n" +
-					"----------\n%s\n----------\n%s",
-					lineNumber, mzTabFilename, line,
-					getRootCause(error).getMessage()));
-				//error.printStackTrace();
-			}
+//		} else if (line.startsWith("PEP")) {
+//			incrementRowCount("PEP");
+//			if (pepHeader == null)
+//				throw new IllegalArgumentException(String.format(
+//					"Line %d of mzTab file [%s] is invalid:" +
+//					"\n----------\n%s\n----------\n" +
+//					"A \"PEP\" row was found before any \"PEH\" row.",
+//					lineNumber, mzTabFilename, line));
+//			else pepHeader.validateMzTabRow(line);
+//			// extract insertable elements from this PEP row
+//			String[] columns = line.split("\\t");
+//			// record this peptide
+//			Collection<Modification> modifications =
+//				ProteomicsUtils.getModifications(
+//					columns[pepHeader.getColumnIndex("modifications")]);
+//			try {
+//				cascadePeptide(
+//					columns[pepHeader.getColumnIndex("sequence")],
+//					columns[pepHeader.getColumnIndex("accession")],
+//					modifications);
+//				connection.commit();
+//			} catch (Throwable error) {
+//				try { connection.rollback(); } catch (Throwable innerError) {}
+//				// log this insertion failure
+//				incrementRowCount("invalid_PEP");
+//				// print warning and continue
+//				System.err.println(String.format(
+//					"Line %d of mzTab file [%s] is invalid:\n" +
+//					"----------\n%s\n----------\n%s",
+//					lineNumber, mzTabFilename, line,
+//					getRootCause(error).getMessage()));
+//				//error.printStackTrace();
+//			}
 		}
 		// PSM section
 		else if (line.startsWith("PSH")) {
