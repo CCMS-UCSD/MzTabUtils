@@ -38,7 +38,8 @@ public class MzTabValidator
 	private static final String USAGE =
 		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabValidator" +
 		"\n\t-params     <ParameterFile>" +
-		"\n\t-mztab      <MzTabDirectory>" +
+		"\n\t[-mztab     <MzTabDirectory> " +
+			"(if not provided, then validation is skipped]" +
 		"\n\t[-mztabPath <MzTabRelativePath> (if not under MzTabDirectory)]" +
 		"\n\t[-peak      <PeakListFilesDirectory>]" +
 		"\n\t[-peakPath  <PeakListRelativePath> " +
@@ -69,6 +70,11 @@ public class MzTabValidator
 				validation.outputFile.createNewFile() == false)
 				die(String.format("Could not create output file [%s]",
 					validation.outputFile.getAbsolutePath()));
+			// if no mzTab files were found, then this is a partial
+			// submission and no validation needs to occur
+			if (validation.context == null)
+				return;
+			// otherwise, prepare output file for validated mzTab statistics
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(validation.outputFile, false)));
 			writer.println("MzTab_file\tUploaded_file\tFile_descriptor\t" +
@@ -209,18 +215,18 @@ public class MzTabValidator
 				throw new IllegalArgumentException(
 					String.format("Parameters file [%s] must be readable.",
 						parameters.getAbsolutePath()));
-			// validate mzTab directory
-			if (mzTabDirectory == null)
-				throw new NullPointerException(
-					"MzTab directory cannot be null.");
-			else if (mzTabDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be a directory.",
+			// validate mzTab directory (if null,
+			// then no validation is necessary)
+			if (mzTabDirectory != null) {
+				if (mzTabDirectory.isDirectory() == false)
+					throw new IllegalArgumentException(String.format(
+						"MzTab directory [%s] must be a directory.",
 						mzTabDirectory.getAbsolutePath()));
-			else if (mzTabDirectory.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be readable.",
+				else if (mzTabDirectory.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"MzTab directory [%s] must be readable.",
 						mzTabDirectory.getAbsolutePath()));
+			}
 			// validate peak list files directory (can be null)
 			if (peakListDirectory != null) {
 				if (peakListDirectory.isDirectory() == false)
@@ -232,11 +238,12 @@ public class MzTabValidator
 						"Peak list files directory [%s] must be readable.",
 						peakListDirectory.getAbsolutePath()));
 			}
-			// build mzTab context
-			this.context = new TaskMzTabContext(
-				mzTabDirectory, mzTabRelativePath,
-				peakListDirectory, peakListRelativePath,
-				parameters);
+			// build mzTab file-mapping context, if applicable
+			if (mzTabDirectory != null)
+				context = new TaskMzTabContext(
+					mzTabDirectory, mzTabRelativePath,
+					peakListDirectory, peakListRelativePath, parameters);
+			else context = null;
 			// validate scans directory (can be null)
 			if (scansDirectory != null) {
 				if (scansDirectory.isDirectory() == false)

@@ -16,7 +16,8 @@ public class ProteoSAFeMzTabCleaner
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.ProteoSAFeMzTabCleaner" +
-		"\n\t-mztab      <MzTabDirectory>" +
+		"\n\t[-mztab     <MzTabDirectory>" +
+			"(if not provided, then cleanup is skipped]" +
 		"\n\t[-mztabPath <MzTabRelativePath> (if not under MzTabDirectory)]" +
 		"\n\t[-peak      <PeakListFilesDirectory>]" +
 		"\n\t[-peakPath  <PeakListRelativePath> " +
@@ -32,8 +33,12 @@ public class ProteoSAFeMzTabCleaner
 		ProteoSAFeMzTabCleanupOperation cleanup = extractArguments(args);
 		if (cleanup == null)
 			die(USAGE);
-		// read through all mzTab files, run all relevant
-		// MassIVE cleanup operations on each
+		// if no mzTab files were found, then this is a partial
+		// submission and no cleanup needs to occur
+		if (cleanup.context == null)
+			return;
+		// otherwise, read through all mzTab files, and run
+		// all relevant MassIVE cleanup operations on each
 		File[] files = cleanup.mzTabDirectory.listFiles();
 		// sort files alphabetically
 		Arrays.sort(files);
@@ -76,19 +81,19 @@ public class ProteoSAFeMzTabCleaner
 			File peakListDirectory, String peakListRelativePath,
 			File parameters, File outputDirectory, String datasetID
 		) {
-			// validate mzTab directory
-			if (mzTabDirectory == null)
-				throw new NullPointerException(
-					"MzTab directory cannot be null.");
-			else if (mzTabDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be a directory.",
+			// validate mzTab directory (if null,
+			// then no cleanup is necessary)
+			if (mzTabDirectory != null) {
+				if (mzTabDirectory.isDirectory() == false)
+					throw new IllegalArgumentException(String.format(
+						"MzTab directory [%s] must be a directory.",
 						mzTabDirectory.getAbsolutePath()));
-			else if (mzTabDirectory.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be readable.",
+				else if (mzTabDirectory.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"MzTab directory [%s] must be readable.",
 						mzTabDirectory.getAbsolutePath()));
-			else this.mzTabDirectory = mzTabDirectory;
+			}
+			this.mzTabDirectory = mzTabDirectory;
 			// validate peak list files directory (can be null)
 			if (peakListDirectory != null) {
 				if (peakListDirectory.isDirectory() == false)
@@ -121,11 +126,13 @@ public class ProteoSAFeMzTabCleaner
 					String.format("Output directory [%s] must be writable.",
 						outputDirectory.getAbsolutePath()));
 			else this.outputDirectory = outputDirectory;
-			// build mzTab file-mapping context
-			context = new TaskMzTabContext(
-				mzTabDirectory, mzTabRelativePath,
-				peakListDirectory, peakListRelativePath,
-				parameters, datasetID);
+			// build mzTab file-mapping context, if applicable
+			if (mzTabDirectory != null)
+				context = new TaskMzTabContext(
+					mzTabDirectory, mzTabRelativePath,
+					peakListDirectory, peakListRelativePath,
+					parameters, datasetID);
+			else context = null;
 		}
 	}
 	
