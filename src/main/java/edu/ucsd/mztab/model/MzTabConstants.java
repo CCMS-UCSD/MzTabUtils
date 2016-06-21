@@ -18,6 +18,8 @@ public class MzTabConstants
 		"ms_run\\[(\\d+)\\]:(.+)");
 	public static final Pattern SCAN_PATTERN = Pattern.compile("scan=(\\d+)");
 	public static final Pattern INDEX_PATTERN = Pattern.compile("index=(\\d+)");
+	public static final Pattern QUERY_PATTERN = Pattern.compile("query=(\\d+)");
+	public static final Pattern FILE_PATTERN = Pattern.compile("file=(.+)");
 	
 	// constants pertaining to mzTab "modifications" column values,
 	// as seen in PRT, PEP and PSM rows

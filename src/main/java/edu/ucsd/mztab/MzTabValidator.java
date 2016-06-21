@@ -53,7 +53,6 @@ public class MzTabValidator
 		"temp_modified_result.mzTab";
 	private static final Pattern FILE_REFERENCE_PATTERN =
 		Pattern.compile("ms_run\\[(\\d+)\\]");
-	private static final Pattern FILE_PATTERN = Pattern.compile("file=(.+)");
 	private static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	
 	/*========================================================================
@@ -786,33 +785,50 @@ public class MzTabValidator
 		Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(nativeID);
 		if (matcher.find())
 			value = Integer.parseInt(matcher.group(1));
-		else {
-			// then try to extract an index
+		// then try to extract an index
+		if (value == null) {
 			matcher = MzTabConstants.INDEX_PATTERN.matcher(nativeID);
 			if (matcher.find()) {
+				// if found, assume all spectrum indices are 0-based,
+				// as per the definition of nativeID format
+				// MS:1000774 ("multiple peak list nativeID format")
 				value = Integer.parseInt(matcher.group(1));
 				scan = false;
-			} else {
-				// if it's a file specifier, and no index was also specified,
-				// then assume that it's just a 1-spectrum file
-				matcher = FILE_PATTERN.matcher(nativeID);
-				if (matcher.find()) {
-					value = Integer.parseInt(matcher.group(1));
-					scan = false;
-				}
-				// if it's just an integer, we don't know if it's a scan or an
-				// index, so look it up in the source mzid file, if there is one
-				else try {
-					value = Integer.parseInt(nativeID);
-					if (isScan(mzTabFile, sequence, value, uploadedResults,
-						context, parsedMzidFileCache, mzidSpectrumIDCache)
-						== false) {
-						nativeID = String.format("index=%d", value);
-						scan = false;
-					} else nativeID = String.format("scan=%d", value);
-				} catch (NumberFormatException error) {}
 			}
 		}
+		// then try to extract a "query"
+		if (value == null) {
+			matcher = MzTabConstants.QUERY_PATTERN.matcher(nativeID);
+			if (matcher.find()) {
+				// nativeIDs of type MS:1001528 ("Mascot query number") are
+				// defined to be 1-based indices. However, since we encode all
+				// indices as nativeIDs of type MS:1000774 ("multiple peak
+				// list nativeID format"), and this format requires 0-based
+				// indexing, we must decrement the query number here.
+				value = Integer.parseInt(matcher.group(1)) - 1;
+				scan = false;
+			}
+		}
+		// if it's a file specifier, and no index was also specified,
+		// then assume it's just a 1-spectrum file
+		if (value == null) {
+			matcher = MzTabConstants.FILE_PATTERN.matcher(nativeID);
+			if (matcher.find()) {
+				value = 0;
+				scan = false;
+			}
+		}
+		// if it's just an integer, we don't know if it's a scan or an
+		// index, so look it up in the source mzid file, if there is one
+		if (value == null) try {
+			value = Integer.parseInt(nativeID);
+			if (isScan(mzTabFile, sequence, value, uploadedResults,
+				context, parsedMzidFileCache, mzidSpectrumIDCache)
+				== false) {
+				nativeID = String.format("index=%d", value);
+				scan = false;
+			} else nativeID = String.format("scan=%d", value);
+		} catch (NumberFormatException error) {}
 		// if nothing was found, then the nativeID
 		// string was of an unrecognized type
 		if (value == null)
