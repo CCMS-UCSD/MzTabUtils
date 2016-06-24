@@ -646,8 +646,9 @@ public class TSVToMzTabParamGenerator
 		// then put the mass immediately after the amino acids
 		else if (modFormatString.indexOf('#') < 0) {
 			// when the mass comes immediately after the amino acids,
-			// then by convention add a "+" before the mass value
-			if (mass.startsWith("+") == false)
+			// then by convention add a "+" before the mass value,
+			// unless the mass is already modified by a sign character
+			if (mass.startsWith("+") == false && mass.startsWith("-") == false)
 				mass = String.format("+%s", mass);
 			int aminoAcidPosition = modFormatString.indexOf(aminoAcids);
 			modFormatString = String.format("%s%s%s%s",
@@ -659,11 +660,18 @@ public class TSVToMzTabParamGenerator
 		// otherwise splice in the mass where the placeholder is
 		else {
 			// if the placeholder is at the end of the mod pattern,
-			// then by convention add a "+" before the mass value
-			if (modFormatString.endsWith("#") && mass.startsWith("+") == false)
+			// then by convention add a "+" before the mass value,
+			// unless the mass is already modified by a sign character
+			if (modFormatString.endsWith("#") &&
+				mass.startsWith("+") == false && mass.startsWith("-") == false)
 				mass = String.format("+%s", mass);
 			modFormatString = modFormatString.replaceFirst("#", mass);
 		}
+		// if the format string is just "*#", where "#" is the mass, then
+		// remove the star ("*") to account for N-term mods where the mass
+		// string may occur before the amino acid
+		if (modFormatString.equals(String.format("*%s", mass)))
+			modFormatString = mass;
 		return modFormatString;
 	}
 	
