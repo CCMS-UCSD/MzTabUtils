@@ -42,6 +42,8 @@ public class MzTabPROXIImporter
 		// read through all mzTab files, import content to database
 		try {
 			long start = System.currentTimeMillis();
+			long totalLines = 0;
+			long totalPSMRows = 0;
 			File[] files = importer.mzTabDirectory.listFiles();
 			// sort files alphabetically
 			Arrays.sort(files);
@@ -51,15 +53,21 @@ public class MzTabPROXIImporter
 			for (File file : files) {
 				MzTabReader reader =
 					new MzTabReader(importer.context.getMzTabFile(file));
-				reader.addProcessor(new PROXIProcessor(
-					importer.taskID, importer.datasetID, connection));
+				PROXIProcessor processor = new PROXIProcessor(
+					importer.taskID, importer.datasetID, connection);
+				reader.addProcessor(processor);
 				reader.read();
+				totalLines += processor.getRowCount("lines_in_file");
+				totalPSMRows += processor.getRowCount("PSM");
 			}
+			long elapsed = System.currentTimeMillis() - start;
+			double seconds = elapsed / 1000.0;
 			System.out.println(String.format(
-				"Imported %d mzTab %s into the PROXI database in %s.",
+				"Imported %d mzTab %s into the PROXI database in %s " +
+				"(%.2f lines/second, %.2f PSM rows/second).",
 				files.length, CommonUtils.pluralize("file", files.length),
-				CommonUtils.formatMilliseconds(
-					System.currentTimeMillis() - start)));
+				CommonUtils.formatMilliseconds(elapsed),
+				(totalLines / seconds), (totalPSMRows / seconds)));
 		} catch (Throwable error) {
 			die("Error importing mzTab content to the PROXI database", error);
 		} finally {

@@ -261,26 +261,49 @@ public class PROXIProcessor implements MzTabProcessor
 		success.append(lines).append(" ");
 		success.append(CommonUtils.pluralize("line", lines));
 		success.append(")");
+		double seconds = 0.0;
 		if (start != null) {
+			long elapsed = System.currentTimeMillis() - start;
+			seconds = elapsed / 1000.0;
 			success.append(" in ");
-			success.append(CommonUtils.formatMilliseconds(
-				System.currentTimeMillis() - start));
+			success.append(CommonUtils.formatMilliseconds(elapsed));
+			success.append(" (");
+			success.append(String.format("%.2f", lines / seconds));
+			success.append(" lines/second)");
 		}
 		success.append(".");
 		success.append("\n\tPSMs:     ");
 		success.append(formatRowCount(getElementCount("psm"),
-			getRowCount("PSM"), getRowCount("invalid_PSM")));
+			getRowCount("PSM"), getRowCount("invalid_PSM"), seconds));
 		success.append("\n\tPeptides: ");
 		success.append(formatRowCount(getElementCount("sequence"),
-			getRowCount("PEP"), getRowCount("invalid_PEP")));
+			getRowCount("PEP"), getRowCount("invalid_PEP"), seconds));
 		success.append("\n\tVariants: ").append(getElementCount("variant"));
 		success.append("\n\tProteins: ");
 		success.append(formatRowCount(getElementCount("accession"),
-			getRowCount("PRT"), getRowCount("invalid_PRT")));
+			getRowCount("PRT"), getRowCount("invalid_PRT"), seconds));
 		success.append("\n\tPTMs:     ")
 			.append(getElementCount("modification"));
 		success.append("\n----------");
 		System.out.println(success.toString());
+	}
+	
+	public int getElementCount(String type) {
+		if (type == null)
+			return 0;
+		Map<String, Integer> values = uniqueElements.get(type);
+		if (values == null || values.isEmpty())
+			return 0;
+		else return values.size();
+	}
+	
+	public int getRowCount(String type) {
+		if (type == null)
+			return 0;
+		Integer count = rowCounts.get(type);
+		if (count == null)
+			return 0;
+		else return count;
 	}
 	
 	/*========================================================================
@@ -1206,15 +1229,6 @@ public class PROXIProcessor implements MzTabProcessor
 		else return values.get(value);
 	}
 	
-	private int getElementCount(String type) {
-		if (type == null)
-			return 0;
-		Map<String, Integer> values = uniqueElements.get(type);
-		if (values == null || values.isEmpty())
-			return 0;
-		else return values.size();
-	}
-	
 	private void addElement(String type, String value, int id) {
 		if (type == null || value == null ||
 			value.trim().equalsIgnoreCase("null"))
@@ -1226,15 +1240,6 @@ public class PROXIProcessor implements MzTabProcessor
 		uniqueElements.put(type, values);
 	}
 	
-	private int getRowCount(String type) {
-		if (type == null)
-			return 0;
-		Integer count = rowCounts.get(type);
-		if (count == null)
-			return 0;
-		else return count;
-	}
-	
 	private void incrementRowCount(String type) {
 		if (type == null)
 			return;
@@ -1244,7 +1249,9 @@ public class PROXIProcessor implements MzTabProcessor
 		rowCounts.put(type, count + 1);
 	}
 	
-	private String formatRowCount(int elements, int rows, int invalid) {
+	private String formatRowCount(
+		int elements, int rows, int invalid, double seconds
+	) {
 		StringBuilder count = new StringBuilder().append(elements);
 		if (rows > 0) {
 			count.append(" (").append(rows).append(" ");
@@ -1253,12 +1260,16 @@ public class PROXIProcessor implements MzTabProcessor
 				count.append(", ").append(invalid).append(" invalid ");
 				count.append(CommonUtils.pluralize("row", invalid));
 			}
-			count.append(")");
+			if (seconds > 0.0) {
+				count.append(", ");
+				count.append(String.format("%.2f", rows / seconds));
+				count.append(" rows/second)");
+			}
 		}
 		return count.toString();
 	}
 	
-	private static Throwable getRootCause(Throwable error) {
+	private Throwable getRootCause(Throwable error) {
 		if (error == null)
 			return null;
 		Throwable cause = error.getCause();
