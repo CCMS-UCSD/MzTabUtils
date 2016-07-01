@@ -3,7 +3,9 @@ package edu.ucsd.mztab.ui;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.sql.Connection;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
@@ -41,7 +43,6 @@ public class MzTabPROXIImporter
 			die("Could not connect to the PROXI database server");
 		// read through all mzTab files, import content to database
 		try {
-			long start = System.currentTimeMillis();
 			long totalLines = 0;
 			long totalPSMRows = 0;
 			File[] files = importer.mzTabDirectory.listFiles();
@@ -60,7 +61,7 @@ public class MzTabPROXIImporter
 				totalLines += processor.getRowCount("lines_in_file");
 				totalPSMRows += processor.getRowCount("PSM");
 			}
-			long elapsed = System.currentTimeMillis() - start;
+			long elapsed = System.currentTimeMillis() - importer.start;
 			double seconds = elapsed / 1000.0;
 			System.out.println(String.format(
 				"Imported %d mzTab %s into the PROXI database in %s " +
@@ -89,6 +90,7 @@ public class MzTabPROXIImporter
 		private String           taskID;
 		private Integer          datasetID;
 		private TaskMzTabContext context;
+		private long             start;
 		
 		/*====================================================================
 		 * Constructors
@@ -145,8 +147,13 @@ public class MzTabPROXIImporter
 					"Dataset ID string [%s] could not be parsed into " +
 					"a valid dataset ID.", datasetID), error);
 			}
+			// timestamp the beginning of the procedure
+			start = System.currentTimeMillis();
+			System.out.println(String.format(
+				"Beginning mzTab PROXI import procedure at %s.",
+				new SimpleDateFormat("hh:mm:ss.SSS a, EEEE, MMMM d, yyyy")
+					.format(new Date(start))));
 			// build mzTab file-mapping context
-			long start = System.currentTimeMillis();
 			context = new TaskMzTabContext(
 				mzTabDirectory, mzTabRelativePath,
 				peakListDirectory, peakListRelativePath,
