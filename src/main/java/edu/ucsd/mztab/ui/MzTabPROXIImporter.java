@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.sql.Connection;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 
 import edu.ucsd.mztab.MzTabReader;
@@ -45,12 +47,18 @@ public class MzTabPROXIImporter
 		try {
 			long totalLines = 0;
 			long totalPSMRows = 0;
-			File[] files = importer.mzTabDirectory.listFiles();
-			// sort files alphabetically
-			Arrays.sort(files);
+			// recursively find mzTab files under the argument directory
+			Collection<File> files = findFiles(importer.mzTabDirectory);
+			if (files == null || files.isEmpty()) {
+				System.out.println(String.format("Could not find " +
+					"any mzTab files to import under directory [%s].",
+					importer.mzTabDirectory.getAbsolutePath()));
+				return;
+			}
+			// import all found files
 			System.out.println(String.format(
 				"Importing %d mzTab %s into the PROXI database...\n----------",
-				files.length, CommonUtils.pluralize("file", files.length)));
+				files.size(), CommonUtils.pluralize("file", files.size())));
 			for (File file : files) {
 				MzTabReader reader =
 					new MzTabReader(importer.context.getMzTabFile(file));
@@ -66,7 +74,7 @@ public class MzTabPROXIImporter
 			System.out.println(String.format(
 				"Imported %d mzTab %s into the PROXI database in %s " +
 				"(%.2f lines/second, %.2f PSM rows/second).",
-				files.length, CommonUtils.pluralize("file", files.length),
+				files.size(), CommonUtils.pluralize("file", files.size()),
 				CommonUtils.formatMilliseconds(elapsed),
 				(totalLines / seconds), (totalPSMRows / seconds)));
 		} catch (Throwable error) {
@@ -231,6 +239,29 @@ public class MzTabPROXIImporter
 			System.err.println(error.getMessage());
 			return null;
 		}
+	}
+	
+	private static Collection<File> findFiles(File directory) {
+		if (directory == null || directory.canRead() == false ||
+			directory.isDirectory() == false)
+			return null;
+		File[] files = directory.listFiles();
+		if (files == null || files.length < 1)
+			return null;
+		// sort files alphabetically
+		Arrays.sort(files);
+		// add all found files to collection
+		Collection<File> allFiles = new ArrayList<File>();
+		for (File file : files) {
+			// recurse into subdirectories
+			if (file.isDirectory()) {
+				Collection<File> descendantFiles = findFiles(file);
+				if (descendantFiles != null &&
+					descendantFiles.isEmpty() == false)
+					allFiles.addAll(descendantFiles);
+			} else allFiles.add(file);
+		}
+		return allFiles;
 	}
 	
 	private static int parseDatasetIDString(String datasetID) {
