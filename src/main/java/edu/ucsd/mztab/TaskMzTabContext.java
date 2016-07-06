@@ -14,6 +14,7 @@ import org.w3c.dom.Node;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
+import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext.UploadMapping;
 import edu.ucsd.util.FileIOUtils;
 
 public class TaskMzTabContext
@@ -152,13 +153,21 @@ public class TaskMzTabContext
 				// fill out this ms_run's file mappings
 				mapMsRun(msRun, mzTab.getMappedResultPath(), mappings);
 				if (datasetID != null) {
-					// only set the dataset descriptor with the given relative
-					// path if this is not already a dataset-imported file
-					String uploaded = msRun.getUploadedPeakListPath();
-					if (uploaded == null ||
-						uploaded.matches("^MSV[0-9]{9}/.*$") == false)
-						msRun.setDatasetDescriptor(
-							datasetID, peakListRelativePath);
+					// if the cleaned ms_run-location string is already a
+					// dataset relative path, just use that as the descriptor
+					String msRunLocation = msRun.getCleanedMsRunLocation();
+					if (msRunLocation != null &&
+						msRunLocation.matches("^MSV[0-9]{9}/.*$"))
+						msRun.setDescriptor(msRunLocation);
+					// otherwise, only set the dataset descriptor with the given
+					// relative path if this is not already a dataset file
+					else {
+						String uploaded = msRun.getUploadedPeakListPath();
+						if (uploaded == null ||
+							uploaded.matches("^MSV[0-9]{9}/.*$") == false)
+							msRun.setDatasetDescriptor(
+								datasetID, peakListRelativePath);
+					}
 				}
 				// only try to use a task descriptor if there's no upload
 				// mapping; peak list files should always have such a mapping
@@ -195,13 +204,15 @@ public class TaskMzTabContext
 			"<ProteoSAFeParametersFile> [<DatasetID>]";
 		try {
 			File mzTabDirectory = new File(args[0]);
-			String mzTabRelativePath = args[1];
-			if (mzTabRelativePath.trim().isEmpty())
-				mzTabRelativePath = null;
-			File peakListDirectory = new File(args[2]);
-			String peakListRelativePath = args[3];
-			if (peakListRelativePath.trim().isEmpty())
-				peakListRelativePath = null;
+			String mzTabRelativePath = null;
+			if (args[1].trim().isEmpty() == false)
+				mzTabRelativePath = args[1];
+			File peakListDirectory = null;
+			if (args[2].trim().isEmpty() == false)
+				peakListDirectory = new File(args[2]);
+			String peakListRelativePath = null;
+			if (args[3].trim().isEmpty() == false)
+				peakListRelativePath = args[3];
 			File paramsFile = new File(args[4]);
 			String datasetID = null;
 			if (args.length >= 6)
@@ -287,28 +298,55 @@ public class TaskMzTabContext
 		// get known mzTab file properties
 		String mzTabFilename = mzTab.getFile().getName();
 		String resultFilenameBase = FilenameUtils.getBaseName(mzTabFilename);
-		// if this mzTab file is based on an input collection file, then its
-		// name should be mangled, and should therefore be mapped to an original
+		String mzTabFilePath =
+			FilenameUtils.separatorsToUnix(mzTab.getFile().getAbsolutePath());
+		// if this mzTab file is based on an input collection file (that hasn't
+		// yet been demangled e.g. for insertion into a dataset) then its name
+		// should still be mangled and should therefore be mapped to an original
 		// user-uploaded result file via some "upload_file_mapping" parameter
-		for (String mangledFilename : mappings.getMangledFilenames()) {
+		for (UploadMapping mapping : mappings.getUploadMappings()) {
 			// the mzTab file may be part of the original upload collection,
 			// or it may be converted from a file of that collection, in
 			// which case only the filename bases will match (e.g. it was
 			// converted from mzIdentML to mzTab)
+			String mangledFilename = mapping.getMangledFilename();
 			String mangledFilenameBase =
 				FilenameUtils.getBaseName(mangledFilename);
 			if (mangledFilename.equals(mzTabFilename) ||
 				mangledFilenameBase.equals(resultFilenameBase)) {
 				mzTab.setMangledResultFilename(mangledFilename);
-				mzTab.setUploadedResultPath(
-					mappings.getUploadedFilePath(mangledFilename));
+				mzTab.setUploadedResultPath(mapping.getUploadFilePath());
 				break;
 			}
 		}
-		// if the mzTab file has an uploaded path, then it is based
+		// if no uploaded path was found for this mzTab file, then its name
+		// may already have been demangled, e.g. to be copied into a dataset;
+		// in which case, if it is based on an input collection file, then
+		// its name should match up with an original user-uploaded result file
+		// via some "upload_file_mapping" parameter
+		String uploadedResultPath = mzTab.getUploadedResultPath();
+		if (uploadedResultPath == null) {
+			String mangledFilename = null;
+			// look through upload mappings for best (i.e. longest) matching
+			// "normalized" upload file path; that is, the part of the path
+			// that is preserved within the actual (e.g. dataset) directory
+			for (UploadMapping mapping : mappings.getUploadMappings()) {
+				String normalizedPath = mapping.getNormalizedUploadFilePath();
+				if (mzTabFilePath.endsWith(normalizedPath) &&
+					(uploadedResultPath == null ||
+					uploadedResultPath.length() < normalizedPath.length())) {
+					mangledFilename = mapping.getMangledFilename();
+					uploadedResultPath = mapping.getUploadFilePath();
+				}
+			}
+			if (uploadedResultPath != null && mangledFilename != null) {
+				mzTab.setMangledResultFilename(mangledFilename);
+				mzTab.setUploadedResultPath(uploadedResultPath);
+			}
+		}
+		// if an uploaded path was found for the mzTab file, then it is based
 		// on an input collection file and therefore may have its mapped
 		// relative path recorded in "result_file_mapping" parameters
-		String uploadedResultPath = mzTab.getUploadedResultPath();
 		if (uploadedResultPath != null) {
 			for (String resultFilename : mappings.getResultFilenames()) {
 				if (uploadedResultPath.endsWith(resultFilename)) {
@@ -333,31 +371,32 @@ public class TaskMzTabContext
 		if (mappedResultPath != null) {
 			boolean found = false;
 			for (String resultFilename : mappings.getResultFilenames()) {
-				Collection<String> msRunLocations =
-					mappings.getResultFileMsRunLocations(resultFilename);
-				if (msRunLocations != null) {
-					for (String msRunLocation : msRunLocations) {
-						if (mappedResultPath.endsWith(resultFilename) &&
-							cleanedMsRun.equals(msRunLocation)) {
-							msRun.setMappedPeakListPath(
-								mappings.getResultFileMsRunMapping(
-									resultFilename, msRunLocation));
-							found = true;
-							break;
+				if (mappedResultPath.endsWith(resultFilename)) {
+					Collection<String> msRunLocations =
+						mappings.getResultFileMsRunLocations(resultFilename);
+					if (msRunLocations != null) {
+						for (String msRunLocation : msRunLocations) {
+							if (cleanedMsRun.equals(msRunLocation)) {
+								msRun.setMappedPeakListPath(
+									mappings.getResultFileMsRunMapping(
+										resultFilename, msRunLocation));
+								found = true;
+								break;
+							}
 						}
 					}
+					if (found)
+						break;
 				}
-				if (found)
-					break;
 			}
 		}
 		// now try to find the best match for this ms_run peak list file
 		// from among this task's "upload_file_mapping" parameters
 		String uploadedPeakListMatch = msRun.getMappedPeakListPath();
 		// first try exact matches
-		for (String mangledFilename : mappings.getMangledFilenames()) {
-			String uploadedPeakListPath =
-				mappings.getUploadedFilePath(mangledFilename);
+		for (UploadMapping mapping : mappings.getUploadMappings()) {
+			String mangledFilename = mapping.getMangledFilename();
+			String uploadedPeakListPath = mapping.getUploadFilePath();
 			// if an upload mapping exists for this ms_run,
 			// then there are two possible exact match scenarios:
 			// 1. the ms_run-location value ends with the mangled filename,
@@ -373,19 +412,20 @@ public class TaskMzTabContext
 		}
 		// if no exact matches were found, try to match the mapped
 		// value with the first uploaded path that matches it
-		for (String mangledFilename : mappings.getMangledFilenames()) {
-			String uploadedPeakListPath =
-				mappings.getUploadedFilePath(mangledFilename);
-			// if an upload mapping exists for this ms_run,
-			// then the best match scenario we could hope for is that
-			// a "result_file_mapping" exists, and its value is some
-			// ending portion of the uploaded peak list file path, e.g.
-			// MassIVE dataset submission or any workflow with file mapping
-			if (uploadedPeakListMatch != null &&
-				uploadedPeakListPath.endsWith(uploadedPeakListMatch)) {
-				msRun.setMangledPeakListFilename(mangledFilename);
-				msRun.setUploadedPeakListPath(uploadedPeakListPath);
-				return;
+		if (uploadedPeakListMatch != null) {
+			for (UploadMapping mapping : mappings.getUploadMappings()) {
+				String mangledFilename = mapping.getMangledFilename();
+				String uploadedPeakListPath = mapping.getUploadFilePath();
+				// if an upload mapping exists for this ms_run,
+				// then the best match scenario we could hope for is that
+				// a "result_file_mapping" exists, and its value is some
+				// ending portion of the uploaded peak list file path, e.g.
+				// MassIVE dataset submission or any workflow with file mapping
+				if (uploadedPeakListPath.endsWith(uploadedPeakListMatch)) {
+					msRun.setMangledPeakListFilename(mangledFilename);
+					msRun.setUploadedPeakListPath(uploadedPeakListPath);
+					return;
+				}
 			}
 		}
 	}

@@ -85,7 +85,7 @@ public class MzTabFile
 		if (filePath.startsWith(File.separator))
 			filePath = filePath.substring(1);
 		descriptor.append(filePath);
-		this.descriptor = descriptor.toString();
+		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
 	}
 	
 	public void setTaskDescriptor(
@@ -114,7 +114,7 @@ public class MzTabFile
 		if (filePath.startsWith(File.separator))
 			filePath = filePath.substring(1);
 		descriptor.append(filePath);
-		this.descriptor = descriptor.toString();
+		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
 	}
 	
 	public String getMangledResultFilename() {

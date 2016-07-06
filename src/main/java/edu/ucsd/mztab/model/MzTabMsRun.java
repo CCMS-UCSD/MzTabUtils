@@ -68,6 +68,15 @@ public class MzTabMsRun
 		} else return null;
 	}
 	
+	public void setDescriptor(String peakListPath) {
+		if (peakListPath == null)
+			return;
+		else if (peakListPath.matches("^.{1}\\..*$"))
+			descriptor = peakListPath;
+		else descriptor = FilenameUtils.separatorsToUnix(
+			String.format("f.%s", peakListPath));
+	}
+	
 	public void setDatasetDescriptor(
 		String datasetID, String peakListRelativePath
 	) {
@@ -95,7 +104,7 @@ public class MzTabMsRun
 		if (filePath.startsWith(File.separator))
 			filePath = filePath.substring(1);
 		descriptor.append(filePath);
-		this.descriptor = descriptor.toString();
+		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
 	}
 	
 	public void setTaskDescriptor(
@@ -124,7 +133,7 @@ public class MzTabMsRun
 		if (filePath.startsWith(File.separator))
 			filePath = filePath.substring(1);
 		descriptor.append(filePath);
-		this.descriptor = descriptor.toString();
+		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
 	}
 	
 	public String getMangledPeakListFilename() {
