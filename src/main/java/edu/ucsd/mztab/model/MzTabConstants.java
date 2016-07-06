@@ -59,7 +59,7 @@ public class MzTabConstants
 	public static final Pattern FLOAT_PATTERN = Pattern.compile(
 		"[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?");
 	public static final String SIMPLE_FLOAT_PATTERN_STRING = 
-		"((?:[+-]?\\d+\\.?\\d*)|(?:[+-]?\\d*\\.?\\d+))";
+		"((?:\\+?-?\\d+\\.?\\d*)|(?:\\+?-?\\d*\\.?\\d+))";
 	public static final Pattern SIMPLE_FLOAT_PATTERN = Pattern.compile(
 		SIMPLE_FLOAT_PATTERN_STRING);
 }
