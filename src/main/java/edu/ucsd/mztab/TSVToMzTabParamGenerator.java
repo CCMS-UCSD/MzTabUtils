@@ -272,13 +272,13 @@ public class TSVToMzTabParamGenerator
 				if (cysteine != null && cysteine.trim().isEmpty() == false) {
 					if (cysteine.trim().equals("c57"))
 						addMod("[UNIMOD,UNIMOD:4,Carbamidomethyl,\"%s\"]",
-							"C", "57.021464", true);
+							"C", "57.021464", true, null);
 					else if (cysteine.trim().equals("c58"))
 						addMod("[UNIMOD,UNIMOD:6,Carboxymethyl,\"%s\"]",
-							"C", "58.005479", true);
+							"C", "58.005479", true, null);
 					else if (cysteine.trim().equals("c99"))
 						addMod("[UNIMOD,UNIMOD:17,NIPCAM,\"%s\"]",
-							"C", "99.068414", true);
+							"C", "99.068414", true, null);
 				}
 			}
 			parameter = XPathAPI.selectSingleNode(
@@ -287,7 +287,7 @@ public class TSVToMzTabParamGenerator
 				String present = parameter.getFirstChild().getNodeValue();
 				if (present != null && present.trim().equalsIgnoreCase("on"))
 					addMod("[UNIMOD,UNIMOD:7,Deamidated,\"%s\"]",
-						"NQ", "0.984016", false);
+						"NQ", "0.984016", false, null);
 			}
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='ptm.LYSINE_METHYLATION']");
@@ -295,7 +295,7 @@ public class TSVToMzTabParamGenerator
 				String present = parameter.getFirstChild().getNodeValue();
 				if (present != null && present.trim().equalsIgnoreCase("on"))
 					addMod("[UNIMOD,UNIMOD:34,Methyl,\"%s\"]",
-						"K", "14.015650", false);
+						"K", "14.015650", false, null);
 			}
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='ptm.NTERM_ACETYLATION']");
@@ -303,7 +303,7 @@ public class TSVToMzTabParamGenerator
 				String present = parameter.getFirstChild().getNodeValue();
 				if (present != null && present.trim().equalsIgnoreCase("on"))
 					addMod("[UNIMOD,UNIMOD:1,Acetyl,\"%s\"]",
-						"*", "42.010565", false);
+						"*", "42.010565", false, true);
 			}
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='ptm.NTERM_CARBAMYLATION']");
@@ -311,7 +311,7 @@ public class TSVToMzTabParamGenerator
 				String present = parameter.getFirstChild().getNodeValue();
 				if (present != null && present.trim().equalsIgnoreCase("on"))
 					addMod("[UNIMOD,UNIMOD:5,Carbamyl,\"%s\"]",
-						"*", "43.005814", false);
+						"*", "43.005814", false, true);
 			}
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='ptm.OXIDATION']");
@@ -319,7 +319,7 @@ public class TSVToMzTabParamGenerator
 				String present = parameter.getFirstChild().getNodeValue();
 				if (present != null && present.trim().equalsIgnoreCase("on"))
 					addMod("[UNIMOD,UNIMOD:35,Oxidation,\"%s\"]",
-						"M", "15.994915", false);
+						"M", "15.994915", false, null);
 			}
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='ptm.PHOSPHORYLATION']");
@@ -327,7 +327,7 @@ public class TSVToMzTabParamGenerator
 				String present = parameter.getFirstChild().getNodeValue();
 				if (present != null && present.trim().equalsIgnoreCase("on"))
 					addMod("[UNIMOD,UNIMOD:21,Phospho,\"%s\"]",
-						"STY", "79.966331", false);
+						"STY", "79.966331", false, null);
 			}
 			parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='ptm.PYROGLUTAMATE_FORMATION']");
@@ -335,7 +335,7 @@ public class TSVToMzTabParamGenerator
 				String present = parameter.getFirstChild().getNodeValue();
 				if (present != null && present.trim().equalsIgnoreCase("on"))
 					addMod("[UNIMOD,UNIMOD:28,Gln->pyro-Glu,\"%s\"]",
-						"Q", "-17.026549", false);
+						"Q", "-17.026549", false, true);
 			}
 			// TODO: this section isn't really useful unless we try to match
 			// these mods up with UNIMOD or PSI-MOD accessions, since adding
@@ -355,11 +355,18 @@ public class TSVToMzTabParamGenerator
 						String[] tokens = mod.split(",");
 						if (tokens == null || tokens.length != 3)
 							continue;
+						// determine fixed/variable status from declared type
 						boolean fixed = false;
 						if (tokens[2].startsWith("fix"))
 							fixed = true;
+						// determine terminal status from declared type
+						Boolean terminal = null;
+						if (tokens[2].contains("nterm"))
+							terminal = true;
+						else if (tokens[2].contains("cterm"))
+							terminal = false;
 						addMod("[MS,MS:1001460,unknown modification,\"%s\"]",
-							tokens[1], tokens[0], fixed);
+							tokens[1], tokens[0], fixed, terminal);
 					}
 				}
 			}
@@ -572,8 +579,12 @@ public class TSVToMzTabParamGenerator
 		}
 	}
 	
+	/**
+	 * @param terminal	true N-term, false C-term, null neither
+	 */
 	private void addMod(
-		String cvTerm, String aminoAcids, String mass, boolean fixed
+		String cvTerm, String aminoAcids, String mass,
+		boolean fixed, Boolean terminal
 	) {
 		if (cvTerm == null)
 			return;
@@ -604,15 +615,18 @@ public class TSVToMzTabParamGenerator
 		// build mod CV term string
 		cvTerm = String.format(cvTerm, getModFormatString(
 			modPattern, aminoAcids, mass,
-			fixed && (fixedModsReported == false)));
+			fixed && (fixedModsReported == false), terminal));
 		if (fixed)
 			fixedMods.add(cvTerm);
 		else variableMods.add(cvTerm);
 	}
 	
+	/**
+	 * @param terminal	true N-term, false C-term, null neither
+	 */
 	private String getModFormatString(
 		String modPattern, String aminoAcids, String mass,
-		boolean fixedModNotReported
+		boolean fixedModNotReported, Boolean terminal
 	) {
 		// ensure a valid amino acid set is present
 		if (aminoAcids == null)
@@ -632,12 +646,26 @@ public class TSVToMzTabParamGenerator
 		// insert the amino acid set into the proper
 		// place in the mod format string
 		String modFormatString = null;
-		// if there is no placeholder for amino acids in the mod pattern,
-		// then just put the amino acid set at the beginning
-		if (modPattern.indexOf('*') < 0)
-			modFormatString = String.format("%s%s", aminoAcids, modPattern);
+		// if there is no placeholder for amino acids in the mod pattern, then
+		// just put the amino acid set in the proper place for this mod type
+		if (modPattern.indexOf('*') < 0) {
+			// normal (i.e. not terminal) or C-term mods
+			if (terminal == null || terminal == false)
+				modFormatString = String.format("%s%s", aminoAcids, modPattern);
+			// N-term mods
+			else modFormatString =
+				String.format("%s%s", modPattern, aminoAcids);
+		}
 		// otherwise splice in the amino acid set where the placeholder is
 		else modFormatString = modPattern.replaceFirst("\\*", aminoAcids);
+		// add the proper terminal regex character, if applicable
+		if (terminal != null) {
+			// N-term mods
+			if (terminal)
+				modFormatString = String.format("^%s", modFormatString);
+			// C-term mods
+			else modFormatString = String.format("%s$", modFormatString);
+		}
 		// if there is no mass string, then this is
 		// a generic mod and can be returned as-is
 		if (mass == null)
@@ -662,7 +690,7 @@ public class TSVToMzTabParamGenerator
 			// if the placeholder is at the end of the mod pattern,
 			// then by convention add a "+" before the mass value,
 			// unless the mass is already modified by a sign character
-			if (modFormatString.endsWith("#") &&
+			if (modPattern.endsWith("#") &&
 				mass.startsWith("+") == false && mass.startsWith("-") == false)
 				mass = String.format("+%s", mass);
 			modFormatString = modFormatString.replaceFirst("#", mass);
