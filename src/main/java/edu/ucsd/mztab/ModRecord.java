@@ -117,6 +117,8 @@ public class ModRecord
 		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			psm = matcher.group(2);
+		// determine the index of this peptide's C-terminus
+		int cTerm = ProteomicsUtils.cleanPeptide(psm).length() + 1;
 		// iteratively apply this mod's regular expression, to extract any
 		// occurrences of this mod, and return the cleaned PSM string with
 		// all such occurrences removed
@@ -146,8 +148,19 @@ public class ModRecord
 				extractMod(cleaned, captured);
 			if (extracted != null) {
 				cleaned = extracted.getRight();
+				int position = extracted.getLeft();
+				// if this is a terminal mod, force the position to the peptide
+				// terminus (0 for N-term, peptide length + 1 for C-term), as
+				// per version 1.0.0 of the official mzTab format specification
+				// (section 5.8, "Reporting modifications and amino acid
+				// substitutions", subsection "{position}", page 15)
+				String regex = pattern.pattern();
+				if (regex.startsWith("^"))
+					position = 0;
+				else if (regex.endsWith("$"))
+					position = cTerm;
 				addModificationOccurrence(
-					getModification(extracted.getLeft(), psm), occurrences);
+					getModification(position, psm), occurrences);
 			}
 			// it should be impossible for the extraction operation to fail,
 			// since the matcher ensures that the mod is present in the PSM
@@ -323,7 +336,7 @@ public class ModRecord
 		// parse mod ID string to extract affected amino acid sites, and build
 		// a regular expression pattern to detect this mod in PSM strings
 		Set<Character> foundAminoAcids = new LinkedHashSet<Character>();
-		StringBuffer pattern = new StringBuffer();
+		StringBuilder pattern = new StringBuilder();
 		boolean foundHash = false;
 		boolean escape = false;
 		for (int i=0; i<modID.length(); i++) {
@@ -392,8 +405,13 @@ public class ModRecord
 					foundAminoAcids.clear();
 				}
 			}
-			// add the regex-escaped character to the pattern
-			pattern.append(Pattern.quote(Character.toString(current)));
+			// handle "^" characters at the beginning and "$"
+			// characters at the end of the mod pattern
+			if ((i == 0 && current == '^') ||
+				(i == (modID.length() - 1) && current == '$'))
+				pattern.append(Character.toString(current));
+			// otherwise add the regex-escaped character to the pattern
+			else pattern.append(Pattern.quote(Character.toString(current)));
 			escape = false;
 		}
 		// if the ID string ended in an amino acid pattern, add it now
