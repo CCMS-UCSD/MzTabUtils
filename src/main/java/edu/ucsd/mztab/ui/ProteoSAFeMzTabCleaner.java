@@ -3,10 +3,17 @@ package edu.ucsd.mztab.ui;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
+import edu.ucsd.mztab.model.MzTabFile;
+import edu.ucsd.mztab.processors.FDRPropagationProcessor;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
+import edu.ucsd.mztab.processors.FDRCalculationProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
 
 public class ProteoSAFeMzTabCleaner
@@ -16,15 +23,20 @@ public class ProteoSAFeMzTabCleaner
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.ProteoSAFeMzTabCleaner" +
-		"\n\t[-mztab     <MzTabDirectory>" +
+		"\n\t[-mztab         <MzTabDirectory>" +
 			"(if not provided, then cleanup is skipped]" +
-		"\n\t[-mztabPath <MzTabRelativePath> (if not under MzTabDirectory)]" +
-		"\n\t[-peak      <PeakListFilesDirectory>]" +
-		"\n\t[-peakPath  <PeakListRelativePath> " +
+		"\n\t[-mztabPath     <MzTabRelativePath> " +
+			"(if not under MzTabDirectory)]" +
+		"\n\t[-peak          <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath      <PeakListRelativePath> " +
 			"(if not under PeakListFilesDirectory)]" +
-		"\n\t-params     <ProteoSAFeParametersFile>" +
-		"\n\t-output     <CleanedMzTabDirectory>" +
-		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
+		"\n\t-params         <ProteoSAFeParametersFile>" +
+		"\n\t-output         <CleanedMzTabDirectory>" +
+		"\n\t[-dataset       <DatasetID>|<DatasetIDFile>]" +
+		"\n\t[-passThreshold <PassThresholdColumn>]" +
+		"\n\t[-decoy         <IsDecoyColumn>]" +
+		"\n\t[-decoyPattern  <SubstringIndicatingDecoy>]" +
+		"\n\t[-qvalue        <QValueColumn>]";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -43,19 +55,42 @@ public class ProteoSAFeMzTabCleaner
 		// sort files alphabetically
 		Arrays.sort(files);
 		for (File file : files) {
-			// set up output file
-			File outputFile = new File(cleanup.outputDirectory, file.getName());
-			// set up reader
-			MzTabReader reader =
-				new MzTabReader(cleanup.context.getMzTabFile(file), outputFile);
+			// get this input mzTab file
+			MzTabFile inputFile = cleanup.context.getMzTabFile(file);
+			// set up intermediate output file
+			File tempFile = new File(String.format("%s.temp", file.getName()));
+			// set up first-pass reader
+			MzTabReader reader = new MzTabReader(inputFile, tempFile);
 			// clean all ms_run-location file references to use
 			// fully qualified ProteoSAFe file descriptor paths
 			reader.addProcessor(new MsRunCleanProcessor());
+			// ensure that each PSM row has the FDR columns
+			// needed by ProteoSAFe to enforce quality control
+			Map<String, Integer> counts = new HashMap<String, Integer>(6);
+			Map<String, ImmutablePair<Boolean, Boolean>> peptides =
+				new HashMap<String, ImmutablePair<Boolean, Boolean>>();
+			Map<String, ImmutablePair<Boolean, Boolean>> proteins =
+				new HashMap<String, ImmutablePair<Boolean, Boolean>>();
+			reader.addProcessor(new FDRCalculationProcessor(
+				counts, peptides, proteins, cleanup.passThresholdColumn,
+				cleanup.decoyColumn, cleanup.decoyPattern,
+				cleanup.qValueColumn));
 			// ensure that each PSM row has the special columns
 			// needed by ProteoSAFe to ensure validity
 			reader.addProcessor(new ValidityProcessor());
-			// clean file
+			// clean file - first pass
 			reader.read();
+			// set up final output file
+			File outputFile = new File(cleanup.outputDirectory, file.getName());
+			// set up second-pass reader
+			reader = new MzTabReader(new MzTabFile(tempFile), outputFile);
+			// fill in the FDR columns created by the first FDR pass
+			reader.addProcessor(
+				new FDRPropagationProcessor(counts, peptides, proteins));
+			// clean file - second pass
+			reader.read();
+			// remove temporary file
+			tempFile.delete();
 		}
 	}
 	
@@ -72,6 +107,10 @@ public class ProteoSAFeMzTabCleaner
 		private File             mzTabDirectory;
 		private File             outputDirectory;
 		private TaskMzTabContext context;
+		private String           passThresholdColumn;
+		private String           decoyColumn;
+		private String           decoyPattern;
+		private String           qValueColumn;
 		
 		/*====================================================================
 		 * Constructors
@@ -79,7 +118,9 @@ public class ProteoSAFeMzTabCleaner
 		public ProteoSAFeMzTabCleanupOperation(
 			File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File parameters, File outputDirectory, String datasetID
+			File parameters, File outputDirectory, String datasetID,
+			String passThresholdColumn, String decoyColumn, String decoyPattern,
+			String qValueColumn
 		) {
 			// validate mzTab directory (if null,
 			// then no cleanup is necessary)
@@ -133,6 +174,11 @@ public class ProteoSAFeMzTabCleaner
 					peakListDirectory, peakListRelativePath,
 					parameters, datasetID);
 			else context = null;
+			// initialize FDR columns (any or all may be null)
+			this.passThresholdColumn = passThresholdColumn;
+			this.decoyColumn = decoyColumn;
+			this.decoyPattern = decoyPattern;
+			this.qValueColumn = qValueColumn;
 		}
 	}
 	
@@ -149,6 +195,10 @@ public class ProteoSAFeMzTabCleaner
 		File parameters = null;
 		File outputDirectory = null;
 		String datasetID = null;
+		String passThresholdColumn = null;
+		String decoyColumn = null;
+		String decoyPattern = null;
+		String qValueColumn = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -188,7 +238,14 @@ public class ProteoSAFeMzTabCleaner
 					}
 					// otherwise treat the argument as the literal dataset ID
 					else datasetID = value;
-				}
+				} else if (argument.equals("-passThreshold"))
+					passThresholdColumn = value;
+				else if (argument.equals("-decoy"))
+					decoyColumn = value;
+				else if (argument.equals("-decoyPattern"))
+					decoyPattern = value;
+				else if (argument.equals("-qvalue"))
+					qValueColumn = value;
 				else return null;
 			}
 		}
@@ -196,7 +253,8 @@ public class ProteoSAFeMzTabCleaner
 			return new ProteoSAFeMzTabCleanupOperation(
 				mzTabDirectory, mzTabRelativePath,
 				peakListDirectory, peakListRelativePath,
-				parameters, outputDirectory, datasetID);
+				parameters, outputDirectory, datasetID,
+				passThresholdColumn, decoyColumn, decoyPattern, qValueColumn);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
