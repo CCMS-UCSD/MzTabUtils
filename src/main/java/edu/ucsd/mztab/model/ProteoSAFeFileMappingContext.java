@@ -347,7 +347,7 @@ public class ProteoSAFeFileMappingContext
 			// determine this upload mapping's normalized upload path,
 			// if it's part of a folder selected for upload by the user
 			for (String folder : folders) {
-				if (uploadFilePath.startsWith(folder)) {
+				if (isInFolder(uploadFilePath, folder)) {
 					String normalizedPath =
 						uploadFilePath.substring(folder.length());
 					normalizedPath = String.format("%s%s",
@@ -398,10 +398,29 @@ public class ProteoSAFeFileMappingContext
 					return true;
 			// finally, check this collection's folders
 			// to see if this upload is from any of them
-			for (String folder : folders)
-				if (uploadFilePath.startsWith(folder))
+			for (String folder : folders) {
+				if (isInFolder(uploadFilePath, folder))
 					return true;
+			}
 			return false;
+		}
+		
+		/*====================================================================
+		 * Convenience methods
+		 *====================================================================*/
+		private boolean isInFolder(String file, String folder) {
+			if (file == null || folder == null)
+				return false;
+			// normalize file path separators to ensure good string matching
+			file = FilenameUtils.separatorsToUnix(file);
+			folder = FilenameUtils.separatorsToUnix(folder);
+			// ensure folder path ends with a slash, so we won't
+			// match wrong folders with a common prefix
+			if (folder.endsWith("/") == false)
+				folder = String.format("%s/", folder);
+			// if file path starts with folder path,
+			// then the file is under the folder
+			return file.startsWith(folder);
 		}
 	}
 }
