@@ -97,136 +97,7 @@ public class MzTabFDRCleaner
 		}
 	}
 	
-	/*========================================================================
-	 * Convenience classes
-	 *========================================================================*/
-	/**
-	 * Struct to maintain context data for each mzTab FDR cleanup operation.
-	 */
-	private static class MzTabFDRCleanupOperation {
-		/*====================================================================
-		 * Properties
-		 *====================================================================*/
-		private File    mzTabDirectory;
-		private File    outputDirectory;
-		private String  passThresholdColumn;
-		private String  decoyColumn;
-		private String  decoyPattern;
-		private String  qValueColumn;
-		private boolean filter;
-		private Double  filterFDR;
-		
-		/*====================================================================
-		 * Constructors
-		 *====================================================================*/
-		public MzTabFDRCleanupOperation(
-			File mzTabDirectory, File outputDirectory,
-			String passThresholdColumn, String decoyColumn, String decoyPattern,
-			String qValueColumn, boolean filter, Double filterFDR
-		) {
-			// validate mzTab directory
-			if (mzTabDirectory == null)
-				throw new NullPointerException(
-					"MzTab directory cannot be null.");
-			else if (mzTabDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be a directory.",
-						mzTabDirectory.getAbsolutePath()));
-			else if (mzTabDirectory.canRead() == false)
-				throw new IllegalArgumentException(
-					String.format("MzTab directory [%s] must be readable.",
-						mzTabDirectory.getAbsolutePath()));
-			else this.mzTabDirectory = mzTabDirectory;
-			// validate cleaned mzTab output directory
-			if (outputDirectory == null)
-				throw new NullPointerException(
-					"Output directory cannot be null.");
-			else if (outputDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(
-					String.format("Output directory [%s] must be a directory.",
-						outputDirectory.getAbsolutePath()));
-			else if (outputDirectory.canWrite() == false)
-				throw new IllegalArgumentException(
-					String.format("Output directory [%s] must be writable.",
-						outputDirectory.getAbsolutePath()));
-			else this.outputDirectory = outputDirectory;
-			// initialize FDR columns (any or all may be null)
-			this.passThresholdColumn = passThresholdColumn;
-			this.decoyColumn = decoyColumn;
-			this.decoyPattern = decoyPattern;
-			this.qValueColumn = qValueColumn;
-			// initialize filter settings
-			this.filter = filter;
-			this.filterFDR = filterFDR;
-		}
-	}
-	
-	/*========================================================================
-	 * Convenience methods
-	 *========================================================================*/
-	private static MzTabFDRCleanupOperation extractArguments(String[] args) {
-		if (args == null || args.length < 1)
-			return null;
-		File mzTabDirectory = null;
-		File outputDirectory = null;
-		String passThresholdColumn = null;
-		String decoyColumn = null;
-		String decoyPattern = null;
-		String qValueColumn = null;
-		Boolean filter = false;
-		Double filterFDR = null;
-		for (int i=0; i<args.length; i++) {
-			String argument = args[i];
-			if (argument == null)
-				return null;
-			else {
-				i++;
-				if (i >= args.length)
-					return null;
-				String value = args[i];
-				if (argument.equals("-mztab"))
-					mzTabDirectory = new File(value);
-				else if (argument.equals("-output"))
-					outputDirectory = new File(value);
-				else if (argument.equals("-passThreshold"))
-					passThresholdColumn = value;
-				else if (argument.equals("-decoy"))
-					decoyColumn = value;
-				else if (argument.equals("-decoyPattern"))
-					decoyPattern = value;
-				else if (argument.equals("-qvalue"))
-					qValueColumn = value;
-				else if (argument.equals("-filter")) {
-					filter = CommonUtils.parseBooleanColumn(value);
-					if (filter == null)
-						throw new IllegalArgumentException(String.format(
-							"Unrecognized value for \"-filter\": [%s]", value));
-				} else if (argument.equals("-filterFDR")) try {
-					filterFDR = Double.parseDouble(value);
-					// enforce the FDR filter range of 0-1
-					if (filterFDR < 0.0 || filterFDR > 1.0)
-						throw new IllegalArgumentException("The argument to " +
-							"\"-filterFDR\" must be a number in the range 0-1");
-				} catch (Throwable error) {
-					throw new IllegalArgumentException(String.format(
-						"Illegal value for \"-filterFDR\": [%s]", value),
-						error);
-				} else return null;
-			}
-		}
-		try {
-			return new MzTabFDRCleanupOperation(
-				mzTabDirectory, outputDirectory,
-				passThresholdColumn, decoyColumn, decoyPattern, qValueColumn,
-				filter, filterFDR);
-		} catch (Throwable error) {
-			die("There was an error reading command line parameters " +
-				"to set up mzTab FDR cleanup operation.", error);
-			return null;
-		}
-	}
-	
-	private static Double calculateFDR(Integer target, Integer decoy) {
+	public static Double calculateFDR(Integer target, Integer decoy) {
 		if (target == null || target == 0 || decoy == null)
 			return null;
 		else if (decoy == 0)
@@ -234,7 +105,7 @@ public class MzTabFDRCleaner
 		else return (double)decoy / (double)target;
 	}
 	
-	private static void doSecondFDRPass(
+	public static void doSecondFDRPass(
 		File input, File output, String mzTabFilename,
 		boolean filter, Double filterFDR,
 		Double psmFDR, Double peptideFDR, Double proteinFDR
@@ -429,6 +300,135 @@ public class MzTabFDRCleaner
 		} finally {
 			try { reader.close(); } catch (Throwable error) {}
 			try { writer.close(); } catch (Throwable error) {}
+		}
+	}
+	
+	/*========================================================================
+	 * Convenience classes
+	 *========================================================================*/
+	/**
+	 * Struct to maintain context data for each mzTab FDR cleanup operation.
+	 */
+	private static class MzTabFDRCleanupOperation {
+		/*====================================================================
+		 * Properties
+		 *====================================================================*/
+		private File    mzTabDirectory;
+		private File    outputDirectory;
+		private String  passThresholdColumn;
+		private String  decoyColumn;
+		private String  decoyPattern;
+		private String  qValueColumn;
+		private boolean filter;
+		private Double  filterFDR;
+		
+		/*====================================================================
+		 * Constructors
+		 *====================================================================*/
+		public MzTabFDRCleanupOperation(
+			File mzTabDirectory, File outputDirectory,
+			String passThresholdColumn, String decoyColumn, String decoyPattern,
+			String qValueColumn, boolean filter, Double filterFDR
+		) {
+			// validate mzTab directory
+			if (mzTabDirectory == null)
+				throw new NullPointerException(
+					"MzTab directory cannot be null.");
+			else if (mzTabDirectory.isDirectory() == false)
+				throw new IllegalArgumentException(
+					String.format("MzTab directory [%s] must be a directory.",
+						mzTabDirectory.getAbsolutePath()));
+			else if (mzTabDirectory.canRead() == false)
+				throw new IllegalArgumentException(
+					String.format("MzTab directory [%s] must be readable.",
+						mzTabDirectory.getAbsolutePath()));
+			else this.mzTabDirectory = mzTabDirectory;
+			// validate cleaned mzTab output directory
+			if (outputDirectory == null)
+				throw new NullPointerException(
+					"Output directory cannot be null.");
+			else if (outputDirectory.isDirectory() == false)
+				throw new IllegalArgumentException(
+					String.format("Output directory [%s] must be a directory.",
+						outputDirectory.getAbsolutePath()));
+			else if (outputDirectory.canWrite() == false)
+				throw new IllegalArgumentException(
+					String.format("Output directory [%s] must be writable.",
+						outputDirectory.getAbsolutePath()));
+			else this.outputDirectory = outputDirectory;
+			// initialize FDR columns (any or all may be null)
+			this.passThresholdColumn = passThresholdColumn;
+			this.decoyColumn = decoyColumn;
+			this.decoyPattern = decoyPattern;
+			this.qValueColumn = qValueColumn;
+			// initialize filter settings
+			this.filter = filter;
+			this.filterFDR = filterFDR;
+		}
+	}
+	
+	/*========================================================================
+	 * Convenience methods
+	 *========================================================================*/
+	private static MzTabFDRCleanupOperation extractArguments(String[] args) {
+		if (args == null || args.length < 1)
+			return null;
+		File mzTabDirectory = null;
+		File outputDirectory = null;
+		String passThresholdColumn = null;
+		String decoyColumn = null;
+		String decoyPattern = null;
+		String qValueColumn = null;
+		Boolean filter = false;
+		Double filterFDR = null;
+		for (int i=0; i<args.length; i++) {
+			String argument = args[i];
+			if (argument == null)
+				return null;
+			else {
+				i++;
+				if (i >= args.length)
+					return null;
+				String value = args[i];
+				if (argument.equals("-mztab"))
+					mzTabDirectory = new File(value);
+				else if (argument.equals("-output"))
+					outputDirectory = new File(value);
+				else if (argument.equals("-passThreshold"))
+					passThresholdColumn = value;
+				else if (argument.equals("-decoy"))
+					decoyColumn = value;
+				else if (argument.equals("-decoyPattern"))
+					decoyPattern = value;
+				else if (argument.equals("-qvalue"))
+					qValueColumn = value;
+				else if (argument.equals("-filter")) {
+					filter = CommonUtils.parseBooleanColumn(value);
+					if (filter == null)
+						throw new IllegalArgumentException(String.format(
+							"Unrecognized value for \"-filter\": [%s]", value));
+				} else if (argument.equals("-filterFDR")) try {
+					filterFDR = Double.parseDouble(value);
+					// enforce the FDR filter range of 0-1
+					if (filterFDR < 0.0 || filterFDR > 1.0)
+						throw new IllegalArgumentException("The argument to " +
+							"\"-filterFDR\" must be a number in the range 0-1");
+				} catch (Throwable error) {
+					throw new IllegalArgumentException(String.format(
+						"Illegal value for \"-filterFDR\": [%s]", value),
+						error);
+				} else return null;
+			}
+		}
+		try {
+			return new MzTabFDRCleanupOperation(
+				mzTabDirectory, outputDirectory,
+				passThresholdColumn, decoyColumn, decoyPattern, qValueColumn,
+				filter, filterFDR);
+		} catch (Throwable error) {
+			die("There was an error reading command line parameters " +
+				"to set up mzTab FDR cleanup operation.", error);
+			return null;
 		}
 	}
 	
