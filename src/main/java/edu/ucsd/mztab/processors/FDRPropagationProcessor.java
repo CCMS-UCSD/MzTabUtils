@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
@@ -17,9 +18,9 @@ public class FDRPropagationProcessor implements MzTabProcessor
 	 * Constants
 	 *========================================================================*/
 	private static final String[] RELEVANT_PSM_COLUMNS = new String[]{
-		FDRCalculationProcessor.PASS_THRESHOLD_COLUMN,
-		FDRCalculationProcessor.IS_DECOY_COLUMN,
-		FDRCalculationProcessor.Q_VALUE_COLUMN
+		MzTabConstants.PASS_THRESHOLD_COLUMN,
+		MzTabConstants.IS_DECOY_COLUMN,
+		MzTabConstants.Q_VALUE_COLUMN
 	};
 	
 	/*========================================================================
@@ -129,7 +130,7 @@ public class FDRPropagationProcessor implements MzTabProcessor
 				if (header == null)
 					continue;
 				else if (header.equalsIgnoreCase(
-					FDRCalculationProcessor.Q_VALUE_COLUMN)) {
+					MzTabConstants.Q_VALUE_COLUMN)) {
 					psmQValueIndex = i;
 					break;
 				}
@@ -141,7 +142,7 @@ public class FDRPropagationProcessor implements MzTabProcessor
 					"\n----------\n%s\n----------\n" +
 					"No \"%s\" column was found.",
 					lineNumber, mzTabFilename, line,
-					FDRCalculationProcessor.Q_VALUE_COLUMN));
+					MzTabConstants.Q_VALUE_COLUMN));
 		}
 		// write global PSM-level FDR to this row
 		else if (line.startsWith("PSM")) {
@@ -161,7 +162,7 @@ public class FDRPropagationProcessor implements MzTabProcessor
 					"Expected a \"%s\" column value at index %d, but " +
 					"this line only contains %d elements.",
 					lineNumber, mzTabFilename, line,
-					FDRCalculationProcessor.Q_VALUE_COLUMN,
+					MzTabConstants.Q_VALUE_COLUMN,
 					psmQValueIndex, row.length));
 			// if a valid value is not already present for this
 			// column, then write in the calculated value

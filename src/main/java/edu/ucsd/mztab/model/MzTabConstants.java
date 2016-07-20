@@ -9,8 +9,17 @@ public class MzTabConstants
 	 *========================================================================*/
 	// constants pertaining to mzTab file structure
 	public static enum MzTabSection { MTD, PRT, PEP, PSM, SML }
+	
+	// constants pertaining to important MTD section fields
+	public static final String FDR_MTD_FIELD = "false_discovery_rate";
+	public static final Pattern FDR_LINE_PATTERN = Pattern.compile(
+		"^MTD\\s+" + FDR_MTD_FIELD + "\\s+(.+)$");
 	public static final Pattern FILE_LINE_PATTERN = Pattern.compile(
 		"^MTD\\s+ms_run\\[(\\d+)\\]-location\\s+(.+)$");
+	
+	// constants pertaining to important PSM section header (PSH) columns
+	public static final String PSH_PEPTIDE_COLUMN = "sequence";
+	public static final String PSH_PROTEIN_COLUMN = "accession";
 	
 	// constants pertaining to mzTab "spectra_ref" column values,
 	// as seen in PSM rows
@@ -39,6 +48,20 @@ public class MzTabConstants
 	public static final String MZTAB_MODIFICATION_STRING_FORMAT =
 		"{position}{Parameter}-{Modification or Substitution identifier}" +
 		"|{neutral loss}";
+	
+	// constants pertaining to CCMS-curated mzTab FDR fields
+	public static final String PASS_THRESHOLD_COLUMN =
+		"opt_global_pass_threshold";
+	public static final String IS_DECOY_COLUMN =
+		"opt_global_cv_MS:1002217_decoy_peptide";
+	public static final String Q_VALUE_COLUMN =
+		"opt_global_cv_MS:1002354_PSM-level_q-value";
+	public static final String GLOBAL_PSM_FDR_TERM =
+		"[MS, MS:1002350, PSM-level global FDR, %s]";
+	public static final String GLOBAL_PEPTIDE_FDR_TERM =
+		"[MS, MS:1001364, peptide sequence-level global FDR, %s]";
+	public static final String GLOBAL_PROTEIN_FDR_TERM =
+		"[MS, MS:1001214, protein-level global FDR, %s]";
 	
 	// constants pertaining to peptide strings
 	public static final String AMINO_ACID_CHARSET = "ARDNCEQGHILKMFPSTWYV";

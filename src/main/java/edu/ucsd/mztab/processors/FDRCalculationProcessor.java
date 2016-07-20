@@ -10,27 +10,21 @@ import java.util.Set;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
+import edu.ucsd.util.CommonUtils;
 
 public class FDRCalculationProcessor implements MzTabProcessor
 {
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
-	private static final String PEPTIDE_COLUMN = "sequence";
-	private static final String PROTEIN_COLUMN = "accession";
 	private static final String[] RELEVANT_PSM_COLUMNS = new String[]{
-		PEPTIDE_COLUMN, PROTEIN_COLUMN
+		MzTabConstants.PSH_PEPTIDE_COLUMN, MzTabConstants.PSH_PROTEIN_COLUMN
 	};
-	public static final String PASS_THRESHOLD_COLUMN =
-		"opt_global_pass_threshold";
-	public static final String IS_DECOY_COLUMN =
-		"opt_global_cv_MS:1002217_decoy_peptide";
-	public static final String Q_VALUE_COLUMN =
-		"opt_global_cv_MS:1002354_PSM-level_q-value";
 	
 	/*========================================================================
 	 * Properties
@@ -117,38 +111,40 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				String header = headers.get(i);
 				if (header == null)
 					continue;
-				else if (passThresholdColumn != null &&
-					header.equalsIgnoreCase(passThresholdColumn))
+				else if (headerCorrespondsToColumn(header, passThresholdColumn))
 					columns.put(passThresholdColumn, i);
-				else if (decoyColumn != null &&
-					header.equalsIgnoreCase(decoyColumn))
+				else if (headerCorrespondsToColumn(header, decoyColumn))
 					columns.put(decoyColumn, i);
-				else if (qValueColumn != null &&
-					header.equalsIgnoreCase(qValueColumn))
+				else if (headerCorrespondsToColumn(header, qValueColumn))
 					columns.put(qValueColumn, i);
-				else if (header.equalsIgnoreCase(PASS_THRESHOLD_COLUMN))
-					columns.put(PASS_THRESHOLD_COLUMN, i);
-				else if (header.equalsIgnoreCase(IS_DECOY_COLUMN))
-					columns.put(IS_DECOY_COLUMN, i);
-				else if (header.equalsIgnoreCase(Q_VALUE_COLUMN))
-					columns.put(Q_VALUE_COLUMN, i);
+				else if (header.equalsIgnoreCase(
+					MzTabConstants.PASS_THRESHOLD_COLUMN))
+					columns.put(MzTabConstants.PASS_THRESHOLD_COLUMN, i);
+				else if (header.equalsIgnoreCase(
+					MzTabConstants.IS_DECOY_COLUMN))
+					columns.put(MzTabConstants.IS_DECOY_COLUMN, i);
+				else if (header.equalsIgnoreCase(MzTabConstants.Q_VALUE_COLUMN))
+					columns.put(MzTabConstants.Q_VALUE_COLUMN, i);
 			}
 			// add CCMS-controlled FDR columns, if not already present
-			if (columns.get(PASS_THRESHOLD_COLUMN) == null) {
-				columns.put(PASS_THRESHOLD_COLUMN, headers.size());
-				line = String.format(
-					"%s\t%s", line.trim(), PASS_THRESHOLD_COLUMN);
-				headers.add(PASS_THRESHOLD_COLUMN);
+			if (columns.get(MzTabConstants.PASS_THRESHOLD_COLUMN) == null) {
+				columns.put(
+					MzTabConstants.PASS_THRESHOLD_COLUMN, headers.size());
+				line = String.format( "%s\t%s", line.trim(),
+					MzTabConstants.PASS_THRESHOLD_COLUMN);
+				headers.add(MzTabConstants.PASS_THRESHOLD_COLUMN);
 			}
-			if (columns.get(IS_DECOY_COLUMN) == null) {
-				columns.put(IS_DECOY_COLUMN, headers.size());
-				line = String.format("%s\t%s", line.trim(), IS_DECOY_COLUMN);
-				headers.add(IS_DECOY_COLUMN);
+			if (columns.get(MzTabConstants.IS_DECOY_COLUMN) == null) {
+				columns.put(MzTabConstants.IS_DECOY_COLUMN, headers.size());
+				line = String.format("%s\t%s", line.trim(),
+					MzTabConstants.IS_DECOY_COLUMN);
+				headers.add(MzTabConstants.IS_DECOY_COLUMN);
 			}
-			if (columns.get(Q_VALUE_COLUMN) == null) {
-				columns.put(Q_VALUE_COLUMN, headers.size());
-				line = String.format("%s\t%s", line.trim(), Q_VALUE_COLUMN);
-				headers.add(Q_VALUE_COLUMN);
+			if (columns.get(MzTabConstants.Q_VALUE_COLUMN) == null) {
+				columns.put(MzTabConstants.Q_VALUE_COLUMN, headers.size());
+				line = String.format("%s\t%s", line.trim(),
+					MzTabConstants.Q_VALUE_COLUMN);
+				headers.add(MzTabConstants.Q_VALUE_COLUMN);
 			}
 		}
 		// record FDR attributes for this PSM row
@@ -164,10 +160,12 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			String[] row = line.split("\\t");
 			// passThreshold; default true
 			Boolean passThreshold = true;
-			Integer passThresholdIndex = columns.get(PASS_THRESHOLD_COLUMN);
+			Integer passThresholdIndex =
+				columns.get(MzTabConstants.PASS_THRESHOLD_COLUMN);
 			// if the control column is already present, just read its value
 			if (passThresholdIndex < row.length)
-				passThreshold = parseBooleanColumn(row[passThresholdIndex]);
+				passThreshold =
+					CommonUtils.parseBooleanColumn(row[passThresholdIndex]);
 			// otherwise, attempt to determine the correct
 			// value and write it to the control column
 			else {
@@ -175,7 +173,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				if (passThresholdColumn != null) {
 					Integer index = columns.get(passThresholdColumn);
 					if (index != null)
-						passThreshold = parseBooleanColumn(row[index]);
+						passThreshold =
+							CommonUtils.parseBooleanColumn(row[index]);
 				}
 				// enforce a default of true, even if something was present
 				// but could not be interpreted as a valid boolean value
@@ -186,10 +185,10 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			}
 			// isDecoy; default null
 			Boolean isDecoy = null;
-			Integer decoyIndex = columns.get(IS_DECOY_COLUMN);
+			Integer decoyIndex = columns.get(MzTabConstants.IS_DECOY_COLUMN);
 			// if the control column is already present, just read its value
 			if (decoyIndex < row.length)
-				isDecoy = parseBooleanColumn(row[decoyIndex]);
+				isDecoy = CommonUtils.parseBooleanColumn(row[decoyIndex]);
 			// otherwise, attempt to determine the correct
 			// value and write it to the control column
 			else {
@@ -210,17 +209,17 @@ public class FDRCalculationProcessor implements MzTabProcessor
 						// if a decoy column was specified and is present,
 						// but no decoy substring was provided, then we
 						// can only interpret standard boolean values
-						else isDecoy = parseBooleanColumn(value);
+						else isDecoy = CommonUtils.parseBooleanColumn(value);
 					}
 				}
 				line = String.format("%s\t%s", line.trim(),
-					isDecoy == null ? "null" : Boolean.toString(isDecoy));
+					isDecoy == null ? "null" :
+						isDecoy ? "1" : "0");	// write as 0/1 by convention
 				row = line.split("\\t");
 			}
-			// Q-value; default null since we can't
-			// calculate it until we do another pass
+			// Q-value; default null
 			String qValue = "null";
-			Integer qValueIndex = columns.get(Q_VALUE_COLUMN);
+			Integer qValueIndex = columns.get(MzTabConstants.Q_VALUE_COLUMN);
 			// if the control column is already present, just read its value
 			if (qValueIndex < row.length)
 				qValue = row[qValueIndex];
@@ -244,10 +243,13 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				else incrementCount("targetPSM");
 			}
 			// add this PSM row's peptide sequence to the proper maps
-			String peptide = row[psmHeader.getColumnIndex(PEPTIDE_COLUMN)];
+			Integer peptideIndex =
+				psmHeader.getColumnIndex(MzTabConstants.PSH_PEPTIDE_COLUMN);
+			Integer proteinIndex =
+				psmHeader.getColumnIndex(MzTabConstants.PSH_PROTEIN_COLUMN);
+			String peptide = row[peptideIndex];
 			addPeptide(peptide, passThreshold, isDecoy);
-			addProteinPeptide(
-				row[psmHeader.getColumnIndex(PROTEIN_COLUMN)], peptide);
+			addProteinPeptide(row[proteinIndex], peptide);
 		}
 		return line;
 	}
@@ -358,23 +360,16 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private Boolean parseBooleanColumn(String value) {
-		if (value == null)
-			return null;
-		else value = value.trim();
-		// boolean columns can only be interpreted
-		// using standard boolean string values
-		if (value.equals("1") ||
-			value.equalsIgnoreCase("true") ||
-			value.equalsIgnoreCase("yes"))
-			return true;
-		else if (value.equals("0") ||
-			value.equalsIgnoreCase("false") ||
-			value.equalsIgnoreCase("no"))
+	private boolean headerCorrespondsToColumn(String header, String column) {
+		if (header == null || column == null)
 			return false;
-		// any other value, even though present in the column,
-		// cannot be interpreted and thus we call it null
-		else return null;
+		else if (header.equalsIgnoreCase(column))
+			return true;
+		else if (header.equalsIgnoreCase(
+			String.format("opt_global_%s", column)))
+			return true;
+		// TODO: look up and compare to search engine scores
+		else return false;
 	}
 	
 	private void incrementCount(String count) {
