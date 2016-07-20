@@ -36,7 +36,7 @@ public class MzTabValidator
 	 * Constants
 	 *========================================================================*/
 	private static final String USAGE =
-		"java -cp MassIVEUtils.jar edu.ucsd.mztab.MzTabValidator" +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.MzTabValidator" +
 		"\n\t-params     <ParameterFile>" +
 		"\n\t[-mztab     <MzTabDirectory> " +
 			"(if not provided, then validation is skipped]" +
@@ -343,7 +343,8 @@ public class MzTabValidator
 				scansDirectory, resultDirectory, output, countOnly,
 				failureThreshold);
 		} catch (Throwable error) {
-			System.err.println(error.getMessage());
+			die("There was an error reading command line parameters " +
+				"to set up mzTab validation operation.", error);
 			return null;
 		}
 	}
