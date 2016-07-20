@@ -270,18 +270,61 @@ public class FDRCalculationProcessor implements MzTabProcessor
 		for (String accession : proteinPeptides.keySet()) {
 			// ensure this protein is counted by adding a default record for it
 			addProtein(accession, false, null);
-			// update the protein record with the most affirmative
-			// attributes of any of its peptides
+			// determine the protein's attributes from those of its peptides
+			Boolean passThreshold = null;
+			Boolean isDecoy = null;
+			boolean nonDecoyPeptideFound = false;
 			Set<String> sequences = proteinPeptides.get(accession);
 			if (sequences != null) {
 				for (String sequence : sequences) {
 					ImmutablePair<Boolean, Boolean> attributes =
 						peptides.get(sequence);
-					if (attributes != null)
-						addProtein(accession,
-							attributes.getLeft(), attributes.getRight());
+					if (attributes != null) {
+						// a protein passes threshold iff any one of
+						// its peptides passes threshold; so only
+						// bother to look at this peptide if no
+						// passing peptides have been found so far
+						if (passThreshold == null || passThreshold == false) {
+							Boolean peptidePassThreshold = attributes.getLeft();
+							// propagate either true or false; no false
+							// will overwrite a true since this peptide
+							// wouldn't even have been considered if a
+							// passing peptide had been seen so far
+							if (peptidePassThreshold != null)
+								passThreshold = peptidePassThreshold;
+						}
+						// a protein is labeled decoy iff
+						// ALL of its peptides are decoys
+						Boolean peptideIsDecoy = attributes.getRight();
+						// if this peptide's decoy status is null, then the
+						// protein is not a decoy; it's either false or null
+						if (peptideIsDecoy == null) {
+							nonDecoyPeptideFound = true;
+							// only leave the protein's decoy status null
+							// if all peptides found so far have been null
+							if (isDecoy != null)
+								isDecoy = false;
+						}
+						// if this peptide is not a decoy,
+						// then the protein isn't either
+						else if (peptideIsDecoy == false) {
+							nonDecoyPeptideFound = true;
+							isDecoy = false;
+						}
+						// if this peptide is a decoy, then the protein
+						// is only marked as a decoy if no other
+						// non-decoy peptides have been found
+						else if (nonDecoyPeptideFound)
+							isDecoy = false;
+						else isDecoy = true;
+					}
 				}
 			}
+			// ensure passThreshold is true by default if all peptides were null
+			if (passThreshold == null)
+				passThreshold = true;
+			// update protein with determined attributes
+			addProtein(accession, passThreshold, isDecoy);
 		}
 		// add peptide element counts
 		for (String sequence : peptides.keySet()) {

@@ -398,10 +398,9 @@ public class ProteoSAFeFileMappingContext
 					return true;
 			// finally, check this collection's folders
 			// to see if this upload is from any of them
-			for (String folder : folders) {
+			for (String folder : folders)
 				if (isInFolder(uploadFilePath, folder))
 					return true;
-			}
 			return false;
 		}
 		
