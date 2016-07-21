@@ -525,9 +525,9 @@ public class TSVToMzTabParameters
 					if (name == null || value == null)
 						continue;
 					// skip FDR columns, since we handle them later
-					else if (name.equalsIgnoreCase("q_value") ||
-						name.equalsIgnoreCase("pass_threshold") ||
-						name.equalsIgnoreCase("decoy"))
+					else if (name.equalsIgnoreCase("column.q_value") ||
+						name.equalsIgnoreCase("column.pass_threshold") ||
+						name.equalsIgnoreCase("column.decoy"))
 						continue;
 					// extract "column." prefix
 					String[] tokens = name.split("\\.");
