@@ -78,11 +78,13 @@ public class CommonUtils
 		// using standard boolean string values
 		if (value.equals("1") ||
 			value.equalsIgnoreCase("true") ||
-			value.equalsIgnoreCase("yes"))
+			value.equalsIgnoreCase("yes") ||
+			value.equalsIgnoreCase("on"))
 			return true;
 		else if (value.equals("0") ||
 			value.equalsIgnoreCase("false") ||
-			value.equalsIgnoreCase("no"))
+			value.equalsIgnoreCase("no") ||
+			value.equalsIgnoreCase("off"))
 			return false;
 		// any other value, even though present in the column,
 		// cannot be interpreted and thus we call it null
