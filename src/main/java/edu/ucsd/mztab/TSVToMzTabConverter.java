@@ -327,7 +327,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			psm.setSequence(cleanedPeptide);
 			// try to extract "pre" and "post" values from the peptide sequence
 			psm.setPre(pre);
-			psm.setPost(post);;
+			psm.setPost(post);
 			// mark this row as "INVALID" if any mods were
 			// left unparsed from the peptide string
 			if (isPeptideClean(cleaned))
