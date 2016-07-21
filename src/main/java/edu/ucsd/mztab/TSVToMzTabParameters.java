@@ -183,9 +183,6 @@ public class TSVToMzTabParameters
 				else for (int i=0; i<cvTerms.length; i++)
 					addVariableMod(cvTerms[i]);
 			}
-			// map user-specified "charge" column to the correct mzTab column
-			else if (parameter.equalsIgnoreCase("charge"))
-				columns.put("exp_mass_to_charge", value);
 			// add all column identifiers
 			else columns.put(parameter, value);
 		}
