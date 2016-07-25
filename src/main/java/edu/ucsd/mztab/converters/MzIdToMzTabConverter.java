@@ -3,8 +3,8 @@ package edu.ucsd.mztab.converters;
 import java.io.File;
 import java.io.FileOutputStream;
 
+import edu.ucsd.mztab.converters.impl.CCMSMzIdentMLMzTabConverter;
 import uk.ac.ebi.pride.utilities.data.controller.impl.ControllerImpl.MzIdentMLControllerImpl;
-import uk.ac.ebi.pride.utilities.data.exporters.MzIdentMLMzTabConverter;
 
 public class MzIdToMzTabConverter
 {
@@ -53,7 +53,8 @@ public class MzIdToMzTabConverter
 		FileOutputStream output = null;
 		try {
 	    	output = new FileOutputStream(mzTabFile);
-	    	new MzIdentMLMzTabConverter(new MzIdentMLControllerImpl(mzIdFile))
+	    	new CCMSMzIdentMLMzTabConverter(
+	    		new MzIdentMLControllerImpl(mzIdFile))
 	    		.getMZTabFile().printMZTab(output);
 		} catch (RuntimeException error) {
 			throw error;
