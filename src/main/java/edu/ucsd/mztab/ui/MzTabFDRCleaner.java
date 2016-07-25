@@ -8,8 +8,10 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -46,6 +48,8 @@ public class MzTabFDRCleaner
 		"\n\t[-filterFDR     0-1 (if not specified, and filter=true, then " +
 			"only PSMs marked as decoy or passThreshold=false will be removed]";
 	private static final String[] RELEVANT_PSM_COLUMNS = new String[]{
+		MzTabConstants.PSH_PEPTIDE_COLUMN,
+		MzTabConstants.PSH_PROTEIN_COLUMN,
 		MzTabConstants.PASS_THRESHOLD_COLUMN,
 		MzTabConstants.IS_DECOY_COLUMN,
 		MzTabConstants.Q_VALUE_COLUMN
@@ -94,11 +98,12 @@ public class MzTabFDRCleaner
 				counts.get("targetProtein"), counts.get("decoyProtein"));
 			// set up output file
 			File outputFile = new File(cleanup.outputDirectory, file.getName());
-			// add global FDR values to output file's metadata section
+			// add global FDR values to output file's metadata section and
+			// filter out all PSM rows that do not meet the FDR cutoff
 			doSecondFDRPass(tempFile, outputFile, inputFile.getMzTabFilename(),
 				cleanup.filter, cleanup.filterType, cleanup.filterFDR,
 				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
-				psmFDR, peptideFDR, proteinFDR);
+				psmFDR, peptideFDR, proteinFDR, peptides, proteins);
 			// remove temporary file
 			tempFile.delete();
 		}
@@ -112,14 +117,54 @@ public class MzTabFDRCleaner
 		else return (double)decoy / (double)target;
 	}
 	
+	/**
+	 * Steps of the second FDR pass:
+	 * 
+	 * 1. Write global FDR values calculated in step 1 to the metadata section
+	 * of the mzTab file (if not already present).
+	 * 
+	 * 2. If filter=true, then filter out all PSM rows with passThreshold=false
+	 * or isDecoy=true.
+	 * 
+	 * 3. If filter=true and filterFDR is not null, then also filter out all
+	 * rows whose Q-Value (of the type specified by filterType) is greater than
+	 * the argument filterFDR. If any row has no such Q-Value, then filter it
+	 * out if the calculated global FDR (of the type specified by filterType)
+	 * is null or greater than the argument filterFDR.
+	 * 
+	 * 3. Remove from the argument peptides and proteins maps all elements
+	 * that are no longer supported by any remaining PSM rows, after filtering,
+	 * to set up the third pass.
+	 * 
+	 * @param input
+	 * @param output
+	 * @param mzTabFilename
+	 * @param filter
+	 * @param filterType
+	 * @param filterFDR
+	 * @param peptideQValueColumn
+	 * @param proteinQValueColumn
+	 * @param psmFDR
+	 * @param peptideFDR
+	 * @param proteinFDR
+	 * @param peptides
+	 * @param proteins
+	 */
 	public static void doSecondFDRPass(
 		File input, File output, String mzTabFilename,
 		boolean filter, FDRFilterType filterType, Double filterFDR,
 		String peptideQValueColumn, String proteinQValueColumn,
-		Double psmFDR, Double peptideFDR, Double proteinFDR
+		Double psmFDR, Double peptideFDR, Double proteinFDR,
+		Map<String, ImmutablePair<Boolean, Boolean>> peptides,
+		Map<String, ImmutablePair<Boolean, Boolean>> proteins
 	) {
 		if (input == null || output == null)
 			return;
+		// keep track of all peptides and proteins to keep after filtering
+		Set<String> keptPeptides = new HashSet<String>();
+		Set<String> keptProteins = new HashSet<String>();
+		// read through input mzTab file, update it for FDR
+		// purposes, write updated rows to output file
 		BufferedReader reader = null;
 		PrintWriter writer = null;
 		try {
@@ -132,6 +177,8 @@ public class MzTabFDRCleaner
 				doneWritingFDR = true;
 			// initialize PSH column variables
 			MzTabSectionHeader psmHeader = null;
+			Integer sequenceIndex = null;
+			Integer accessionIndex = null;
 			Integer psmPassThresholdIndex = null;
 			Integer psmIsDecoyIndex = null;
 			Integer psmQValueIndex = null;
@@ -191,12 +238,18 @@ public class MzTabFDRCleaner
 					psmHeader = new MzTabSectionHeader(line);
 					psmHeader.validateHeaderExpectations(
 						MzTabSection.PSM, Arrays.asList(RELEVANT_PSM_COLUMNS));
-					// record PSM Q-Value column index
+					// record FDR-relevant column indices
 					List<String> headers = psmHeader.getColumns();
 					for (int i=0; i<headers.size(); i++) {
 						String header = headers.get(i);
 						if (header == null)
 							continue;
+						else if (header.equalsIgnoreCase(
+							MzTabConstants.PSH_PEPTIDE_COLUMN))
+							sequenceIndex = i;
+						else if (header.equalsIgnoreCase(
+							MzTabConstants.PSH_PROTEIN_COLUMN))
+							accessionIndex = i;
 						else if (header.equalsIgnoreCase(
 							MzTabConstants.PASS_THRESHOLD_COLUMN))
 							psmPassThresholdIndex = i;
@@ -214,7 +267,21 @@ public class MzTabFDRCleaner
 							proteinQValueIndex = i;
 					}
 					// ensure that controlled FDR columns were all found
-					if (psmPassThresholdIndex == null)
+					if (sequenceIndex == null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"No \"%s\" column was found.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.PSH_PEPTIDE_COLUMN));
+					else if (accessionIndex == null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"No \"%s\" column was found.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.PSH_PROTEIN_COLUMN));
+					else if (psmPassThresholdIndex == null)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:" +
 							"\n----------\n%s\n----------\n" +
@@ -339,6 +406,11 @@ public class MzTabFDRCleaner
 								continue;
 						}
 					}
+					// if we got this far, then the PSM row passed filtering
+					// and therefore we should note its peptide and protein
+					// as ones that should be kept in the final file
+					keptPeptides.add(row[sequenceIndex]);
+					keptProteins.add(row[accessionIndex]);
 				}
 				writer.println(line);
 			}
@@ -349,6 +421,28 @@ public class MzTabFDRCleaner
 		} finally {
 			try { reader.close(); } catch (Throwable error) {}
 			try { writer.close(); } catch (Throwable error) {}
+		}
+		// remove from the parent peptides and proteins maps all elements that
+		// are no longer supported by PSM evidence in the file after filtering
+		if (filter) {
+			// clean peptides
+			Set<String> originalPeptides = null;
+			if (peptides != null)
+				originalPeptides = new HashSet<String>(peptides.keySet());
+			if (originalPeptides != null) {
+				for (String peptide : originalPeptides)
+					if (keptPeptides.contains(peptide) == false)
+						peptides.remove(peptide);
+			}
+			// clean proteins
+			Set<String> originalProteins = null;
+			if (proteins != null)
+				originalProteins = new HashSet<String>(proteins.keySet());
+			if (originalProteins != null) {
+				for (String protein : originalProteins)
+					if (keptProteins.contains(protein) == false)
+						proteins.remove(protein);
+			}
 		}
 	}
 	

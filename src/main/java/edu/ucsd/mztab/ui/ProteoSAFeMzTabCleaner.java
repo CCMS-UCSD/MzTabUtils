@@ -107,7 +107,7 @@ public class ProteoSAFeMzTabCleaner
 				inputFile.getMzTabFilename(), cleanup.filter,
 				cleanup.filterType, cleanup.filterFDR,
 				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
-				psmFDR, peptideFDR, proteinFDR);
+				psmFDR, peptideFDR, proteinFDR, peptides, proteins);
 			// remove temporary file
 			tempFile.delete();
 		}
