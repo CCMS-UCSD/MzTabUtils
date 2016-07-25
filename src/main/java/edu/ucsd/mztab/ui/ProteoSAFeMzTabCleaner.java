@@ -14,6 +14,7 @@ import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.FDRCalculationProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
+import edu.ucsd.mztab.ui.MzTabFDRCleaner.FDRFilterType;
 import edu.ucsd.util.CommonUtils;
 
 public class ProteoSAFeMzTabCleaner
@@ -36,10 +37,15 @@ public class ProteoSAFeMzTabCleaner
 		"\n\t[-passThreshold <PassThresholdColumn>]" +
 		"\n\t[-decoy         <IsDecoyColumn>]" +
 		"\n\t[-decoyPattern  <SubstringIndicatingDecoy>]" +
-		"\n\t[-qvalue        <QValueColumn>]" +
+		"\n\t[-psmQValue     <PSMQValueColumn>]" +
+		"\n\t[-peptideQValue <PSMQValueColumn>]" +
+		"\n\t[-proteinQValue <PSMQValueColumn>]" +
 		"\n\t[-filter        true/false (default false; " +
 			"if specified, PSM rows not meeting the FDR " +
 			"threshold will be removed from the file)]" +
+		"\n\t[-filterType    psm/peptide/protein (default psm; " +
+			"determines which Q-Value column to use when filtering, " +
+			"if filter=true and filterFDR is specified)]" +
 		"\n\t[-filterFDR     0-1 (if not specified, and filter=true, then " +
 			"only PSMs marked as decoy or passThreshold=false will be removed]";
 	
@@ -79,7 +85,7 @@ public class ProteoSAFeMzTabCleaner
 			reader.addProcessor(new FDRCalculationProcessor(
 				counts, peptides, proteins, cleanup.passThresholdColumn,
 				cleanup.decoyColumn, cleanup.decoyPattern,
-				cleanup.qValueColumn));
+				cleanup.psmQValueColumn));
 			// ensure that each PSM row has the special columns
 			// needed by ProteoSAFe to ensure validity
 			reader.addProcessor(new ValidityProcessor());
@@ -98,7 +104,9 @@ public class ProteoSAFeMzTabCleaner
 			File outputFile = new File(cleanup.outputDirectory, file.getName());
 			// add global FDR values to output file's metadata section
 			MzTabFDRCleaner.doSecondFDRPass(tempFile, outputFile,
-				inputFile.getMzTabFilename(), cleanup.filter, cleanup.filterFDR,
+				inputFile.getMzTabFilename(), cleanup.filter,
+				cleanup.filterType, cleanup.filterFDR,
+				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
 				psmFDR, peptideFDR, proteinFDR);
 			// remove temporary file
 			tempFile.delete();
@@ -121,8 +129,11 @@ public class ProteoSAFeMzTabCleaner
 		private String           passThresholdColumn;
 		private String           decoyColumn;
 		private String           decoyPattern;
-		private String           qValueColumn;
+		private String           psmQValueColumn;
+		private String           peptideQValueColumn;
+		private String           proteinQValueColumn;
 		private boolean          filter;
+		private FDRFilterType    filterType;
 		private Double           filterFDR;
 		
 		/*====================================================================
@@ -133,7 +144,9 @@ public class ProteoSAFeMzTabCleaner
 			File peakListDirectory, String peakListRelativePath,
 			File parameters, File outputDirectory, String datasetID,
 			String passThresholdColumn, String decoyColumn, String decoyPattern,
-			String qValueColumn, boolean filter, Double filterFDR
+			String psmQValueColumn, String peptideQValueColumn,
+			String proteinQValueColumn,
+			boolean filter, String filterType, Double filterFDR
 		) {
 			// validate mzTab directory (if null,
 			// then no cleanup is necessary)
@@ -191,10 +204,23 @@ public class ProteoSAFeMzTabCleaner
 			this.passThresholdColumn = passThresholdColumn;
 			this.decoyColumn = decoyColumn;
 			this.decoyPattern = decoyPattern;
-			this.qValueColumn = qValueColumn;
+			this.psmQValueColumn = psmQValueColumn;
+			this.peptideQValueColumn = peptideQValueColumn;
+			this.proteinQValueColumn = proteinQValueColumn;
 			// initialize filter settings
 			this.filter = filter;
 			this.filterFDR = filterFDR;
+			// validate filter type
+			if (filterType == null || filterType.trim().equals(""))
+				this.filterType = null;
+			else try {
+				this.filterType =
+					FDRFilterType.valueOf(filterType.trim().toUpperCase());
+			} catch (Throwable error) {
+				throw new IllegalArgumentException(
+					String.format("Unrecognized filter type [%s]: must be  " +
+						"\"psm\", \"peptide\" or \"protein\".", filterType));
+			}
 		}
 	}
 	
@@ -214,7 +240,10 @@ public class ProteoSAFeMzTabCleaner
 		String passThresholdColumn = null;
 		String decoyColumn = null;
 		String decoyPattern = null;
-		String qValueColumn = null;
+		String psmQValueColumn = null;
+		String peptideQValueColumn = null;
+		String proteinQValueColumn = null;
+		String filterType = null;
 		Boolean filter = false;
 		Double filterFDR = null;
 		for (int i=0; i<args.length; i++) {
@@ -262,8 +291,14 @@ public class ProteoSAFeMzTabCleaner
 					decoyColumn = value;
 				else if (argument.equals("-decoyPattern"))
 					decoyPattern = value;
-				else if (argument.equals("-qvalue"))
-					qValueColumn = value;
+				else if (argument.equals("-psmQValue"))
+					psmQValueColumn = value;
+				else if (argument.equals("-peptideQValue"))
+					peptideQValueColumn = value;
+				else if (argument.equals("-proteinQValue"))
+					proteinQValueColumn = value;
+				else if (argument.equals("-filterType"))
+					filterType = value;
 				else if (argument.equals("-filter")) {
 					filter = CommonUtils.parseBooleanColumn(value);
 					if (filter == null)
@@ -287,8 +322,9 @@ public class ProteoSAFeMzTabCleaner
 				mzTabDirectory, mzTabRelativePath,
 				peakListDirectory, peakListRelativePath,
 				parameters, outputDirectory, datasetID,
-				passThresholdColumn, decoyColumn, decoyPattern, qValueColumn,
-				filter, filterFDR);
+				passThresholdColumn, decoyColumn, decoyPattern,
+				psmQValueColumn, peptideQValueColumn, proteinQValueColumn,
+				filter, filterType, filterFDR);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;

@@ -90,4 +90,18 @@ public class CommonUtils
 		// cannot be interpreted and thus we call it null
 		else return null;
 	}
+	
+	public static boolean headerCorrespondsToColumn(
+		String header, String column
+	) {
+		if (header == null || column == null)
+			return false;
+		else if (header.equalsIgnoreCase(column))
+			return true;
+		else if (header.equalsIgnoreCase(
+			String.format("opt_global_%s", column)))
+			return true;
+		// TODO: look up and compare to search engine scores
+		else return false;
+	}
 }

@@ -111,11 +111,14 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				String header = headers.get(i);
 				if (header == null)
 					continue;
-				else if (headerCorrespondsToColumn(header, passThresholdColumn))
+				else if (CommonUtils.headerCorrespondsToColumn(
+					header, passThresholdColumn))
 					columns.put(passThresholdColumn, i);
-				else if (headerCorrespondsToColumn(header, decoyColumn))
+				else if (CommonUtils.headerCorrespondsToColumn(
+					header, decoyColumn))
 					columns.put(decoyColumn, i);
-				else if (headerCorrespondsToColumn(header, qValueColumn))
+				else if (CommonUtils.headerCorrespondsToColumn(
+					header, qValueColumn))
 					columns.put(qValueColumn, i);
 				else if (header.equalsIgnoreCase(
 					MzTabConstants.PASS_THRESHOLD_COLUMN))
@@ -360,18 +363,6 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private boolean headerCorrespondsToColumn(String header, String column) {
-		if (header == null || column == null)
-			return false;
-		else if (header.equalsIgnoreCase(column))
-			return true;
-		else if (header.equalsIgnoreCase(
-			String.format("opt_global_%s", column)))
-			return true;
-		// TODO: look up and compare to search engine scores
-		else return false;
-	}
-	
 	private void incrementCount(String count) {
 		if (count == null)
 			return;
