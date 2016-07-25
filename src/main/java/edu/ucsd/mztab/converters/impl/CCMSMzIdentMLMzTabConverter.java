@@ -40,9 +40,11 @@ extends MzIdentMLMzTabConverter
 	protected List<PSM> loadPSMs(Protein protein, List<Peptide> peptides)  {
 		List<PSM> psmList = super.loadPSMs(protein, peptides);
 		// iterate over all PSMs, propate "passThreshold" attribute
-		for (PSM psm : psmList)
-			psm.setOptionColumnValue(
-				PASS_THRESHOLD_COLUMN, passesThreshold(psm, peptides));
+		for (PSM psm : psmList) {
+			Boolean passThreshold = passesThreshold(psm, peptides);
+			psm.setOptionColumnValue(PASS_THRESHOLD_COLUMN,
+				passThreshold != null ? passThreshold.toString() : null);
+		}
 		return psmList;
 	}
 	
@@ -54,8 +56,7 @@ extends MzIdentMLMzTabConverter
 			return null;
 		for (Peptide peptide : peptides) {
 			SpectrumIdentification match = peptide.getSpectrumIdentification();
-			if (match != null &&
-				match.getId().toString().equals(psm.getPSM_ID()))
+			if (match != null && match.getSequence().equals(psm.getSequence()))
 				return match.isPassThreshold();
 		}
 		return null;
