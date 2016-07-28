@@ -51,8 +51,8 @@ public class MzTabCounter
 				new FileWriter(count.outputFile, false)));
 			writer.println("MzTab_file\tUploaded_file\t" +
 				"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPSM_FDR\t" +
-				"PEP_rows\tFound_Peptides\tPeptide_FDR\t" +
-				"PRT_rows\tFound_Proteins\tProtein_FDR\tFound_Mods");
+				"Peptide_rows\tFound_Peptides\tPeptide_FDR\t" +
+				"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods");
 			// read through all mzTab files, write counts to output file
 			File[] files = count.mzTabDirectory.listFiles();
 			// sort files alphabetically
