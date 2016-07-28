@@ -23,7 +23,10 @@ public class CountProcessor implements MzTabProcessor
 	private static final String[] RELEVANT_PEP_COLUMNS =
 		new String[]{ "sequence", "accession", "modifications" };
 	private static final String[] RELEVANT_PSM_COLUMNS =
-		new String[]{ "PSM_ID", "sequence", "accession", "modifications" };
+		new String[]{
+			"PSM_ID", "sequence", "accession", "modifications",
+			"opt_global_valid"
+		};
 	
 	/*========================================================================
 	 * Properties
@@ -137,8 +140,15 @@ public class CountProcessor implements MzTabProcessor
 			incrementCount("PSM");
 			// extract count-worthy elements from this PSM row
 			String[] columns = line.split("\\t");
-			for (String column : RELEVANT_PSM_COLUMNS)
-				addElement(column, columns[psmHeader.getColumnIndex(column)]);
+			for (String column : RELEVANT_PSM_COLUMNS) {
+				// count invalid rows as a special case
+				if (column.equals("opt_global_valid")) {
+					String value = columns[psmHeader.getColumnIndex(column)];
+					if (value.trim().equalsIgnoreCase("INVALID"))
+						incrementCount("invalid_PSM");
+				} else addElement(
+					column, columns[psmHeader.getColumnIndex(column)]);
+			}
 		}
 		return line;
 	}
@@ -147,6 +157,8 @@ public class CountProcessor implements MzTabProcessor
 		// ensure all basic row counts are present
 		if (counts.get("PSM") == null)
 			counts.put("PSM", 0);
+		if (counts.get("invalid_PSM") == null)
+			counts.put("invalid_PSM", 0);
 		if (counts.get("PEP") == null)
 			counts.put("PEP", 0);
 		if (counts.get("PRT") == null)

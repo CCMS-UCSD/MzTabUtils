@@ -49,8 +49,8 @@ public class MzTabCounter
 					count.outputFile.getAbsolutePath()));
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(count.outputFile, false)));
-			writer.println(
-				"MzTab_file\tResult_file\tPSM_rows\tFound_PSMs\tPSM_FDR\t" +
+			writer.println("MzTab_file\tUploaded_file\t" +
+				"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPSM_FDR\t" +
 				"PEP_rows\tFound_Peptides\tPeptide_FDR\t" +
 				"PRT_rows\tFound_Proteins\tProtein_FDR\tFound_Mods");
 			// read through all mzTab files, write counts to output file
@@ -71,9 +71,10 @@ public class MzTabCounter
 				// extract global FDR values to print to output file
 				String[] fdr = extractGlobalFDRValues(file);
 				writer.println(String.format(
-					"%s\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
+					"%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
 					file.getName(), uploadedFilename,
-					counts.get("PSM"), counts.get("PSM_ID"), fdr[0],
+					counts.get("PSM"), counts.get("invalid_PSM"),
+					counts.get("PSM_ID"), fdr[0],
 					counts.get("PEP"), counts.get("sequence"), fdr[1],
 					counts.get("PRT"), counts.get("accession"), fdr[2],
 					counts.get("modification")));
