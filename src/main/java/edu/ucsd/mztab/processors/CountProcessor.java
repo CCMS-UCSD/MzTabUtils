@@ -144,7 +144,8 @@ public class CountProcessor implements MzTabProcessor
 				// count invalid rows as a special case
 				if (column.equals("opt_global_valid")) {
 					String value = columns[psmHeader.getColumnIndex(column)];
-					if (value.trim().equalsIgnoreCase("INVALID"))
+					if (value != null &&
+						value.trim().equalsIgnoreCase("INVALID"))
 						incrementCount("invalid_PSM");
 				} else addElement(
 					column, columns[psmHeader.getColumnIndex(column)]);
