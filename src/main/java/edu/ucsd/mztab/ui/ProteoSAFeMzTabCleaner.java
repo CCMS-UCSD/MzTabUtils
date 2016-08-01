@@ -68,10 +68,11 @@ public class ProteoSAFeMzTabCleaner
 		for (File file : files) {
 			// get this input mzTab file
 			MzTabFile inputFile = cleanup.context.getMzTabFile(file);
-			// set up intermediate output file
-			File tempFile = new File(String.format("%s.temp", file.getName()));
+			// set up first intermediate output file
+			File tempFile1 =
+				new File(String.format("%s.1.temp", file.getName()));
 			// set up reader
-			MzTabReader reader = new MzTabReader(inputFile, tempFile);
+			MzTabReader reader = new MzTabReader(inputFile, tempFile1);
 			// clean all ms_run-location file references to use
 			// fully qualified ProteoSAFe file descriptor paths
 			reader.addProcessor(new MsRunCleanProcessor());
@@ -100,16 +101,25 @@ public class ProteoSAFeMzTabCleaner
 			// protein-level FDR
 			Double proteinFDR = MzTabFDRCleaner.calculateFDR(
 				counts.get("targetProtein"), counts.get("decoyProtein"));
-			// set up output file
-			File outputFile = new File(cleanup.outputDirectory, file.getName());
+			// set up second intermediate output file
+			File tempFile2 =
+				new File(String.format("%s.2.temp", file.getName()));
 			// add global FDR values to output file's metadata section
-			MzTabFDRCleaner.doSecondFDRPass(tempFile, outputFile,
+			MzTabFDRCleaner.doSecondFDRPass(tempFile1, tempFile2,
 				inputFile.getMzTabFilename(), cleanup.filter,
 				cleanup.filterType, cleanup.filterFDR,
 				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
 				psmFDR, peptideFDR, proteinFDR, peptides, proteins);
-			// remove temporary file
-			tempFile.delete();
+			// set up final output file
+			File outputFile = new File(cleanup.outputDirectory, file.getName());
+			// filter out all protein and peptide rows no
+			// longer supported by remaining PSM rows
+			MzTabFDRCleaner.doThirdFDRPass(tempFile2, outputFile,
+				inputFile.getMzTabFilename(), cleanup.filter,
+				peptides, proteins);
+			// remove temporary files
+			tempFile1.delete();
+			tempFile2.delete();
 		}
 	}
 	

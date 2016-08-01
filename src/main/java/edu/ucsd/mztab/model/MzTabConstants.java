@@ -21,6 +21,15 @@ public class MzTabConstants
 	public static final String PSH_PEPTIDE_COLUMN = "sequence";
 	public static final String PSH_PROTEIN_COLUMN = "accession";
 	
+	// constants pertaining to important PRT section header (PRH) columns
+	public static final String PRH_PROTEIN_COLUMN = "accession";
+	public static final String PRH_MODIFICATIONS_COLUMN = "modifications";
+	
+	// constants pertaining to important PEP section header (PEH) columns
+	public static final String PEH_PEPTIDE_COLUMN = "sequence";
+	public static final String PEH_PROTEIN_COLUMN = "accession";
+	public static final String PEH_MODIFICATIONS_COLUMN = "modifications";
+	
 	// constants pertaining to mzTab "spectra_ref" column values,
 	// as seen in PSM rows
 	public static final Pattern SPECTRA_REF_PATTERN = Pattern.compile(

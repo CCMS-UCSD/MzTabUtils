@@ -54,6 +54,12 @@ public class MzTabFDRCleaner
 		MzTabConstants.IS_DECOY_COLUMN,
 		MzTabConstants.Q_VALUE_COLUMN
 	};
+	private static final String[] RELEVANT_PRT_COLUMNS = new String[]{
+		MzTabConstants.PRH_PROTEIN_COLUMN
+	};
+	private static final String[] RELEVANT_PEP_COLUMNS = new String[]{
+		MzTabConstants.PEH_PEPTIDE_COLUMN
+	};
 	public static enum FDRFilterType { PSM, PEPTIDE, PROTEIN }
 	
 	/*========================================================================
@@ -71,10 +77,11 @@ public class MzTabFDRCleaner
 		for (File file : files) {
 			// get this input mzTab file
 			MzTabFile inputFile = new MzTabFile(file);
-			// set up intermediate output file
-			File tempFile = new File(String.format("%s.temp", file.getName()));
+			// set up first intermediate output file
+			File tempFile1 =
+				new File(String.format("%s.1.temp", file.getName()));
 			// set up reader
-			MzTabReader reader = new MzTabReader(inputFile, tempFile);
+			MzTabReader reader = new MzTabReader(inputFile, tempFile1);
 			// calculate FDR and ensure that each PSM row has the needed columns
 			Map<String, Integer> counts = new HashMap<String, Integer>(6);
 			Map<String, ImmutablePair<Boolean, Boolean>> peptides =
@@ -96,16 +103,24 @@ public class MzTabFDRCleaner
 			// protein-level FDR
 			Double proteinFDR = calculateFDR(
 				counts.get("targetProtein"), counts.get("decoyProtein"));
-			// set up output file
-			File outputFile = new File(cleanup.outputDirectory, file.getName());
+			// set up second intermediate output file
+			File tempFile2 =
+				new File(String.format("%s.2.temp", file.getName()));
 			// add global FDR values to output file's metadata section and
 			// filter out all PSM rows that do not meet the FDR cutoff
-			doSecondFDRPass(tempFile, outputFile, inputFile.getMzTabFilename(),
+			doSecondFDRPass(tempFile1, tempFile2, inputFile.getMzTabFilename(),
 				cleanup.filter, cleanup.filterType, cleanup.filterFDR,
 				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
 				psmFDR, peptideFDR, proteinFDR, peptides, proteins);
-			// remove temporary file
-			tempFile.delete();
+			// set up final output file
+			File outputFile = new File(cleanup.outputDirectory, file.getName());
+			// filter out all protein and peptide rows no
+			// longer supported by remaining PSM rows
+			doThirdFDRPass(tempFile2, outputFile, inputFile.getMzTabFilename(),
+				cleanup.filter, peptides, proteins);
+			// remove temporary files
+			tempFile1.delete();
+			tempFile2.delete();
 		}
 	}
 	
@@ -443,6 +458,177 @@ public class MzTabFDRCleaner
 					if (keptProteins.contains(protein) == false)
 						proteins.remove(protein);
 			}
+		}
+	}
+	
+	/**
+	 * Steps of the third FDR pass:
+	 * 
+	 * 1. Filter out all PRT and PEP rows not supported by any remaining PSM
+	 * 
+	 * @param input
+	 * @param output
+	 * @param mzTabFilename
+	 * @param filter
+	 * @param peptides
+	 * @param proteins
+	 */
+	public static void doThirdFDRPass(
+		File input, File output, String mzTabFilename, boolean filter,
+		Map<String, ImmutablePair<Boolean, Boolean>> peptides,
+		Map<String, ImmutablePair<Boolean, Boolean>> proteins
+	) {
+		if (input == null || output == null)
+			return;
+		// read through input mzTab file, filter out unsupported PRT/PEP rows
+		BufferedReader reader = null;
+		PrintWriter writer = null;
+		try {
+			reader = new BufferedReader(new FileReader(input));
+			writer = new PrintWriter(
+				new BufferedWriter(new FileWriter(output, false)));
+			// initialize protein section header variables
+			MzTabSectionHeader prtHeader = null;
+			Integer accessionIndex = null;
+			// initialize peptide section header variables
+			MzTabSectionHeader pepHeader = null;
+			Integer sequenceIndex = null;
+			// iterate over all lines in file, filter out any PRT or PEP line
+			// if it is no longer found in the peptides or proteins maps
+			String line = null;
+			int lineNumber = 0;
+			while (true) {
+				line = reader.readLine();
+				if (line == null)
+					break;
+				lineNumber++;
+				// set up protein header
+				if (line.startsWith("PRH")) {
+					if (prtHeader != null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"A \"PRH\" row was already seen previously in " +
+							"this file.", lineNumber, mzTabFilename, line));
+					prtHeader = new MzTabSectionHeader(line);
+					prtHeader.validateHeaderExpectations(
+						MzTabSection.PRT, Arrays.asList(RELEVANT_PRT_COLUMNS));
+					// record accession column index
+					List<String> headers = prtHeader.getColumns();
+					for (int i=0; i<headers.size(); i++) {
+						String header = headers.get(i);
+						if (header == null)
+							continue;
+						else if (header.equalsIgnoreCase(
+							MzTabConstants.PRH_PROTEIN_COLUMN)) {
+							accessionIndex = i;
+							break;
+						}
+					}
+					// ensure that accession index was found
+					if (accessionIndex == null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"No \"%s\" column was found.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.PRH_PROTEIN_COLUMN));
+				}
+				// filter this PRT row if appropriate
+				else if (line.startsWith("PRT") && filter && proteins != null) {
+					if (prtHeader == null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"A \"PRT\" row was found before any \"PRH\" row.",
+							lineNumber, mzTabFilename, line));
+					else prtHeader.validateMzTabRow(line);
+					String[] row = line.split("\\t");
+					// get accession column value (must be present for all rows)
+					if (accessionIndex >= row.length)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"Expected a \"%s\" column value at index %d, " +
+							"but this line only contains %d elements.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.PRH_PROTEIN_COLUMN,
+							accessionIndex, row.length));
+					// if this protein's accession is not found in
+					// the proteins map, then filter out this row
+					String accession = row[accessionIndex];
+					if (accession != null &&
+						proteins.containsKey(accession) == false)
+						continue;
+				}
+				// set up peptide header
+				else if (line.startsWith("PEH")) {
+					if (pepHeader != null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"A \"PEH\" row was already seen previously in " +
+							"this file.", lineNumber, mzTabFilename, line));
+					pepHeader = new MzTabSectionHeader(line);
+					pepHeader.validateHeaderExpectations(
+						MzTabSection.PEP, Arrays.asList(RELEVANT_PEP_COLUMNS));
+					// record sequence column index
+					List<String> headers = pepHeader.getColumns();
+					for (int i=0; i<headers.size(); i++) {
+						String header = headers.get(i);
+						if (header == null)
+							continue;
+						else if (header.equalsIgnoreCase(
+							MzTabConstants.PEH_PEPTIDE_COLUMN)) {
+							sequenceIndex = i;
+							break;
+						}
+					}
+					// ensure that sequence index was found
+					if (sequenceIndex == null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"No \"%s\" column was found.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.PEH_PEPTIDE_COLUMN));
+				}
+				// filter this PEP row if appropriate
+				else if (line.startsWith("PEP") && filter && peptides != null) {
+					if (pepHeader == null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"A \"PEP\" row was found before any \"PEH\" row.",
+							lineNumber, mzTabFilename, line));
+					else pepHeader.validateMzTabRow(line);
+					String[] row = line.split("\\t");
+					// get sequence column value (must be present for all rows)
+					if (sequenceIndex >= row.length)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"Expected a \"%s\" column value at index %d, " +
+							"but this line only contains %d elements.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.PEH_PEPTIDE_COLUMN,
+							sequenceIndex, row.length));
+					// if this peptide's sequence is not found in
+					// the peptides map, then filter out this row
+					String sequence = row[sequenceIndex];
+					if (sequence != null &&
+						peptides.containsKey(sequence) == false)
+						continue;
+				}
+				writer.println(line);
+			}
+		} catch (RuntimeException error) {
+			throw error;
+		} catch (Throwable error) {
+			throw new RuntimeException(error);
+		} finally {
+			try { reader.close(); } catch (Throwable error) {}
+			try { writer.close(); } catch (Throwable error) {}
 		}
 	}
 	
