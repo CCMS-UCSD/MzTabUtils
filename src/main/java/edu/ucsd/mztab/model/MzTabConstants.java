@@ -14,6 +14,8 @@ public class MzTabConstants
 	public static final String FDR_MTD_FIELD = "false_discovery_rate";
 	public static final Pattern FDR_LINE_PATTERN = Pattern.compile(
 		"^MTD\\s+" + FDR_MTD_FIELD + "\\s+(.+)$");
+	public static final Pattern PSM_SEARCH_ENGINE_SCORE_LINE_PATTERN =
+		Pattern.compile("^MTD\\s+psm_search_engine_score\\[(\\d+)\\]\\s+(.+)$");
 	public static final Pattern FILE_LINE_PATTERN = Pattern.compile(
 		"^MTD\\s+ms_run\\[(\\d+)\\]-location\\s+(.+)$");
 	

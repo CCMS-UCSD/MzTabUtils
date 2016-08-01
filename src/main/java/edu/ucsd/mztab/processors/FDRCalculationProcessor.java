@@ -3,10 +3,10 @@ package edu.ucsd.mztab.processors;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -33,6 +33,7 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	private String               mzTabFilename;
 	private MzTabSectionHeader   psmHeader;
 	private Map<String, Integer> columns;
+	private Map<Integer, String> scoreColumns;
 	// source file FDR properties
 	private String               passThresholdColumn;
 	private String               decoyColumn;
@@ -73,7 +74,9 @@ public class FDRCalculationProcessor implements MzTabProcessor
 		psmHeader = null;
 		mzTabFilename = null;
 		// initialize column index map
-		columns = new LinkedHashMap<String, Integer>(6);
+		columns = new HashMap<String, Integer>(6);
+		// initialize score column map
+		scoreColumns = new HashMap<Integer, String>();
 		// initialize source columns
 		this.passThresholdColumn = passThresholdColumn;
 		this.decoyColumn = decoyColumn;
@@ -94,6 +97,37 @@ public class FDRCalculationProcessor implements MzTabProcessor
 		if (line == null)
 			throw new NullPointerException(
 				"Processed mzTab line cannot be null.");
+		// map score columns
+		else if (line.startsWith("MTD")) {
+			Matcher matcher =
+				MzTabConstants.PSM_SEARCH_ENGINE_SCORE_LINE_PATTERN.matcher(
+					line);
+			if (matcher.matches()) {
+				String score = matcher.group(1);
+				int index;
+				try { index = Integer.parseInt(score); }
+				catch (NumberFormatException error) {
+					throw new IllegalArgumentException(String.format(
+						"Line %d of mzTab file [%s] is invalid:" +
+						"\n----------\n%s\n----------\n" +
+						"The index [%s] of this declared PSM search engine " +
+						"score could not be parsed as an integer.",
+						lineNumber, mzTabFilename, line, score));
+				}
+				String cvTerm = matcher.group(2);
+				matcher = MzTabConstants.CV_TERM_PATTERN.matcher(cvTerm);
+				if (matcher.matches() == false)
+					throw new IllegalArgumentException(String.format(
+						"Line %d of mzTab file [%s] is invalid:" +
+						"\n----------\n%s\n----------\n" +
+						"The value [%s] of this declared PSM search engine " +
+						"score could not be parsed as a valid CV term.",
+						lineNumber, mzTabFilename, line, cvTerm));
+				// if both the index and name of this search engine
+				// score could be determined, then map them
+				scoreColumns.put(index, matcher.group(3));
+			}
+		}
 		// set up PSM section header
 		else if (line.startsWith("PSH")) {
 			if (psmHeader != null)
@@ -112,13 +146,13 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				if (header == null)
 					continue;
 				else if (CommonUtils.headerCorrespondsToColumn(
-					header, passThresholdColumn))
+					header, passThresholdColumn, scoreColumns))
 					columns.put(passThresholdColumn, i);
 				else if (CommonUtils.headerCorrespondsToColumn(
-					header, decoyColumn))
+					header, decoyColumn, scoreColumns))
 					columns.put(decoyColumn, i);
 				else if (CommonUtils.headerCorrespondsToColumn(
-					header, qValueColumn))
+					header, qValueColumn, scoreColumns))
 					columns.put(qValueColumn, i);
 				else if (header.equalsIgnoreCase(
 					MzTabConstants.PASS_THRESHOLD_COLUMN))

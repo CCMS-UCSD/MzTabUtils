@@ -190,6 +190,8 @@ public class MzTabFDRCleaner
 			boolean doneWritingFDR = false;
 			if (psmFDR == null && peptideFDR == null && proteinFDR == null)
 				doneWritingFDR = true;
+			// initialize score column map
+			Map<Integer, String> scoreColumns = new HashMap<Integer, String>();
 			// initialize PSH column variables
 			MzTabSectionHeader psmHeader = null;
 			Integer sequenceIndex = null;
@@ -209,36 +211,80 @@ public class MzTabFDRCleaner
 				if (line == null)
 					break;
 				lineNumber++;
-				if (line.startsWith("MTD") && doneWritingFDR == false) {
-					// if this is the FDR line, replace it
-					Matcher matcher =
-						MzTabConstants.FDR_LINE_PATTERN.matcher(line);
-					if (matcher.matches()) {
-						// TODO: extract previous FDR values,
-						// preserve them somehow
-						String calculatedFDRList = getCalculatedFDRList(
-							psmFDR, peptideFDR, proteinFDR);
-						if (calculatedFDRList == null)
-							calculatedFDRList = matcher.group(1);
-						line = String.format("MTD\t%s\t%s",
-							MzTabConstants.FDR_MTD_FIELD, calculatedFDRList);
-						doneWritingFDR = true;
-					}
-					// otherwise, look for the correct place
-					// to splice in the calculated FDR values
-					else {
-						String[] row = line.split("\\t");
-						if (row != null && row.length > 1 &&
-							isMTDFieldAfterFDR(row[1])) {
-							// splice in the FDR line before the first
-							// MTD field that should come after it
+				if (line.startsWith("MTD")) {
+					// write global FDR metadata line in the correct place
+					if (doneWritingFDR == false) {
+						// if this is the FDR line, replace it
+						Matcher matcher =
+							MzTabConstants.FDR_LINE_PATTERN.matcher(line);
+						if (matcher.matches()) {
+							// TODO: extract previous FDR values,
+							// preserve them somehow
 							String calculatedFDRList = getCalculatedFDRList(
 								psmFDR, peptideFDR, proteinFDR);
-							if (calculatedFDRList != null)
-								writer.println(String.format("MTD\t%s\t%s",
-									MzTabConstants.FDR_MTD_FIELD,
-									calculatedFDRList));
+							if (calculatedFDRList == null)
+								calculatedFDRList = matcher.group(1);
+							line = String.format("MTD\t%s\t%s",
+								MzTabConstants.FDR_MTD_FIELD,
+								calculatedFDRList);
 							doneWritingFDR = true;
+						}
+						// otherwise, look for the correct place
+						// to splice in the calculated FDR values
+						else {
+							String[] row = line.split("\\t");
+							if (row != null && row.length > 1 &&
+								isMTDFieldAfterFDR(row[1])) {
+								// splice in the FDR line before the first
+								// MTD field that should come after it
+								String calculatedFDRList =
+									getCalculatedFDRList(
+										psmFDR, peptideFDR, proteinFDR);
+								if (calculatedFDRList != null)
+									writer.println(String.format("MTD\t%s\t%s",
+										MzTabConstants.FDR_MTD_FIELD,
+										calculatedFDRList));
+								doneWritingFDR = true;
+							}
+							// while we're combing the MTD section,
+							// map any score columns we find
+							matcher = MzTabConstants
+								.PSM_SEARCH_ENGINE_SCORE_LINE_PATTERN.matcher(
+								line);
+							if (matcher.matches()) {
+								String score = matcher.group(1);
+								int index;
+								try { index = Integer.parseInt(score); }
+								catch (NumberFormatException error) {
+									throw new IllegalArgumentException(
+										String.format("Line %d of mzTab " +
+										"file [%s] is invalid:" +
+										"\n----------\n%s\n----------\n" +
+										"The index [%s] of this declared " +
+										"PSM search engine score could not " +
+										"be parsed as an integer.",
+										lineNumber, mzTabFilename, line,
+										score));
+								}
+								String cvTerm = matcher.group(2);
+								matcher =
+									MzTabConstants.CV_TERM_PATTERN.matcher(
+										cvTerm);
+								if (matcher.matches() == false)
+									throw new IllegalArgumentException(
+										String.format("Line %d of mzTab " +
+										"file [%s] is invalid:" +
+										"\n----------\n%s\n----------\n" +
+										"The value [%s] of this declared " +
+										"PSM search engine score could not " +
+										"be parsed as a valid CV term.",
+										lineNumber, mzTabFilename, line,
+										cvTerm));
+								// if both the index and name of this
+								// search engine score could be
+								// determined, then map them
+								scoreColumns.put(index, matcher.group(3));
+							}
 						}
 					}
 				}
@@ -275,10 +321,10 @@ public class MzTabFDRCleaner
 							MzTabConstants.Q_VALUE_COLUMN))
 							psmQValueIndex = i;
 						else if (CommonUtils.headerCorrespondsToColumn(
-							header, peptideQValueColumn))
+							header, peptideQValueColumn, scoreColumns))
 							peptideQValueIndex = i;
 						else if (CommonUtils.headerCorrespondsToColumn(
-							header, proteinQValueColumn))
+							header, proteinQValueColumn, scoreColumns))
 							proteinQValueIndex = i;
 					}
 					// ensure that controlled FDR columns were all found

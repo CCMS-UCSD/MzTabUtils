@@ -1,5 +1,6 @@
 package edu.ucsd.util;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
@@ -92,7 +93,7 @@ public class CommonUtils
 	}
 	
 	public static boolean headerCorrespondsToColumn(
-		String header, String column
+		String header, String column, Map<Integer, String> scoreColumns
 	) {
 		if (header == null || column == null)
 			return false;
@@ -101,7 +102,14 @@ public class CommonUtils
 		else if (header.equalsIgnoreCase(
 			String.format("opt_global_%s", column)))
 			return true;
-		// TODO: look up and compare to search engine scores
-		else return false;
+		// check mapped score columns, if present
+		else if (scoreColumns != null) {
+			for (Integer index : scoreColumns.keySet())
+				if (header.equalsIgnoreCase(
+					String.format("search_engine_score[%d]", index)) &&
+					column.equalsIgnoreCase(scoreColumns.get(index)))
+					return true;
+		}
+		return false;
 	}
 }

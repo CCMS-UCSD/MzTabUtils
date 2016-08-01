@@ -336,7 +336,7 @@ public class ProteoSAFeMzTabCleaner
 				psmQValueColumn, peptideQValueColumn, proteinQValueColumn,
 				filter, filterType, filterFDR);
 		} catch (Throwable error) {
-			System.err.println(error.getMessage());
+			error.printStackTrace();
 			return null;
 		}
 	}
