@@ -169,9 +169,18 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			if (passThresholdIndex < row.length)
 				passThreshold =
 					CommonUtils.parseBooleanColumn(row[passThresholdIndex]);
-			// otherwise, attempt to determine the correct
-			// value and write it to the control column
+			// add the control column if it's not already there
 			else {
+				String[] newRow = new String[passThresholdIndex + 1];
+				for (int i=0; i<row.length; i++)
+					newRow[i] = row[i];
+				row = newRow;
+			}
+			// if the control column was not present, or if it is
+			// present but its value could not be clearly interpreted
+			// as either true or false, then try to determine the
+			// correct value and write it to the control column
+			if (passThreshold == null) {
 				// if the source column is present, read it
 				if (passThresholdColumn != null) {
 					Integer index = columns.get(passThresholdColumn);
@@ -183,8 +192,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				// but could not be interpreted as a valid boolean value
 				if (passThreshold == null)
 					passThreshold = true;
-				line = String.format("%s\t%b", line.trim(), passThreshold);
-				row = line.split("\\t");
+				row[passThresholdIndex] = Boolean.toString(passThreshold);
+				line = getLine(row);
 			}
 			// isDecoy; default null
 			Boolean isDecoy = null;
@@ -192,9 +201,18 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			// if the control column is already present, just read its value
 			if (decoyIndex < row.length)
 				isDecoy = CommonUtils.parseBooleanColumn(row[decoyIndex]);
-			// otherwise, attempt to determine the correct
-			// value and write it to the control column
+			// add the control column if it's not already there
 			else {
+				String[] newRow = new String[decoyIndex + 1];
+				for (int i=0; i<row.length; i++)
+					newRow[i] = row[i];
+				row = newRow;
+			}
+			// if the control column was not present, or if it is
+			// present but its value could not be clearly interpreted
+			// as either true or false, then try to determine the
+			// correct value and write it to the control column
+			if (isDecoy == null) {
 				// if the source column is present, read it
 				if (decoyColumn != null) {
 					Integer index = columns.get(decoyColumn);
@@ -215,10 +233,10 @@ public class FDRCalculationProcessor implements MzTabProcessor
 						else isDecoy = CommonUtils.parseBooleanColumn(value);
 					}
 				}
-				line = String.format("%s\t%s", line.trim(),
-					isDecoy == null ? "null" :
-						isDecoy ? "1" : "0");	// write as 0/1 by convention
-				row = line.split("\\t");
+				// write isDecoy as 0/1 by convention
+				row[decoyIndex] =
+					isDecoy == null ? "null" : isDecoy ? "1" : "0";
+				line = getLine(row);
 			}
 			// Q-value; default null
 			String qValue = "null";
@@ -226,17 +244,26 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			// if the control column is already present, just read its value
 			if (qValueIndex < row.length)
 				qValue = row[qValueIndex];
-			// otherwise, attempt to determine the correct
-			// value and write it to the control column
+			// add the control column if it's not already there
 			else {
+				String[] newRow = new String[qValueIndex + 1];
+				for (int i=0; i<row.length; i++)
+					newRow[i] = row[i];
+				row = newRow;
+			}
+			// if the control column was not present, or if it is
+			// present but its value could not be clearly interpreted
+			// as a valid Q-value, then try to determine the
+			// correct value and write it to the control column
+			if (qValue == null || qValue.trim().equalsIgnoreCase("null")) {
 				// if the source column is present, read it
 				if (qValueColumn != null) {
 					Integer index = columns.get(qValueColumn);
 					if (index != null)
 						qValue = row[index];
 				}
-				line = String.format("%s\t%s", line.trim(), qValue);
-				row = line.split("\\t");
+				row[qValueIndex] = qValue == null ? "null" : qValue;
+				line = getLine(row);
 			}
 			// increment the proper count for this PSM if it passes
 			// threshold and its "isDecoy" value is not null.
@@ -420,5 +447,17 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			peptides = new HashSet<String>();
 		peptides.add(sequence);
 		proteinPeptides.put(accession, peptides);
+	}
+	
+	private String getLine(String[] tokens) {
+		if (tokens == null || tokens.length < 1)
+			return null;
+		StringBuilder line = new StringBuilder();
+		for (int i=0; i<tokens.length; i++)
+			line.append(tokens[i]).append("\t");
+		// chomp trailing tab ("\t")
+		if (line.charAt(line.length() - 1) == '\t')
+			line.setLength(line.length() - 1);
+		return line.toString();
 	}
 }
