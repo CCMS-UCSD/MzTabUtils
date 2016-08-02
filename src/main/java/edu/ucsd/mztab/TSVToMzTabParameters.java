@@ -233,9 +233,30 @@ public class TSVToMzTabParameters
 					new LinkedHashMap<String, Integer>(extraColumnCount);
 			else extraColumns = new LinkedHashMap<String, Integer>();
 			for (int i=0; i<elements.length; i++) {
-				if (columnIndices.containsValue(i))
-					continue;
-				else if (hasHeader())
+				// skip standard mzTab columns, since they're already
+				// recorded; however, keep any known TSV columns that
+				// do not correspond to any standard mzTab column
+				if (columnIndices.containsValue(i)) {
+					// get this column's name
+					String column = null;
+					for (String name : columnIndices.keySet()) {
+						if (columnIndices.get(name) == i) {
+							column = name;
+							break;
+						}
+					}
+					// column name should never be null since this
+					// index was found in the set of map values
+					if (column == null)
+						throw new IllegalStateException();
+					// only skip this column if it does not belong to the
+					// set of known columns that should be recorded as extras
+					else if (column.equals("psm_q_value") == false &&
+						column.equals("protein_q_value") == false &&
+						column.equals("peptide_q_value") == false)
+						continue;
+				}
+				if (hasHeader())
 					extraColumns.put(elements[i], i);
 				else extraColumns.put(String.format("column_%d", i + 1), i);
 			}
