@@ -451,6 +451,12 @@ public class MzTabValidator
 			int sequenceIndex = -1;
 			int accessionIndex = -1;
 			int modsIndex = -1;
+			// for "ambiguous" nativeIDs, i.e. ones with just a plain integer
+			// rather than a proper identifying prefix, keep track of whether
+			// or not they can be found as indices or scans; if all rows of
+			// this type can be found in a consistent way for the whole file,
+			// then we can safely interpret them as such.
+			Boolean[] possibleIDTypes = new Boolean[]{ true, true };
 			// read PSM rows, ensure that all "spectra_ref" elements correspond
 			// to spectra that were actually found in the peak list files
 			int spectraRefIndex = -1;
@@ -603,7 +609,8 @@ public class MzTabValidator
 					PSMRecord psm = validatePSMRow(columns[sequenceIndex],
 						columns[modsIndex], tokens[0], tokens[1], context,
 						spectra, lineCount, mzTabFile, uploadedResults,
-						parsedMzidFileCache, mzidSpectrumIDCache, countOnly);
+						parsedMzidFileCache, mzidSpectrumIDCache, countOnly,
+						possibleIDTypes);
 					uniquePSMs.add(psm);
 					// add this row's peptide and protein to found lists,
 					// if present and valid
@@ -700,7 +707,7 @@ public class MzTabValidator
 		int lineNumber, MzTabFile mzTabFile, File uploadedResults,
 		Map<String, Document> parsedMzidFileCache,
 		Map<Document, Map<String, Map<String, Collection<String>>>>
-		mzidSpectrumIDCache, boolean countOnly
+		mzidSpectrumIDCache, boolean countOnly, Boolean[] possibleIDTypes
 	) throws InvalidPSMException {
 		if (sequence == null)
 			throw new NullPointerException("\"sequence\" string is null.");
@@ -747,7 +754,7 @@ public class MzTabValidator
 			verifiedNativeID = validateSpectraRef(nativeID, scans, lineNumber,
 				mzTabFile, CommonUtils.cleanFileURL(msRun.getMsRunLocation()),
 				context, sequence, uploadedResults, parsedMzidFileCache,
-				mzidSpectrumIDCache);
+				mzidSpectrumIDCache, possibleIDTypes);
 		}
 		return new PSMRecord(
 			msRunIndex, verifiedNativeID, sequence, modifications);
@@ -759,7 +766,7 @@ public class MzTabValidator
 		TaskMzTabContext context, String sequence, File uploadedResults,
 		Map<String, Document> parsedMzidFileCache,
 		Map<Document, Map<String, Map<String, Collection<String>>>>
-		mzidSpectrumIDCache
+		mzidSpectrumIDCache, Boolean[] possibleIDTypes
 	) throws InvalidPSMException {
 		if (nativeID == null)
 			throw new NullPointerException(
@@ -819,25 +826,73 @@ public class MzTabValidator
 				scan = false;
 			}
 		}
-		// if it's just an integer, we don't know if it's a scan or an
-		// index, so look it up in the source mzid file, if there is one
+		// at this point, the nativeID is not of any recognized or
+		// supported type, so try to parse it as a plain integer
 		if (value == null) try {
 			value = Integer.parseInt(nativeID);
+		} catch (NumberFormatException error) {}
+		// if it's just a plain integer, we don't know if it's a scan or an
+		// index, so look it up in the source mzid file, if there is one
+		if (value != null) try {
 			if (isScan(mzTabFile, sequence, value, uploadedResults,
 				context, parsedMzidFileCache, mzidSpectrumIDCache)
 				== false) {
 				nativeID = String.format("index=%d", value);
 				scan = false;
 			} else nativeID = String.format("scan=%d", value);
-		} catch (NumberFormatException error) {}
+		}
+		// if looking it up in the mzid file didn't help,
+		// just try it as both an index and a scan
+		catch (InvalidPSMException error) {
+			// if all previously seen ambiguous nativeIDs could not be
+			// consistently found as a single ID type, then we cannot
+			// determine the overall type here
+			if (possibleIDTypes[0] == false && possibleIDTypes[1] == false)
+				throw error;
+			// if any previously seen ambiguous nativeIDs could not be found
+			// as scans, then we can only try indices at this point
+			else if (possibleIDTypes[0] == false) {
+				if (isSpectrumIDInMap(value, false, scans) == false) {
+					possibleIDTypes[1] = false;
+					throw error;
+				} else {
+					nativeID = String.format("index=%d", value);
+					scan = false;
+				}
+			}
+			// if any previously seen ambiguous nativeIDs could not be found
+			// as indices, then we can only try scans at this point
+			else if (possibleIDTypes[1] == false) {
+				if (isSpectrumIDInMap(value, true, scans) == false) {
+					possibleIDTypes[0] = false;
+					throw error;
+				} else nativeID = String.format("scan=%d", value);
+			}
+			// if we haven't yet narrowed it down to a single possible type,
+			// since we haven't yet rejected either type due to not being able
+			// to find an ID in that type's map, then we have to try both
+			else {
+				possibleIDTypes[0] = isSpectrumIDInMap(value, true, scans);
+				possibleIDTypes[1] = isSpectrumIDInMap(value, false, scans);
+				if (possibleIDTypes[0] == false && possibleIDTypes[1] == false)
+					throw error;
+				else if (possibleIDTypes[0] == false) {
+					nativeID = String.format("index=%d", value);
+					scan = false;
+				} else if (possibleIDTypes[1] == false)
+					nativeID = String.format("scan=%d", value);
+				// the dreaded case in which neither type has been rejected,
+				// and this ID was found in both maps: we pick scan by default
+				else nativeID = String.format("scan=%d", value);
+			}
+		}
 		// if nothing was found, then the nativeID
 		// string was of an unrecognized type
-		if (value == null)
-			throw new InvalidPSMException(String.format(
-				"Invalid NativeID-formatted spectrum identifier [%s]: either " +
-				"an index or a scan number must be provided in order to find " +
-				"the referenced spectrum within the submitted peak list file.",
-				nativeID));
+		else throw new InvalidPSMException(String.format(
+			"Invalid NativeID-formatted spectrum identifier [%s]: either " +
+			"an index or a scan number must be provided in order to find " +
+			"the referenced spectrum within the submitted peak list file.",
+			nativeID));
 		// once the type of ID has been determined,
 		// check against the proper set
 		Collection<Integer> ids = null;
@@ -995,6 +1050,30 @@ else System.out.print("!");
 			"found spectrum ID [%s] in submitted mzIdentML file [%s], " +
 			"but the NativeID format is not recognized.",
 			id, nativeID, mzidFile.getName()));
+	}
+	
+	private static boolean isSpectrumIDInMap(
+		Integer value, boolean scan,
+		ImmutablePair<Collection<Integer>, Collection<Integer>> scans
+	) {
+		if (value == null || scans == null)
+			return false;
+		Collection<Integer> ids = null;
+		if (scan)
+			ids = scans.getLeft();
+		else ids = scans.getRight();
+		if (ids == null)
+			return false;
+		else {
+			if (ids.contains(value))
+				return true;
+			// apparently, indices might be 0-based or 1-based,
+			// so we need to accept this ID if either is present
+			else if (scan == false &&
+				(ids.contains(value - 1) || ids.contains(value + 1)))
+				return true;
+			else return false;
+		}
 	}
 	
 	@SuppressWarnings("unused")
