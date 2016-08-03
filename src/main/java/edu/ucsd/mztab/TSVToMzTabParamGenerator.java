@@ -34,7 +34,8 @@ public class TSVToMzTabParamGenerator
 		"\n\t-filename               <SpectrumFilenameColumnHeaderOrIndex>" +
 		"\n\t-modified_sequence      " +
 			"<ModifiedPeptideSequenceColumnHeaderOrIndex>" +
-		"\n\t-mod_pattern            <ModificationStringFormat>" +
+		"\n\t-mod_pattern            <ModificationStringFormat> " +
+			"(parameter may occur more than once)" +
 		"\n\t[-fixed_mods_reported   \"true\"/\"false\" (default \"false\")]" +
 		"\n\t[-spectrum_id_type      \"scan\"/\"index\"]" +
 		"\n\t[-scan                  <ScanColumnHeaderOrIndex> "+
@@ -61,17 +62,17 @@ public class TSVToMzTabParamGenerator
 	private Collection<Double>   foundMods;
 	private Collection<String>   fixedMods;
 	private Collection<String>   variableMods;
-	private String               modPattern;
+	private Collection<String>   modPatterns;
 	
 	/*========================================================================
 	 * Constructors
 	 *========================================================================*/
 	public TSVToMzTabParamGenerator(
 		File inputParams, File tsvFile, File paramsFile, String hasHeader,
-		String filenameColumn, String sequenceColumn, String modPattern,
+		String filenameColumn, String sequenceColumn,
 		String fixedModsReported, String specIDType, String scanColumn,
 		String indexColumn, String indexNumbering, String accessionColumn,
-		String chargeColumn
+		String chargeColumn, Collection<String> modPatterns
 	) throws IOException {
 		// validate input parameter file
 		if (inputParams == null)
@@ -130,10 +131,11 @@ public class TSVToMzTabParamGenerator
 		fixedMods = new LinkedHashSet<String>();
 		variableMods = new LinkedHashSet<String>();
 		foundMods = new LinkedHashSet<Double>();
-		// set mod pattern
-		if (modPattern == null)
-			throw new NullPointerException("\"mod_pattern\" cannot be null.");
-		else this.modPattern = modPattern;
+		// set mod patterns
+		if (modPatterns == null || modPatterns.isEmpty())
+			throw new NullPointerException(
+				"At least one \"mod_pattern\" parameter must be provided.");
+		else this.modPatterns = modPatterns;
 		// set whether fixed mods are explicitly written to
 		// the input TSV file's modified peptide strings
 		if (fixedModsReported == null)
@@ -263,8 +265,7 @@ public class TSVToMzTabParamGenerator
 			if (document == null)
 				throw new NullPointerException(
 					"Parameters XML document could not be parsed.");
-			// look for standard/legacy params.xml
-			// mod parameters and transfer them
+			// determine from params.xml which fixed cysteine mod to use
 			Node parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='cysteine_protease.cysteine']");
 			if (parameter != null) {
@@ -281,62 +282,22 @@ public class TSVToMzTabParamGenerator
 							"C", "99.068414", true, null);
 				}
 			}
-			parameter = XPathAPI.selectSingleNode(
-				document, "//parameter[@name='ptm.DEAMIDATION']");
-			if (parameter != null) {
-				String present = parameter.getFirstChild().getNodeValue();
-				if (present != null && present.trim().equalsIgnoreCase("on"))
-					addMod("[UNIMOD,UNIMOD:7,Deamidated,\"%s\"]",
-						"NQ", "0.984016", false, null);
-			}
-			parameter = XPathAPI.selectSingleNode(
-				document, "//parameter[@name='ptm.LYSINE_METHYLATION']");
-			if (parameter != null) {
-				String present = parameter.getFirstChild().getNodeValue();
-				if (present != null && present.trim().equalsIgnoreCase("on"))
-					addMod("[UNIMOD,UNIMOD:34,Methyl,\"%s\"]",
-						"K", "14.015650", false, null);
-			}
-			parameter = XPathAPI.selectSingleNode(
-				document, "//parameter[@name='ptm.NTERM_ACETYLATION']");
-			if (parameter != null) {
-				String present = parameter.getFirstChild().getNodeValue();
-				if (present != null && present.trim().equalsIgnoreCase("on"))
-					addMod("[UNIMOD,UNIMOD:1,Acetyl,\"%s\"]",
-						"*", "42.010565", false, true);
-			}
-			parameter = XPathAPI.selectSingleNode(
-				document, "//parameter[@name='ptm.NTERM_CARBAMYLATION']");
-			if (parameter != null) {
-				String present = parameter.getFirstChild().getNodeValue();
-				if (present != null && present.trim().equalsIgnoreCase("on"))
-					addMod("[UNIMOD,UNIMOD:5,Carbamyl,\"%s\"]",
-						"*", "43.005814", false, true);
-			}
-			parameter = XPathAPI.selectSingleNode(
-				document, "//parameter[@name='ptm.OXIDATION']");
-			if (parameter != null) {
-				String present = parameter.getFirstChild().getNodeValue();
-				if (present != null && present.trim().equalsIgnoreCase("on"))
-					addMod("[UNIMOD,UNIMOD:35,Oxidation,\"%s\"]",
-						"M", "15.994915", false, null);
-			}
-			parameter = XPathAPI.selectSingleNode(
-				document, "//parameter[@name='ptm.PHOSPHORYLATION']");
-			if (parameter != null) {
-				String present = parameter.getFirstChild().getNodeValue();
-				if (present != null && present.trim().equalsIgnoreCase("on"))
-					addMod("[UNIMOD,UNIMOD:21,Phospho,\"%s\"]",
-						"STY", "79.966331", false, null);
-			}
-			parameter = XPathAPI.selectSingleNode(
-				document, "//parameter[@name='ptm.PYROGLUTAMATE_FORMATION']");
-			if (parameter != null) {
-				String present = parameter.getFirstChild().getNodeValue();
-				if (present != null && present.trim().equalsIgnoreCase("on"))
-					addMod("[UNIMOD,UNIMOD:28,Gln->pyro-Glu,\"%s\"]",
-						"Q", "-17.026549", false, true);
-			}
+			// add all "standard" ProteoSAFe variable mods,
+			// regardless of whether or not the user added them
+			addMod("[UNIMOD,UNIMOD:7,Deamidated,\"%s\"]",
+				"NQ", "0.984016", false, null);
+			addMod("[UNIMOD,UNIMOD:34,Methyl,\"%s\"]",
+				"K", "14.015650", false, null);
+			addMod("[UNIMOD,UNIMOD:1,Acetyl,\"%s\"]",
+				"*", "42.010565", false, true);
+			addMod("[UNIMOD,UNIMOD:5,Carbamyl,\"%s\"]",
+				"*", "43.005814", false, true);
+			addMod("[UNIMOD,UNIMOD:35,Oxidation,\"%s\"]",
+				"M", "15.994915", false, null);
+			addMod("[UNIMOD,UNIMOD:21,Phospho,\"%s\"]",
+				"STY", "79.966331", false, null);
+			addMod("[UNIMOD,UNIMOD:28,Gln->pyro-Glu,\"%s\"]",
+				"Q", "-17.026549", false, true);
 			// TODO: this section isn't really useful unless we try to match
 			// these mods up with UNIMOD or PSI-MOD accessions, since adding
 			// more "unknown modifications" will just result in CHEMMODs;
@@ -370,11 +331,6 @@ public class TSVToMzTabParamGenerator
 					}
 				}
 			}
-			// TODO: read declared mods, note them
-			// TODO: compare found mods to declared mods to find best match
-			// TODO: write found mods to converter params file, using the best
-			// matched declared mod CV term, and the actual mod specifier
-			// string found in the TSV file
 		} catch (Throwable error) {
 			die(null, error);
 		}
@@ -405,11 +361,12 @@ public class TSVToMzTabParamGenerator
 					output.println("index_numbering=0");
 				else output.println("index_numbering=1");
 			}
-			// add generic catch-all unknown variable mod specifier
+			// add generic catch-all unknown variable mod specifiers
 			if (variableMods == null)
 				variableMods = new LinkedHashSet<String>();
-			variableMods.add(String.format(
-				"[MS,MS:1001460,unknown modification,\"%s\"]", modPattern));
+			for (String modPattern : modPatterns)
+				variableMods.add(String.format(
+					"[MS,MS:1001460,unknown modification,\"%s\"]", modPattern));
 			// write variable mods
 			StringBuilder mods = new StringBuilder("variable_mods=");
 			for (String variableMod : variableMods)
@@ -612,13 +569,15 @@ public class TSVToMzTabParamGenerator
 					mass = Double.toString(bestMatch);
 			}
 		}
-		// build mod CV term string
-		cvTerm = String.format(cvTerm, getModFormatString(
-			modPattern, aminoAcids, mass,
-			fixed && (fixedModsReported == false), terminal));
-		if (fixed)
-			fixedMods.add(cvTerm);
-		else variableMods.add(cvTerm);
+		// build a separate mod CV term string for each possible mod format
+		for (String modPattern : modPatterns) {
+			String modCVTerm = String.format(cvTerm, getModFormatString(
+				modPattern, aminoAcids, mass,
+				fixed && (fixedModsReported == false), terminal));
+			if (fixed)
+				fixedMods.add(modCVTerm);
+			else variableMods.add(modCVTerm);
+		}
 	}
 	
 	/**
@@ -723,7 +682,6 @@ public class TSVToMzTabParamGenerator
 		String hasHeader = null;
 		String filenameColumn = null;
 		String sequenceColumn = null;
-		String modPattern = null;
 		String fixedModsReported = null;
 		String specIDType = null;
 		String scanColumn = null;
@@ -731,6 +689,7 @@ public class TSVToMzTabParamGenerator
 		String indexNumbering = null;
 		String accessionColumn = null;
 		String chargeColumn = null;
+		Collection<String> modPatterns = new LinkedHashSet<String>();
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -752,8 +711,6 @@ public class TSVToMzTabParamGenerator
 					filenameColumn = value;
 				else if (argument.equalsIgnoreCase("-modified_sequence"))
 					sequenceColumn = value;
-				else if (argument.equalsIgnoreCase("-mod_pattern"))
-					modPattern = value;
 				else if (argument.equalsIgnoreCase("-fixed_mods_reported"))
 					fixedModsReported = value;
 				else if (argument.equalsIgnoreCase("-spectrum_id_type"))
@@ -768,6 +725,8 @@ public class TSVToMzTabParamGenerator
 					accessionColumn = value;
 				else if (argument.equalsIgnoreCase("-charge"))
 					chargeColumn = value;
+				else if (argument.equalsIgnoreCase("-mod_pattern"))
+					modPatterns.add(value);
 				else throw new IllegalArgumentException(String.format(
 					"Unrecognized parameter at index %d: [%s]", i, argument));
 			}
@@ -777,8 +736,8 @@ public class TSVToMzTabParamGenerator
 		try {
 			return new TSVToMzTabParamGenerator(inputParams, tsvFile,
 				paramsFile, hasHeader, filenameColumn, sequenceColumn,
-				modPattern, fixedModsReported, specIDType, scanColumn,
-				indexColumn, indexNumbering, accessionColumn, chargeColumn);
+				fixedModsReported, specIDType, scanColumn, indexColumn,
+				indexNumbering, accessionColumn, chargeColumn, modPatterns);
 		} catch (IOException error) {
 			throw new RuntimeException(error);
 		}
