@@ -8,8 +8,10 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.regex.Matcher;
 
@@ -86,7 +88,25 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			// add all fixed and variable mods
 			int fixedCount = 0;
 			int variableCount = 0;
+			// keep track of which mods have been added so far,
+			// since we only want one MTD line per accession,
+			// and there may be many records for a single accession
+			Set<String> accessions = new HashSet<String>();
 			for (ModRecord record : params.getModifications()) {
+				// check whether this mod has already been added
+				String accession = record.getAccession();
+				if (accession != null) {
+					// if this mod has already been added to the MTD section,
+					// then don't add it again - unless it is an unknown mod,
+					// in which case we do want to note all the different mod
+					// patterns that were specified by the user
+					if (accessions.contains(accession) &&
+						accession.equals(
+							UNKNOWN_MODIFICATION_ACCESSION) == false)
+						continue;
+					else accessions.add(accession);
+				}
+				// record this mod to the MTD section of the mzTab file
 				if (record.isFixed()) {
 					FixedMod mod = new FixedMod(++fixedCount);
 					mod.setParam(record.getParam());
