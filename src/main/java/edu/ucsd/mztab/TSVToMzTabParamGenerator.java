@@ -18,6 +18,7 @@ import org.w3c.dom.NodeList;
 
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.util.OntologyUtils;
 import edu.ucsd.util.ProteomicsUtils;
 
 public class TSVToMzTabParamGenerator
@@ -35,6 +36,10 @@ public class TSVToMzTabParamGenerator
 		"\n\t-modified_sequence      " +
 			"<ModifiedPeptideSequenceColumnHeaderOrIndex>" +
 		"\n\t-mod_pattern            <ModificationStringFormat> " +
+			"(parameter may occur more than once)" +
+		"\n\t-fixed_mod              <ModAccession>|<ModPattern> " +
+			"(parameter may occur more than once)" +
+		"\n\t-variable_mod           <ModAccession>|<ModPattern> " +
 			"(parameter may occur more than once)" +
 		"\n\t[-fixed_mods_reported   \"true\"/\"false\" (default \"false\")]" +
 		"\n\t[-spectrum_id_type      \"scan\"/\"index\"]" +
@@ -72,7 +77,9 @@ public class TSVToMzTabParamGenerator
 		String filenameColumn, String sequenceColumn,
 		String fixedModsReported, String specIDType, String scanColumn,
 		String indexColumn, String indexNumbering, String accessionColumn,
-		String chargeColumn, Collection<String> modPatterns
+		String chargeColumn, Collection<String> modPatterns,
+		Collection<String> staticFixedMods,
+		Collection<String> staticVariableMods
 	) throws IOException {
 		// validate input parameter file
 		if (inputParams == null)
@@ -136,6 +143,13 @@ public class TSVToMzTabParamGenerator
 			throw new NullPointerException(
 				"At least one \"mod_pattern\" parameter must be provided.");
 		else this.modPatterns = modPatterns;
+		// add static mods specified on the command line
+		if (staticFixedMods != null)
+			for (String fixedMod : staticFixedMods)
+				addStaticMod(fixedMod, true);
+		if (staticVariableMods != null)
+			for (String variableMod : staticVariableMods)
+				addStaticMod(variableMod, false);
 		// set whether fixed mods are explicitly written to
 		// the input TSV file's modified peptide strings
 		if (fixedModsReported == null)
@@ -225,7 +239,7 @@ public class TSVToMzTabParamGenerator
 								"TSV file [%s].", filename));
 					scanMode = determineSpectrumIDType(elements, scan, index);
 					// add any found mods while we're looking at a data row
-					addMods(elements[psmIndex]);
+					addModMasses(elements[psmIndex]);
 				}
 			}
 			// note proper spectrum ID column, now that it's been determined
@@ -244,7 +258,7 @@ public class TSVToMzTabParamGenerator
 				elements = line.split("\t");
 				if (elements == null || elements.length <= psmIndex)
 					continue;
-				addMods(elements[psmIndex]);
+				addModMasses(elements[psmIndex]);
 				lineNumber++;
 			}
 		} catch (Throwable error) {
@@ -272,31 +286,32 @@ public class TSVToMzTabParamGenerator
 				String cysteine = parameter.getFirstChild().getNodeValue();
 				if (cysteine != null && cysteine.trim().isEmpty() == false) {
 					if (cysteine.trim().equals("c57"))
-						addMod("[UNIMOD,UNIMOD:4,Carbamidomethyl,\"%s\"]",
+						addDynamicMod(
+							"[UNIMOD,UNIMOD:4,Carbamidomethyl,\"%s\"]",
 							"C", "57.021464", true, null);
 					else if (cysteine.trim().equals("c58"))
-						addMod("[UNIMOD,UNIMOD:6,Carboxymethyl,\"%s\"]",
+						addDynamicMod("[UNIMOD,UNIMOD:6,Carboxymethyl,\"%s\"]",
 							"C", "58.005479", true, null);
 					else if (cysteine.trim().equals("c99"))
-						addMod("[UNIMOD,UNIMOD:17,NIPCAM,\"%s\"]",
+						addDynamicMod("[UNIMOD,UNIMOD:17,NIPCAM,\"%s\"]",
 							"C", "99.068414", true, null);
 				}
 			}
 			// add all "standard" ProteoSAFe variable mods,
 			// regardless of whether or not the user added them
-			addMod("[UNIMOD,UNIMOD:7,Deamidated,\"%s\"]",
+			addDynamicMod("[UNIMOD,UNIMOD:7,Deamidated,\"%s\"]",
 				"NQ", "0.984016", false, null);
-			addMod("[UNIMOD,UNIMOD:34,Methyl,\"%s\"]",
+			addDynamicMod("[UNIMOD,UNIMOD:34,Methyl,\"%s\"]",
 				"K", "14.015650", false, null);
-			addMod("[UNIMOD,UNIMOD:1,Acetyl,\"%s\"]",
+			addDynamicMod("[UNIMOD,UNIMOD:1,Acetyl,\"%s\"]",
 				"*", "42.010565", false, true);
-			addMod("[UNIMOD,UNIMOD:5,Carbamyl,\"%s\"]",
+			addDynamicMod("[UNIMOD,UNIMOD:5,Carbamyl,\"%s\"]",
 				"*", "43.005814", false, true);
-			addMod("[UNIMOD,UNIMOD:35,Oxidation,\"%s\"]",
+			addDynamicMod("[UNIMOD,UNIMOD:35,Oxidation,\"%s\"]",
 				"M", "15.994915", false, null);
-			addMod("[UNIMOD,UNIMOD:21,Phospho,\"%s\"]",
+			addDynamicMod("[UNIMOD,UNIMOD:21,Phospho,\"%s\"]",
 				"STY", "79.966331", false, null);
-			addMod("[UNIMOD,UNIMOD:28,Gln->pyro-Glu,\"%s\"]",
+			addDynamicMod("[UNIMOD,UNIMOD:28,Gln->pyro-Glu,\"%s\"]",
 				"Q", "-17.026549", false, true);
 			// TODO: this section isn't really useful unless we try to match
 			// these mods up with UNIMOD or PSI-MOD accessions, since adding
@@ -326,7 +341,8 @@ public class TSVToMzTabParamGenerator
 							terminal = true;
 						else if (tokens[2].contains("cterm"))
 							terminal = false;
-						addMod("[MS,MS:1001460,unknown modification,\"%s\"]",
+						addDynamicMod(
+							"[MS,MS:1001460,unknown modification,\"%s\"]",
 							tokens[1], tokens[0], fixed, terminal);
 					}
 				}
@@ -522,7 +538,7 @@ public class TSVToMzTabParamGenerator
 			scan, index));
 	}
 	
-	private void addMods(String psm) {
+	private void addModMasses(String psm) {
 		if (psm == null)
 			return;
 		// ensure that found mods collection is initialized
@@ -539,7 +555,7 @@ public class TSVToMzTabParamGenerator
 	/**
 	 * @param terminal	true N-term, false C-term, null neither
 	 */
-	private void addMod(
+	private void addDynamicMod(
 		String cvTerm, String aminoAcids, String mass,
 		boolean fixed, Boolean terminal
 	) {
@@ -578,6 +594,47 @@ public class TSVToMzTabParamGenerator
 				fixedMods.add(modCVTerm);
 			else variableMods.add(modCVTerm);
 		}
+	}
+	
+	private void addStaticMod(String specifier, boolean fixed) {
+		if (specifier == null)
+			return;
+		// split specifier into accession and pattern
+		int pipe = specifier.indexOf('|');
+		if (pipe < 1)
+			throw new IllegalArgumentException(String.format(
+				"Modification specifier [%s] does not conform to the " +
+				"required format:\n%s", specifier, "<accession>|<pattern>"));
+		String accession = specifier.substring(0, pipe);
+		String pattern = specifier.substring(pipe + 1);
+		// extract mod ontology label from the accession
+		String[] tokens = accession.split(":");
+		if (tokens == null || tokens.length != 2)
+			throw new IllegalArgumentException(String.format(
+				"Modification accession [%s] does not conform to the " +
+				"required format of a CV accession string:\n%s",
+				accession, "<cvLabel>:<accession>"));
+		// get accession name; if one cannot be found,
+		// then this is not a valid ontology mod
+		String name = OntologyUtils.getOntologyModificationName(accession);
+		if (name == null)
+			throw new IllegalArgumentException(String.format(
+				"Modification accession [%s] does not correspond to any " +
+				"known ontology modification.", accession));
+		// validate that the argument mod pattern does not contain
+		// any quotation marks, since these are used to enclose
+		// the pattern as the fourth CV tuple "value" element
+		if (pattern.contains("\""))
+			throw new IllegalArgumentException(String.format(
+				"Modification pattern [%s] is invalid: pattern may not " +
+				"contain quotation marks (\").", pattern));
+		// build CV term string
+		String modCVTerm = String.format("[%s,%s,%s,\"%s\"]",
+			tokens[0], accession, name, pattern);
+		// add mod to the proper collection
+		if (fixed)
+			fixedMods.add(modCVTerm);
+		else variableMods.add(modCVTerm);
 	}
 	
 	/**
@@ -690,6 +747,8 @@ public class TSVToMzTabParamGenerator
 		String accessionColumn = null;
 		String chargeColumn = null;
 		Collection<String> modPatterns = new LinkedHashSet<String>();
+		Collection<String> fixedMods = new LinkedHashSet<String>();
+		Collection<String> variableMods = new LinkedHashSet<String>();
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -727,6 +786,10 @@ public class TSVToMzTabParamGenerator
 					chargeColumn = value;
 				else if (argument.equalsIgnoreCase("-mod_pattern"))
 					modPatterns.add(value);
+				else if (argument.equalsIgnoreCase("-fixed_mod"))
+					fixedMods.add(value);
+				else if (argument.equalsIgnoreCase("-variable_mod"))
+					variableMods.add(value);
 				else throw new IllegalArgumentException(String.format(
 					"Unrecognized parameter at index %d: [%s]", i, argument));
 			}
@@ -737,7 +800,8 @@ public class TSVToMzTabParamGenerator
 			return new TSVToMzTabParamGenerator(inputParams, tsvFile,
 				paramsFile, hasHeader, filenameColumn, sequenceColumn,
 				fixedModsReported, specIDType, scanColumn, indexColumn,
-				indexNumbering, accessionColumn, chargeColumn, modPatterns);
+				indexNumbering, accessionColumn, chargeColumn,
+				modPatterns, fixedMods, variableMods);
 		} catch (IOException error) {
 			throw new RuntimeException(error);
 		}
