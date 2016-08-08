@@ -38,6 +38,12 @@ public class ProteoSAFeMzTabCleaner
 		"\n\t[-psmQValue     <PSMQValueColumn>]" +
 		"\n\t[-peptideQValue <PSMQValueColumn>]" +
 		"\n\t[-proteinQValue <PSMQValueColumn>]" +
+		"\n\t[-psmFDR        <GlobalPSMLevelFDR> " +
+			"(leave blank if decoy or PSM Q-value column are specified]" +
+		"\n\t[-peptideFDR   <GlobalPeptideLevelFDR> " +
+			"(leave blank if decoy or peptide Q-value column are specified]" +
+		"\n\t[-proteinFDR   <GlobalProteinLevelFDR> " +
+			"(leave blank if decoy or protein Q-value column are specified]" +
 		"\n\t[-filter        true/false (default false; " +
 			"if specified, PSM rows not meeting the FDR " +
 			"threshold will be removed from the file)]" +
@@ -93,18 +99,25 @@ public class ProteoSAFeMzTabCleaner
 			// if no FDR could be calculated, use highest found Q-Value, if any
 			if (psmFDR == null)
 				psmFDR = statistics.getMaxQValue(FDRType.PSM);
+			// if FDR could still not be determined, use user-specified FDR
+			if (psmFDR == null)
+				psmFDR = cleanup.psmFDR;
 			// peptide-level FDR
 			Double peptideFDR = MzTabFDRCleaner.calculateFDR(
 				statistics.getElementCount("targetPeptide"),
 				statistics.getElementCount("decoyPeptide"));
 			if (peptideFDR == null)
 				peptideFDR = statistics.getMaxQValue(FDRType.PEPTIDE);
+			if (peptideFDR == null)
+				peptideFDR = cleanup.peptideFDR;
 			// protein-level FDR
 			Double proteinFDR = MzTabFDRCleaner.calculateFDR(
 				statistics.getElementCount("targetProtein"),
 				statistics.getElementCount("decoyProtein"));
 			if (proteinFDR == null)
 				proteinFDR = statistics.getMaxQValue(FDRType.PROTEIN);
+			if (proteinFDR == null)
+				proteinFDR = cleanup.proteinFDR;
 			// set up second intermediate output file
 			File tempFile2 =
 				new File(String.format("%s.2.temp", file.getName()));
@@ -150,6 +163,9 @@ public class ProteoSAFeMzTabCleaner
 		private boolean          filter;
 		private FDRFilterType    filterType;
 		private Double           filterFDR;
+		private Double           psmFDR;
+		private Double           peptideFDR;
+		private Double           proteinFDR;
 		
 		/*====================================================================
 		 * Constructors
@@ -161,7 +177,8 @@ public class ProteoSAFeMzTabCleaner
 			String passThresholdColumn, String decoyColumn, String decoyPattern,
 			String psmQValueColumn, String peptideQValueColumn,
 			String proteinQValueColumn,
-			boolean filter, String filterType, Double filterFDR
+			boolean filter, String filterType, Double filterFDR,
+			Double psmFDR, Double peptideFDR, Double proteinFDR
 		) {
 			// validate mzTab directory (if null,
 			// then no cleanup is necessary)
@@ -236,6 +253,10 @@ public class ProteoSAFeMzTabCleaner
 					String.format("Unrecognized filter type [%s]: must be  " +
 						"\"psm\", \"peptide\" or \"protein\".", filterType));
 			}
+			// initialize user-specified global FDR values
+			this.psmFDR = psmFDR;
+			this.peptideFDR = peptideFDR;
+			this.proteinFDR = proteinFDR;
 		}
 	}
 	
@@ -261,6 +282,9 @@ public class ProteoSAFeMzTabCleaner
 		String filterType = null;
 		Boolean filter = false;
 		Double filterFDR = null;
+		Double psmFDR = null;
+		Double peptideFDR = null;
+		Double proteinFDR = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -329,6 +353,38 @@ public class ProteoSAFeMzTabCleaner
 					throw new IllegalArgumentException(String.format(
 						"Illegal value for \"-filterFDR\": [%s]", value),
 						error);
+				} else if (argument.equals("-psmFDR")) try {
+					psmFDR = Double.parseDouble(value);
+					// enforce the FDR range of 0-1
+					if (psmFDR < 0.0 || psmFDR > 1.0)
+						throw new IllegalArgumentException("The argument to " +
+							"\"-psmFDR\" must be a number in the range 0-1");
+				} catch (Throwable error) {
+					throw new IllegalArgumentException(String.format(
+						"Illegal value for \"-psmFDR\": [%s]", value),
+						error);
+				} else if (argument.equals("-peptideFDR")) try {
+					peptideFDR = Double.parseDouble(value);
+					// enforce the FDR range of 0-1
+					if (peptideFDR < 0.0 || peptideFDR > 1.0)
+						throw new IllegalArgumentException(
+							"The argument to \"-peptideFDR\" must " +
+							"be a number in the range 0-1");
+				} catch (Throwable error) {
+					throw new IllegalArgumentException(String.format(
+						"Illegal value for \"-peptideFDR\": [%s]", value),
+						error);
+				} else if (argument.equals("-proteinFDR")) try {
+					proteinFDR = Double.parseDouble(value);
+					// enforce the FDR range of 0-1
+					if (proteinFDR < 0.0 || proteinFDR > 1.0)
+						throw new IllegalArgumentException(
+							"The argument to \"-proteinFDR\" must " +
+							"be a number in the range 0-1");
+				} catch (Throwable error) {
+					throw new IllegalArgumentException(String.format(
+						"Illegal value for \"-proteinFDR\": [%s]", value),
+						error);
 				} else return null;
 			}
 		}
@@ -339,7 +395,7 @@ public class ProteoSAFeMzTabCleaner
 				parameters, outputDirectory, datasetID,
 				passThresholdColumn, decoyColumn, decoyPattern,
 				psmQValueColumn, peptideQValueColumn, proteinQValueColumn,
-				filter, filterType, filterFDR);
+				filter, filterType, filterFDR, psmFDR, peptideFDR, proteinFDR);
 		} catch (Throwable error) {
 			error.printStackTrace();
 			return null;
