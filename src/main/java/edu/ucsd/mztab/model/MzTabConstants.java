@@ -20,6 +20,7 @@ public class MzTabConstants
 		"^MTD\\s+ms_run\\[(\\d+)\\]-location\\s+(.+)$");
 	
 	// constants pertaining to important PSM section header (PSH) columns
+	public static final String PSH_PSM_ID_COLUMN = "PSM_ID";
 	public static final String PSH_PEPTIDE_COLUMN = "sequence";
 	public static final String PSH_PROTEIN_COLUMN = "accession";
 	
@@ -61,6 +62,7 @@ public class MzTabConstants
 		"|{neutral loss}";
 	
 	// constants pertaining to CCMS-curated mzTab FDR fields
+	public static enum FDRType { PSM, PEPTIDE, PROTEIN }
 	public static final String PASS_THRESHOLD_COLUMN =
 		"opt_global_pass_threshold";
 	public static final String IS_DECOY_COLUMN =

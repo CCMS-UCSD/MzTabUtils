@@ -3,13 +3,11 @@ package edu.ucsd.mztab.ui;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-
-import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
+import edu.ucsd.mztab.model.MzTabConstants.FDRType;
+import edu.ucsd.mztab.model.MzTabFDRStatistics;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.FDRCalculationProcessor;
@@ -78,13 +76,9 @@ public class ProteoSAFeMzTabCleaner
 			reader.addProcessor(new MsRunCleanProcessor());
 			// ensure that each PSM row has the FDR columns
 			// needed by ProteoSAFe to enforce quality control
-			Map<String, Integer> counts = new HashMap<String, Integer>(6);
-			Map<String, ImmutablePair<Boolean, Boolean>> peptides =
-				new HashMap<String, ImmutablePair<Boolean, Boolean>>();
-			Map<String, ImmutablePair<Boolean, Boolean>> proteins =
-				new HashMap<String, ImmutablePair<Boolean, Boolean>>();
+			MzTabFDRStatistics statistics = new MzTabFDRStatistics();
 			reader.addProcessor(new FDRCalculationProcessor(
-				counts, peptides, proteins, cleanup.passThresholdColumn,
+				statistics, cleanup.passThresholdColumn,
 				cleanup.decoyColumn, cleanup.decoyPattern,
 				cleanup.psmQValueColumn));
 			// ensure that each PSM row has the special columns
@@ -94,29 +88,40 @@ public class ProteoSAFeMzTabCleaner
 			reader.read();
 			// calculate global FDR values from returned count maps
 			Double psmFDR = MzTabFDRCleaner.calculateFDR(
-				counts.get("targetPSM"), counts.get("decoyPSM"));
+				statistics.getElementCount("targetPSM"),
+				statistics.getElementCount("decoyPSM"));
+			// if no FDR could be calculated, use highest found Q-Value, if any
+			if (psmFDR == null)
+				psmFDR = statistics.getMaxQValue(FDRType.PSM);
 			// peptide-level FDR
 			Double peptideFDR = MzTabFDRCleaner.calculateFDR(
-				counts.get("targetPeptide"), counts.get("decoyPeptide"));
+				statistics.getElementCount("targetPeptide"),
+				statistics.getElementCount("decoyPeptide"));
+			if (peptideFDR == null)
+				peptideFDR = statistics.getMaxQValue(FDRType.PEPTIDE);
 			// protein-level FDR
 			Double proteinFDR = MzTabFDRCleaner.calculateFDR(
-				counts.get("targetProtein"), counts.get("decoyProtein"));
+				statistics.getElementCount("targetProtein"),
+				statistics.getElementCount("decoyProtein"));
+			if (proteinFDR == null)
+				proteinFDR = statistics.getMaxQValue(FDRType.PROTEIN);
 			// set up second intermediate output file
 			File tempFile2 =
 				new File(String.format("%s.2.temp", file.getName()));
-			// add global FDR values to output file's metadata section
+			// add global FDR values to output file's metadata section,
+			// filter out all PSM rows that do not meet the FDR cutoff,
+			// and propagate calculated global FDR to any empty Q-Values
 			MzTabFDRCleaner.doSecondFDRPass(tempFile1, tempFile2,
 				inputFile.getMzTabFilename(), cleanup.filter,
 				cleanup.filterType, cleanup.filterFDR,
 				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
-				psmFDR, peptideFDR, proteinFDR, peptides, proteins);
+				psmFDR, peptideFDR, proteinFDR, statistics);
 			// set up final output file
 			File outputFile = new File(cleanup.outputDirectory, file.getName());
 			// filter out all protein and peptide rows no
 			// longer supported by remaining PSM rows
 			MzTabFDRCleaner.doThirdFDRPass(tempFile2, outputFile,
-				inputFile.getMzTabFilename(), cleanup.filter,
-				peptides, proteins);
+				inputFile.getMzTabFilename(), cleanup.filter, statistics);
 			// remove temporary files
 			tempFile1.delete();
 			tempFile2.delete();

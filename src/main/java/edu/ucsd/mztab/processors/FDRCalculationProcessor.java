@@ -2,7 +2,6 @@ package edu.ucsd.mztab.processors;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -11,6 +10,8 @@ import java.util.regex.Matcher;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.mztab.model.MzTabConstants;
+import edu.ucsd.mztab.model.MzTabConstants.FDRType;
+import edu.ucsd.mztab.model.MzTabFDRStatistics;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
@@ -23,7 +24,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	 * Constants
 	 *========================================================================*/
 	private static final String[] RELEVANT_PSM_COLUMNS = new String[]{
-		MzTabConstants.PSH_PEPTIDE_COLUMN, MzTabConstants.PSH_PROTEIN_COLUMN
+		MzTabConstants.PSH_PSM_ID_COLUMN, MzTabConstants.PSH_PEPTIDE_COLUMN,
+		MzTabConstants.PSH_PROTEIN_COLUMN
 	};
 	
 	/*========================================================================
@@ -35,46 +37,29 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	private Map<String, Integer> columns;
 	private Map<Integer, String> scoreColumns;
 	// source file FDR properties
+	private MzTabFDRStatistics   statistics;
 	private String               passThresholdColumn;
 	private String               decoyColumn;
 	private String               decoyPattern;
 	private String               qValueColumn;
-	// element type ("targetXYZ"/"decoyXYZ") -> count
-	private Map<String, Integer>                         counts;
-	// identifier -> passThreshold/isDecoy
-	private Map<String, ImmutablePair<Boolean, Boolean>> peptides;
-	private Map<String, ImmutablePair<Boolean, Boolean>> proteins;
-	// protein accession -> matched peptides
-	private Map<String, Set<String>>                     proteinPeptides;
 	
 	/*========================================================================
 	 * Constructor
 	 *========================================================================*/
 	public FDRCalculationProcessor(
-		Map<String, Integer> counts,
-		Map<String, ImmutablePair<Boolean, Boolean>> peptides,
-		Map<String, ImmutablePair<Boolean, Boolean>> proteins,
-		String passThresholdColumn, String decoyColumn, String decoyPattern,
-		String qValueColumn
+		MzTabFDRStatistics statistics, String passThresholdColumn,
+		String decoyColumn, String decoyPattern, String qValueColumn
 	) {
-		// initialize counter maps
-		if (counts == null)
-			throw new NullPointerException("Argument counts map is null.");
-		else this.counts = counts;
-		if (peptides == null)
+		// initialize FDR statistics data structure
+		if (statistics == null)
 			throw new NullPointerException(
-				"Argument peptide FDR attributes map is null.");
-		else this.peptides = peptides;
-		if (proteins == null)
-			throw new NullPointerException(
-				"Argument protein FDR attributes map is null.");
-		else this.proteins = proteins;
-		proteinPeptides = new HashMap<String, Set<String>>();
+				"Argument FDR statistics object is null.");
+		else this.statistics = statistics;
 		// initialize mzTab file properties
 		psmHeader = null;
 		mzTabFilename = null;
 		// initialize column index map
-		columns = new HashMap<String, Integer>(6);
+		columns = new HashMap<String, Integer>(7);
 		// initialize score column map
 		scoreColumns = new HashMap<Integer, String>();
 		// initialize source columns
@@ -145,6 +130,9 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				String header = headers.get(i);
 				if (header == null)
 					continue;
+				else if (header.equalsIgnoreCase(
+					MzTabConstants.PSH_PSM_ID_COLUMN))
+					columns.put(MzTabConstants.PSH_PSM_ID_COLUMN, i);
 				else if (CommonUtils.headerCorrespondsToColumn(
 					header, passThresholdColumn, scoreColumns))
 					columns.put(passThresholdColumn, i);
@@ -195,6 +183,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			else psmHeader.validateMzTabRow(line);
 			// determine controlled FDR values, if present
 			String[] row = line.split("\\t");
+			// get PSM_ID (should be present for all rows)
+			String psmID = row[columns.get(MzTabConstants.PSH_PSM_ID_COLUMN)];
 			// passThreshold; default true
 			Boolean passThreshold = true;
 			Integer passThresholdIndex =
@@ -299,12 +289,26 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				row[qValueIndex] = qValue == null ? "null" : qValue;
 				line = getLine(row);
 			}
+			// note this row's Q-Value, if present
+			try {
+				statistics.recordQValue(
+					FDRType.PSM, Double.parseDouble(qValue));
+			} catch (NumberFormatException error) {}
 			// increment the proper count for this PSM if it passes
 			// threshold and its "isDecoy" value is not null.
 			if (passThreshold && isDecoy != null) {
-				if (isDecoy)
-					incrementCount("decoyPSM");
-				else incrementCount("targetPSM");
+				// deal with the mzTab producer mistakenly
+				// labeling this PSM as both target and decoy
+				if (isDecoy) {
+					// any decoy PSM should explicitly not be in the target set
+					statistics.addElement("decoyPSM", psmID);
+					statistics.removeElement("targetPSM", psmID);
+				}
+				// a PSM should only be added to the target
+				// set if it's not already in the decoy set
+				else if (
+					statistics.containsElement("decoyPSM", psmID) == false)
+					statistics.addElement("targetPSM", psmID);
 			}
 			// add this PSM row's peptide sequence to the proper maps
 			Integer peptideIndex =
@@ -312,39 +316,26 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			Integer proteinIndex =
 				psmHeader.getColumnIndex(MzTabConstants.PSH_PROTEIN_COLUMN);
 			String peptide = row[peptideIndex];
-			addPeptide(peptide, passThreshold, isDecoy);
-			addProteinPeptide(row[proteinIndex], peptide);
+			statistics.addPeptide(peptide, passThreshold, isDecoy);
+			statistics.addProteinPeptide(row[proteinIndex], peptide);
 		}
 		return line;
 	}
 	
 	public void tearDown() {
-		// ensure all element counts are present
-		if (counts.get("decoyPSM") == null)
-			counts.put("decoyPSM", 0);
-		if (counts.get("targetPSM") == null)
-			counts.put("targetPSM", 0);
-		if (counts.get("decoyPeptide") == null)
-			counts.put("decoyPeptide", 0);
-		if (counts.get("targetPeptide") == null)
-			counts.put("targetPeptide", 0);
-		if (counts.get("decoyProtein") == null)
-			counts.put("decoyProtein", 0);
-		if (counts.get("targetProtein") == null)
-			counts.put("targetProtein", 0);
 		// calculate FDR attributes for all proteins
-		for (String accession : proteinPeptides.keySet()) {
+		for (String accession : statistics.getPeptideMappedProteins()) {
 			// ensure this protein is counted by adding a default record for it
-			addProtein(accession, false, null);
+			statistics.addProtein(accession, false, null);
 			// determine the protein's attributes from those of its peptides
 			Boolean passThreshold = null;
 			Boolean isDecoy = null;
 			boolean nonDecoyPeptideFound = false;
-			Set<String> sequences = proteinPeptides.get(accession);
+			Set<String> sequences = statistics.getProteinPeptides(accession);
 			if (sequences != null) {
 				for (String sequence : sequences) {
 					ImmutablePair<Boolean, Boolean> attributes =
-						peptides.get(sequence);
+						statistics.getPeptide(sequence);
 					if (attributes != null) {
 						// a protein passes threshold iff any one of
 						// its peptides passes threshold; so only
@@ -390,32 +381,33 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			if (passThreshold == null)
 				passThreshold = true;
 			// update protein with determined attributes
-			addProtein(accession, passThreshold, isDecoy);
+			statistics.addProtein(accession, passThreshold, isDecoy);
 		}
 		// add peptide element counts
-		for (String sequence : peptides.keySet()) {
-			ImmutablePair<Boolean, Boolean> attributes = peptides.get(sequence);
+		for (String sequence : statistics.getPeptides()) {
+			ImmutablePair<Boolean, Boolean> attributes =
+				statistics.getPeptide(sequence);
 			if (attributes != null) {
 				// increment the proper count for this peptide if it passes
 				// threshold and its "isDecoy" value is not null.
 				if (attributes.getLeft() && attributes.getRight() != null) {
 					if (attributes.getRight())
-						incrementCount("decoyPeptide");
-					else incrementCount("targetPeptide");
+						statistics.addElement("decoyPeptide", sequence);
+					else statistics.addElement("targetPeptide", sequence);
 				}
 			}
 		}
 		// add protein element counts
-		for (String accession : proteins.keySet()) {
+		for (String accession : statistics.getProteins()) {
 			ImmutablePair<Boolean, Boolean> attributes =
-				proteins.get(accession);
+				statistics.getProtein(accession);
 			if (attributes != null) {
 				// increment the proper count for this protein if it passes
 				// threshold and its "isDecoy" value is not null.
 				if (attributes.getLeft() && attributes.getRight() != null) {
 					if (attributes.getRight())
-						incrementCount("decoyProtein");
-					else incrementCount("targetProtein");
+						statistics.addElement("decoyProtein", accession);
+					else statistics.addElement("targetProtein", accession);
 				}
 			}
 		}
@@ -424,65 +416,6 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private void incrementCount(String count) {
-		if (count == null)
-			return;
-		Integer value = counts.get(count);
-		if (value == null)
-			value = 1;
-		else value += 1;
-		counts.put(count, value);
-	}
-	
-	private void addPeptide(
-		String sequence, Boolean passThreshold, Boolean isDecoy
-	) {
-		addFDRAttributes(true, sequence, passThreshold, isDecoy);
-	}
-	
-	private void addProtein(
-		String accession, Boolean passThreshold, Boolean isDecoy
-	) {
-		addFDRAttributes(false, accession, passThreshold, isDecoy);
-	}
-	
-	private void addFDRAttributes(
-		boolean type, String identifier, Boolean passThreshold, Boolean isDecoy
-	) {
-		if (identifier == null)
-			return;
-		Map<String, ImmutablePair<Boolean, Boolean>> map = null;
-		if (type)
-			map = peptides;
-		else map = proteins;
-		ImmutablePair<Boolean, Boolean> attributes = map.get(identifier);
-		// if one of the saved attributes is already true, then keep it
-		if (attributes != null) {
-			Boolean savedPassThreshold = attributes.getLeft();
-			Boolean savedIsDecoy = attributes.getRight();
-			if (passThreshold == null ||
-				(savedPassThreshold != null && savedPassThreshold == true))
-				passThreshold = savedPassThreshold;
-			if (isDecoy == null ||
-				(savedIsDecoy != null && savedIsDecoy == true))
-				isDecoy = savedIsDecoy;
-		}
-		// save these attributes for this identifier
-		attributes =
-			new ImmutablePair<Boolean, Boolean>(passThreshold, isDecoy);
-		map.put(identifier, attributes);
-	}
-	
-	private void addProteinPeptide(String accession, String sequence) {
-		if (accession == null || sequence == null)
-			return;
-		Set<String> peptides = proteinPeptides.get(accession);
-		if (peptides == null)
-			peptides = new HashSet<String>();
-		peptides.add(sequence);
-		proteinPeptides.put(accession, peptides);
-	}
-	
 	private String getLine(String[] tokens) {
 		if (tokens == null || tokens.length < 1)
 			return null;

@@ -14,12 +14,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.model.MzTabConstants;
+import edu.ucsd.mztab.model.MzTabFDRStatistics;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
+import edu.ucsd.mztab.model.MzTabConstants.FDRType;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.processors.FDRCalculationProcessor;
 import edu.ucsd.util.CommonUtils;
@@ -83,41 +83,48 @@ public class MzTabFDRCleaner
 			// set up reader
 			MzTabReader reader = new MzTabReader(inputFile, tempFile1);
 			// calculate FDR and ensure that each PSM row has the needed columns
-			Map<String, Integer> counts = new HashMap<String, Integer>(6);
-			Map<String, ImmutablePair<Boolean, Boolean>> peptides =
-				new HashMap<String, ImmutablePair<Boolean, Boolean>>();
-			Map<String, ImmutablePair<Boolean, Boolean>> proteins =
-				new HashMap<String, ImmutablePair<Boolean, Boolean>>();
+			MzTabFDRStatistics statistics = new MzTabFDRStatistics();
 			reader.addProcessor(new FDRCalculationProcessor(
-				counts, peptides, proteins, cleanup.passThresholdColumn,
+				statistics, cleanup.passThresholdColumn,
 				cleanup.decoyColumn, cleanup.decoyPattern,
 				cleanup.psmQValueColumn));
 			// clean file
 			reader.read();
 			// calculate global FDR values from returned count maps
 			Double psmFDR = calculateFDR(
-				counts.get("targetPSM"), counts.get("decoyPSM"));
+				statistics.getElementCount("targetPSM"),
+				statistics.getElementCount("decoyPSM"));
+			// if no FDR could be calculated, use highest found Q-Value, if any
+			if (psmFDR == null)
+				psmFDR = statistics.getMaxQValue(FDRType.PSM);
 			// peptide-level FDR
 			Double peptideFDR = calculateFDR(
-				counts.get("targetPeptide"), counts.get("decoyPeptide"));
+				statistics.getElementCount("targetPeptide"),
+				statistics.getElementCount("decoyPeptide"));
+			if (peptideFDR == null)
+				peptideFDR = statistics.getMaxQValue(FDRType.PEPTIDE);
 			// protein-level FDR
 			Double proteinFDR = calculateFDR(
-				counts.get("targetProtein"), counts.get("decoyProtein"));
+				statistics.getElementCount("targetProtein"),
+				statistics.getElementCount("decoyProtein"));
+			if (proteinFDR == null)
+				proteinFDR = statistics.getMaxQValue(FDRType.PROTEIN);
 			// set up second intermediate output file
 			File tempFile2 =
 				new File(String.format("%s.2.temp", file.getName()));
-			// add global FDR values to output file's metadata section and
-			// filter out all PSM rows that do not meet the FDR cutoff
+			// add global FDR values to output file's metadata section,
+			// filter out all PSM rows that do not meet the FDR cutoff,
+			// and propagate calculated global FDR to any empty Q-Values
 			doSecondFDRPass(tempFile1, tempFile2, inputFile.getMzTabFilename(),
 				cleanup.filter, cleanup.filterType, cleanup.filterFDR,
 				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
-				psmFDR, peptideFDR, proteinFDR, peptides, proteins);
+				psmFDR, peptideFDR, proteinFDR, statistics);
 			// set up final output file
 			File outputFile = new File(cleanup.outputDirectory, file.getName());
 			// filter out all protein and peptide rows no
 			// longer supported by remaining PSM rows
 			doThirdFDRPass(tempFile2, outputFile, inputFile.getMzTabFilename(),
-				cleanup.filter, peptides, proteins);
+				cleanup.filter, statistics);
 			// remove temporary files
 			tempFile1.delete();
 			tempFile2.delete();
@@ -141,13 +148,16 @@ public class MzTabFDRCleaner
 	 * 2. If filter=true, then filter out all PSM rows with passThreshold=false
 	 * or isDecoy=true.
 	 * 
-	 * 3. If filter=true and filterFDR is not null, then also filter out all
+	 * 3. For any PSM rows whose Q-Value is not known, propagate calculated
+	 * global PSM-level FDR to that column.
+	 * 
+	 * 4. If filter=true and filterFDR is not null, then also filter out all
 	 * rows whose Q-Value (of the type specified by filterType) is greater than
 	 * the argument filterFDR. If any row has no such Q-Value, then filter it
 	 * out if the calculated global FDR (of the type specified by filterType)
 	 * is null or greater than the argument filterFDR.
 	 * 
-	 * 3. Remove from the argument peptides and proteins maps all elements
+	 * 5. Remove from the argument peptides and proteins maps all elements
 	 * that are no longer supported by any remaining PSM rows, after filtering,
 	 * to set up the third pass.
 	 * 
@@ -170,8 +180,7 @@ public class MzTabFDRCleaner
 		boolean filter, FDRFilterType filterType, Double filterFDR,
 		String peptideQValueColumn, String proteinQValueColumn,
 		Double psmFDR, Double peptideFDR, Double proteinFDR,
-		Map<String, ImmutablePair<Boolean, Boolean>> peptides,
-		Map<String, ImmutablePair<Boolean, Boolean>> proteins
+		MzTabFDRStatistics statistics
 	) {
 		if (input == null || output == null)
 			return;
@@ -404,25 +413,42 @@ public class MzTabFDRCleaner
 						row[psmIsDecoyIndex]);
 					if (isDecoy != null && isDecoy == true)
 						continue;
+					// if this row has no PSM-level Q-Value, then propagate
+					// calculated global PSM-level FDR to this column
+					Double psmQValue = null;
+					try {
+						psmQValue = Double.parseDouble(row[psmQValueIndex]);
+					} catch (NumberFormatException error) {
+						if (psmFDR != null) {
+							psmQValue = psmFDR;
+							row[psmQValueIndex] = formatFDR(psmQValue);
+							line = getLine(row);
+						}
+					}
 					// if a threshold filter FDR was specified,
 					// determine if this row makes the cut
 					if (filterFDR != null) {
 						// determine Q-Value column based
 						// on selected FDR filter type
 						Integer qValueIndex = null;
+						String qValueColumnName = null;
 						if (filterType == null ||
-							filterType.equals(FDRFilterType.PSM))
+							filterType.equals(FDRFilterType.PSM)) {
 							qValueIndex = psmQValueIndex;
-						else if (filterType.equals(FDRFilterType.PEPTIDE))
+							qValueColumnName = MzTabConstants.Q_VALUE_COLUMN;
+						} else if (filterType.equals(FDRFilterType.PEPTIDE)) {
 							qValueIndex = peptideQValueIndex;
-						else if (filterType.equals(FDRFilterType.PROTEIN))
+							qValueColumnName = peptideQValueColumn;
+						} else if (filterType.equals(FDRFilterType.PROTEIN)) {
 							qValueIndex = proteinQValueIndex;
+							qValueColumnName = proteinQValueColumn;
+						}
 						// get relevant Q-Value, if present
 						Double qValue = null;
 						if (qValueIndex != null) {
 							// if Q-Value column is present in header but not
 							// this row, then that's a bad mzTab line
-							if (psmQValueIndex >= row.length)
+							if (qValueIndex >= row.length)
 								throw new IllegalArgumentException(
 									String.format(
 									"Line %d of mzTab file [%s] is invalid:" +
@@ -430,11 +456,10 @@ public class MzTabFDRCleaner
 									"Expected a \"%s\" column value at index " +
 									"%d, but this line only contains %d " +
 									"elements.", lineNumber, mzTabFilename,
-									line, MzTabConstants.Q_VALUE_COLUMN,
-									psmQValueIndex, row.length));
+									line, qValueColumnName, qValueIndex,
+									row.length));
 							else try {
-								qValue =
-									Double.parseDouble(row[psmQValueIndex]);
+								qValue = Double.parseDouble(row[qValueIndex]);
 							} catch (NumberFormatException error) {}
 						}
 						// if a non-null Q-value is present
@@ -488,21 +513,23 @@ public class MzTabFDRCleaner
 		if (filter) {
 			// clean peptides
 			Set<String> originalPeptides = null;
-			if (peptides != null)
-				originalPeptides = new HashSet<String>(peptides.keySet());
+			if (statistics != null)
+				originalPeptides =
+					new HashSet<String>(statistics.getPeptides());
 			if (originalPeptides != null) {
 				for (String peptide : originalPeptides)
 					if (keptPeptides.contains(peptide) == false)
-						peptides.remove(peptide);
+						statistics.removePeptide(peptide);
 			}
 			// clean proteins
 			Set<String> originalProteins = null;
-			if (proteins != null)
-				originalProteins = new HashSet<String>(proteins.keySet());
+			if (statistics != null)
+				originalProteins =
+					new HashSet<String>(statistics.getProteins());
 			if (originalProteins != null) {
 				for (String protein : originalProteins)
 					if (keptProteins.contains(protein) == false)
-						proteins.remove(protein);
+						statistics.removeProtein(protein);
 			}
 		}
 	}
@@ -521,8 +548,7 @@ public class MzTabFDRCleaner
 	 */
 	public static void doThirdFDRPass(
 		File input, File output, String mzTabFilename, boolean filter,
-		Map<String, ImmutablePair<Boolean, Boolean>> peptides,
-		Map<String, ImmutablePair<Boolean, Boolean>> proteins
+		MzTabFDRStatistics statistics
 	) {
 		if (input == null || output == null)
 			return;
@@ -581,7 +607,8 @@ public class MzTabFDRCleaner
 							MzTabConstants.PRH_PROTEIN_COLUMN));
 				}
 				// filter this PRT row if appropriate
-				else if (line.startsWith("PRT") && filter && proteins != null) {
+				else if (line.startsWith("PRT") && filter &&
+					statistics != null) {
 					if (prtHeader == null)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:" +
@@ -604,7 +631,7 @@ public class MzTabFDRCleaner
 					// the proteins map, then filter out this row
 					String accession = row[accessionIndex];
 					if (accession != null &&
-						proteins.containsKey(accession) == false)
+						statistics.containsProtein(accession) == false)
 						continue;
 				}
 				// set up peptide header
@@ -640,7 +667,8 @@ public class MzTabFDRCleaner
 							MzTabConstants.PEH_PEPTIDE_COLUMN));
 				}
 				// filter this PEP row if appropriate
-				else if (line.startsWith("PEP") && filter && peptides != null) {
+				else if (line.startsWith("PEP") && filter &&
+					statistics != null) {
 					if (pepHeader == null)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:" +
@@ -663,7 +691,7 @@ public class MzTabFDRCleaner
 					// the peptides map, then filter out this row
 					String sequence = row[sequenceIndex];
 					if (sequence != null &&
-						peptides.containsKey(sequence) == false)
+						statistics.containsPeptide(sequence) == false)
 						continue;
 				}
 				writer.println(line);
@@ -879,6 +907,18 @@ public class MzTabFDRCleaner
 			field.toLowerCase().contains("search_engine_score"))
 			return false;
 		else return true;
+	}
+	
+	private static String getLine(String[] tokens) {
+		if (tokens == null || tokens.length < 1)
+			return null;
+		StringBuilder line = new StringBuilder();
+		for (int i=0; i<tokens.length; i++)
+			line.append(tokens[i]).append("\t");
+		// chomp trailing tab ("\t")
+		if (line.charAt(line.length() - 1) == '\t')
+			line.setLength(line.length() - 1);
+		return line.toString();
 	}
 	
 	private static void die(String message) {
