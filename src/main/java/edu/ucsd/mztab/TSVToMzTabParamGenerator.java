@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -52,6 +53,7 @@ public class TSVToMzTabParamGenerator
 			"specify 0-based/1-based numbering, default 0)]" +
 		"\n\t[-accession             <ProteinAccessionColumnHeaderOrIndex>]" +
 		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]";
+	private static final Double ACCEPTABLE_MASS_DIFFERENCE_TO_MATCH = 0.01;
 	
 	/*========================================================================
 	 * Properties
@@ -64,6 +66,7 @@ public class TSVToMzTabParamGenerator
 	private boolean              zeroBased;
 	private Map<String, String>  columnIdentifiers;
 	private Map<String, Integer> columnIndices;
+	private Map<Double, String[]>  variableModMasses;
 	private Collection<Double>   foundMods;
 	private Collection<String>   fixedMods;
 	private Collection<String>   variableMods;
@@ -138,6 +141,7 @@ public class TSVToMzTabParamGenerator
 		fixedMods = new LinkedHashSet<String>();
 		variableMods = new LinkedHashSet<String>();
 		foundMods = new LinkedHashSet<Double>();
+		variableModMasses = new HashMap<Double, String[]>();
 		// set mod patterns
 		if (modPatterns == null || modPatterns.isEmpty())
 			throw new NullPointerException(
@@ -344,6 +348,30 @@ public class TSVToMzTabParamGenerator
 						addDynamicMod(
 							"[MS,MS:1001460,unknown modification,\"%s\"]",
 							tokens[1], tokens[0], fixed, terminal);
+					}
+				}
+			}
+			// add mods for any remaining found masses that haven't yet been
+			// assigned to a mod, but which are close enough to reasonably do so
+			if (foundMods.isEmpty() == false &&
+				variableModMasses.isEmpty() == false) {
+				for (Double floatingModMass : foundMods) {
+					for (Double addedModMass : variableModMasses.keySet()) {
+						if (Math.abs(floatingModMass - addedModMass) <=
+							ACCEPTABLE_MASS_DIFFERENCE_TO_MATCH) {
+							String[] mod = variableModMasses.get(addedModMass);
+							// build a separate mod CV term string
+							// for each possible mod format
+							for (String modPattern : modPatterns) {
+								String modCVTerm = String.format(mod[0],
+									getModFormatString(modPattern, mod[1],
+									Double.toString(floatingModMass), false,
+									mod[2] == null ? null :
+										Boolean.parseBoolean(mod[2])));
+								variableMods.add(modCVTerm);
+							}
+							break;
+						}
 					}
 				}
 			}
@@ -581,8 +609,12 @@ public class TSVToMzTabParamGenerator
 				// only take the best match if it's within some
 				// reasonable difference of the declared mass
 				if (bestMatch != null && smallestDifference != null &&
-					smallestDifference <= 0.01)
+					smallestDifference <= ACCEPTABLE_MASS_DIFFERENCE_TO_MATCH) {
 					mass = Double.toString(bestMatch);
+					// remove this found mass from the map, so we
+					// can handle whatever's left separately
+					foundMods.remove(mass);
+				}
 			}
 		}
 		// build a separate mod CV term string for each possible mod format
@@ -592,7 +624,21 @@ public class TSVToMzTabParamGenerator
 				fixed && (fixedModsReported == false), terminal));
 			if (fixed)
 				fixedMods.add(modCVTerm);
-			else variableMods.add(modCVTerm);
+			else {
+				variableMods.add(modCVTerm);
+				// record this mod mass, if present, so we can assign
+				// other floating masses to this mod if close enough
+				try {
+					variableModMasses.put(
+						Double.parseDouble(mass),
+						new String[]{
+							cvTerm, aminoAcids,
+							terminal == null ? "null" :
+								Boolean.toString(terminal)
+						}
+					);
+				} catch (Throwable error) {}
+			}
 		}
 	}
 	
