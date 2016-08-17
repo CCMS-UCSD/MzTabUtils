@@ -149,11 +149,13 @@ implements MzTabProcessor
 				validIndex = headers.size();
 				line = String.format("%s\t%s",
 					line.trim(), MzTabConstants.VALID_COLUMN);
+				headers.add(MzTabConstants.VALID_COLUMN);
 			}
 			if (invalidReasonIndex < 0) {
 				invalidReasonIndex = headers.size();
 				line = String.format("%s\t%s",
 					line.trim(), MzTabConstants.INVALID_REASON_COLUMN);
+				headers.add(MzTabConstants.INVALID_REASON_COLUMN);
 			}
 		}
 		// resolve and validate the spectra_ref column of this PSM row
@@ -172,20 +174,20 @@ implements MzTabProcessor
 				for (int i=0; i<row.length; i++)
 					newRow[i] = row[i];
 				row = newRow;
+				// set the valid column's value to "VALID" by default
+				row[validIndex] = "VALID";
+				line = getLine(row);
 			}
-			// set the valid column's value to "VALID" by default
-			row[validIndex] = "VALID";
-			line = getLine(row);
 			// ensure that the invalid reason column is present in this row
 			if (invalidReasonIndex >= row.length) {
 				String[] newRow = new String[invalidReasonIndex + 1];
 				for (int i=0; i<row.length; i++)
 					newRow[i] = row[i];
 				row = newRow;
+				// set the invalid reason column's value to "null" by default
+				row[invalidReasonIndex] = "null";
+				line = getLine(row);
 			}
-			// set the invalid reason column's value to "null" by default
-			row[invalidReasonIndex] = "null";
-			line = getLine(row);
 			// retrieve the spectra_ref and peptide sequence column values
 			String spectraRef = row[spectraRefIndex];
 			String sequence = row[sequenceIndex];
