@@ -28,8 +28,8 @@ public class MzTabValidator
 			"(if not under PeakListFilesDirectory)]" +
 		"\n\t[-scans     <ScansDirectory>]" +
 		"\n\t[-result    <UploadedResultDirectory>]" +
-		"\n\t-output     <OutputFile>" +
-		"\n\t[-threshold <InvalidPSMPercentageToFail: 0-100>]";
+		"\n\t-output     <ValidatedMzTabDirectory>" +
+		"\n\t[-threshold <InvalidPSMPercentageToFail: 0-100> (default 10)]";
 	private static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	
 	/*========================================================================
