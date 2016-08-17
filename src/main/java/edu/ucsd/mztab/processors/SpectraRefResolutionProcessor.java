@@ -246,35 +246,41 @@ implements MzTabProcessor
 			// validate nativeID
 			String validatedNativeID =
 				validateNativeID(nativeID, sequence, spectrumIDs);
-			// if the nativeID could not be validated, then whether
-			// or not this row is salvageable depends on the current
-			// scheme for interpreting ambiguous nativeIDs
-			if (validatedNativeID == null) {
-				// if the current scheme is scans, then this nativeID was not
-				// found in the scans map, but the index scheme might still
-				// work; so throw an exception that will inform the client
-				// to try again with a hard-coded index scheme
-				if (ambiguousNativeIDsAsScans != null &&
-					ambiguousNativeIDsAsScans)
-					throw new RuntimeException(
-						new UnverifiableNativeIDException(String.format(
-							"nativeID [%s] could not be validated as " +
-							"a scan number in peak list file [%s]; " +
-							"try validating it as a spectrum index.",
-							nativeID, msRun.getPeakListFilename())));
-				// if no ambiguous nativeID interpretation scheme has been
-				// selected yet, or if the current scheme is indices, then
-				// we assume that either this nativeID simply could not be
-				// validated or that scans have already been tried; in either
-				// case, the row should be marked as invalid
-				else {
-					row[validIndex] = "INVALID";
-					row[invalidReasonIndex] = String.format(
-						"Invalid \"spectra_ref\" column value [%s]: this " +
-						"spectrum could not be found in peak list file [%s].",
-						spectraRef, msRun.getPeakListFilename());
+			// if the nativeID was successfully validated, and
+			// its value changed, then overwrite the previous
+			// spectra_ref value with the validated one
+			if (validatedNativeID != null) {
+				String validatedSpectraRef = String.format(
+					"ms_run[%d]:%s", msRunIndex, validatedNativeID);
+				if (spectraRef.equals(validatedSpectraRef) == false) {
+					row[spectraRefIndex] = validatedSpectraRef;
 					line = getLine(row);
 				}
+			}
+			// if the nativeID could not be validated, and the current scheme
+			// for interpreting ambiguous nativeIDs is scans, then the index
+			// scheme might still work; throw an exception that will inform
+			// the client to try again with a hard-coded index scheme
+			else if (ambiguousNativeIDsAsScans != null &&
+				ambiguousNativeIDsAsScans)
+				throw new RuntimeException(
+					new UnverifiableNativeIDException(String.format(
+						"nativeID [%s] could not be validated as " +
+						"a scan number in peak list file [%s]; " +
+						"try validating it as a spectrum index.",
+						nativeID, msRun.getPeakListFilename())));
+			// if no ambiguous nativeID interpretation scheme has been
+			// selected yet, or if the current scheme is indices, then
+			// we assume that either this nativeID simply could not be
+			// validated or that scans have already been tried; in either
+			// case, the row should be marked as invalid
+			else {
+				row[validIndex] = "INVALID";
+				row[invalidReasonIndex] = String.format(
+					"Invalid \"spectra_ref\" column value [%s]: this " +
+					"spectrum could not be found in peak list file [%s].",
+					spectraRef, msRun.getPeakListFilename());
+				line = getLine(row);
 			}
 		}
 		return line;
