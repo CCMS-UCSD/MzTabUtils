@@ -24,6 +24,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import edu.ucsd.mztab.exceptions.InvalidPSMException;
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
@@ -731,7 +732,7 @@ public class MzTabValidator
 			throw new InvalidPSMException(String.format(
 				"Invalid \"ms_run\" reference [%s]: this value is expected " +
 				"to conform to string format [%s].", msRunID, "ms_run[1-n]"));
-		int msRunIndex = Integer.parseInt(matcher.group(1));;
+		int msRunIndex = Integer.parseInt(matcher.group(1));
 		String verifiedNativeID = nativeID;
 		if (countOnly == false) {
 			MzTabMsRun msRun = mzTabFile.getMsRun(msRunIndex);
