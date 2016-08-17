@@ -23,6 +23,7 @@ public class MzTabConstants
 	public static final String PSH_PSM_ID_COLUMN = "PSM_ID";
 	public static final String PSH_PEPTIDE_COLUMN = "sequence";
 	public static final String PSH_PROTEIN_COLUMN = "accession";
+	public static final String PSH_SPECTRA_REF_COLUMN = "spectra_ref";
 	
 	// constants pertaining to important PRT section header (PRH) columns
 	public static final String PRH_PROTEIN_COLUMN = "accession";
@@ -61,7 +62,12 @@ public class MzTabConstants
 		"{position}{Parameter}-{Modification or Substitution identifier}" +
 		"|{neutral loss}";
 	
-	// constants pertaining to CCMS-curated mzTab FDR fields
+	// constants pertaining to CCMS-controlled mzTab PSM row validity fields
+	public static final String VALID_COLUMN = "opt_global_valid";
+	public static final String INVALID_REASON_COLUMN =
+		"opt_global_invalid_reason";
+	
+	// constants pertaining to CCMS-controlled mzTab FDR fields
 	public static enum FDRType { PSM, PEPTIDE, PROTEIN }
 	public static final String PASS_THRESHOLD_COLUMN =
 		"opt_global_pass_threshold";
