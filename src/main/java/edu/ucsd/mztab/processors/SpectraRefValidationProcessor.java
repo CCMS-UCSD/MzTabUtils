@@ -23,7 +23,7 @@ import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 
-public class SpectraRefResolutionProcessor
+public class SpectraRefValidationProcessor
 implements MzTabProcessor
 {
 	/*========================================================================
@@ -55,13 +55,13 @@ implements MzTabProcessor
 	/*========================================================================
 	 * Constructor
 	 *========================================================================*/
-	public SpectraRefResolutionProcessor(
+	public SpectraRefValidationProcessor(
 		File uploadedResultDirectory, File spectrumIDsDirectory
 	) {
 		this(uploadedResultDirectory, spectrumIDsDirectory, null);
 	}
 	
-	public SpectraRefResolutionProcessor(
+	public SpectraRefValidationProcessor(
 		File uploadedResultDirectory, File spectrumIDsDirectory,
 		Boolean ambiguousNativeIDsAsScans
 	) {
