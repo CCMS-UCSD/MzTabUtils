@@ -94,7 +94,8 @@ implements MzTabProcessor
 				if (spectrumIDsFile != null) {
 					ImmutablePair<Integer, Collection<Integer>> spectrumIDs =
 						readSpectrumIDsFile(spectrumIDsFile);
-					spectra.put(spectrumIDsFile.getName(), spectrumIDs);
+					if (spectrumIDs != null)
+						spectra.put(spectrumIDsFile.getName(), spectrumIDs);
 				}
 			}
 		}
@@ -243,7 +244,12 @@ implements MzTabProcessor
 					"(parsed into spectra summary file [%s]).",
 					lineNumber, mzTabFilename, line, msRunIndex,
 					msRun.getPeakListFilename(), spectrumIDsFilename));
-			// validate nativeID
+			// if this PSM row has already been marked as invalid by some
+			// upstream validator, then don't bother with this validation
+			String valid = row[validIndex];
+			if (valid != null && valid.trim().equalsIgnoreCase("INVALID"))
+				return line;
+			// otherwise, validate nativeID
 			String validatedNativeID =
 				validateNativeID(nativeID, sequence, spectrumIDs);
 			// if the nativeID was successfully validated, and
