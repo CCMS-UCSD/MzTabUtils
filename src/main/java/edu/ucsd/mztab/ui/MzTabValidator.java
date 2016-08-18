@@ -160,6 +160,7 @@ public class MzTabValidator
 				// write log line
 				writer.println(String.format("%s\t%s\t%d\t%d",
 					file.getName(), uploadedFilename, psmRows, invalidRows));
+				writer.flush();
 			}
 		} catch (Throwable error) {
 			die(error.getMessage(), error);
@@ -262,7 +263,12 @@ public class MzTabValidator
 						"Uploaded result files directory [%s] must be " +
 						"readable.", resultDirectory.getAbsolutePath()));
 			}
-			this.uploadedResultDirectory = resultDirectory;
+			// commenting this out for now, since the performance of parsing
+			// mzid files over NFS is pretty awful, and we don't get much out
+			// of it since we can resolve ambiguous nativeIDs by just checking
+			// against the spectrum IDs map as both scan and index anyway
+//			this.uploadedResultDirectory = resultDirectory;
+			this.uploadedResultDirectory = null;
 			// validate processed mzTab output directory
 			if (outputDirectory == null)
 				throw new NullPointerException(
