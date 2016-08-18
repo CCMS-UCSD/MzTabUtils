@@ -136,7 +136,7 @@ public class MzTabCounter
 				throw new IllegalArgumentException(String.format(
 					"Output file [%s] must be a normal (non-directory) file.",
 					outputFile.getAbsolutePath()));
-			this.outputFile = outputFile;
+			else this.outputFile = outputFile;
 		}
 	}
 	
