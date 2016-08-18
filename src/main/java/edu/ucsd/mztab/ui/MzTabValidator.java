@@ -133,11 +133,15 @@ public class MzTabValidator
 				}
 				// calculate invalid percentage, apply specified threshold
 				Integer psmRows = counts.get("psmRows");
+				if (psmRows == null)
+					psmRows = 0;
 				Integer invalidRows = counts.get("invalidRows");
+				if (invalidRows == null)
+					invalidRows = 0;
 				// if the mzTab file has more than the indicated
 				// percentage of invalid PSMs, then fail
 				Double percentage = null;
-				if (psmRows == null || psmRows == 0 || invalidRows == null)
+				if (psmRows == 0)
 					percentage = 0.0;
 				else percentage = (double)invalidRows / (double)psmRows * 100.0;
 				if (percentage > validation.failureThreshold) {
