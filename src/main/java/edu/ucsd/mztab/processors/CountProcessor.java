@@ -89,9 +89,9 @@ public class CountProcessor implements MzTabProcessor
 			else prtHeader.validateMzTabRow(line);
 			incrementCount("PRT");
 			// extract count-worthy elements from this PRT row
-			String[] columns = line.split("\\t");
-			for (String column : RELEVANT_PRT_COLUMNS)
-				addElement(column, columns[prtHeader.getColumnIndex(column)]);
+//			String[] columns = line.split("\\t");
+//			for (String column : RELEVANT_PRT_COLUMNS)
+//				addElement(column, columns[prtHeader.getColumnIndex(column)]);
 		}
 		// peptide section
 		else if (line.startsWith("PEH")) {
@@ -114,9 +114,9 @@ public class CountProcessor implements MzTabProcessor
 			else pepHeader.validateMzTabRow(line);
 			incrementCount("PEP");
 			// extract count-worthy elements from this PEP row
-			String[] columns = line.split("\\t");
-			for (String column : RELEVANT_PEP_COLUMNS)
-				addElement(column, columns[pepHeader.getColumnIndex(column)]);
+//			String[] columns = line.split("\\t");
+//			for (String column : RELEVANT_PEP_COLUMNS)
+//				addElement(column, columns[pepHeader.getColumnIndex(column)]);
 		}
 		// PSM section
 		else if (line.startsWith("PSH")) {
