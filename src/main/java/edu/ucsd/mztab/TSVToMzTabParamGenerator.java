@@ -5,6 +5,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -52,25 +54,34 @@ public class TSVToMzTabParamGenerator
 			"(if -spectrum_id_type=\"index\", " +
 			"specify 0-based/1-based numbering, default 0)]" +
 		"\n\t[-accession             <ProteinAccessionColumnHeaderOrIndex>]" +
-		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]";
-	private static final Double ACCEPTABLE_MASS_DIFFERENCE_TO_MATCH = 0.01;
+		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]" +
+		"\n\t[-match_mass_precision  <RoundingToMatchMod> " +
+			"(if specified, will attempt to match mod masses found in TSV " +
+			"file to known standard mod masses by rounding to this precision)]" +
+		"\n\t[-match_mass_difference <LargestMassDifferenceToMatchMod> "+
+			"(if specified, will attempt to match mod masses found in TSV " +
+			"file to known standard mod masses according to given " +
+			"difference threshold)]";
 	
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
-	private File                 tsvFile;
-	private File                 paramsFile;
-	private boolean              hasHeader;
-	private boolean              fixedModsReported;
-	private boolean              scanMode;
-	private boolean              zeroBased;
-	private Map<String, String>  columnIdentifiers;
-	private Map<String, Integer> columnIndices;
-	private Map<Double, String[]>  variableModMasses;
-	private Collection<Double>   foundMods;
-	private Collection<String>   fixedMods;
-	private Collection<String>   variableMods;
-	private Collection<String>   modPatterns;
+	private File                  tsvFile;
+	private File                  paramsFile;
+	private boolean               hasHeader;
+	private boolean               fixedModsReported;
+	private boolean               scanMode;
+	private boolean               zeroBased;
+	private boolean               matchMods;
+	private Integer               massPrecisionToMatch;
+	private Double                maxMassDifferenceToMatch;
+	private Map<String, String>   columnIdentifiers;
+	private Map<String, Integer>  columnIndices;
+	private Map<Double, String[]> variableModMasses;
+	private Collection<Double>    foundMods;
+	private Collection<String>    fixedMods;
+	private Collection<String>    variableMods;
+	private Collection<String>    modPatterns;
 	
 	/*========================================================================
 	 * Constructors
@@ -79,9 +90,10 @@ public class TSVToMzTabParamGenerator
 		File inputParams, File tsvFile, File paramsFile, String hasHeader,
 		String filenameColumn, String sequenceColumn,
 		String fixedModsReported, String specIDType, String scanColumn,
-		String indexColumn, String indexNumbering, String accessionColumn,
-		String chargeColumn, Collection<String> modPatterns,
-		Collection<String> staticFixedMods,
+		String indexColumn, String indexNumbering,
+		String accessionColumn, String chargeColumn,
+		String massPrecisionToMatch, String maxMassDifferenceToMatch,
+		Collection<String> modPatterns, Collection<String> staticFixedMods,
 		Collection<String> staticVariableMods
 	) throws IOException {
 		// validate input parameter file
@@ -159,6 +171,37 @@ public class TSVToMzTabParamGenerator
 		if (fixedModsReported == null)
 			this.fixedModsReported = false;
 		else this.fixedModsReported = Boolean.parseBoolean(fixedModsReported);
+		// set whether to try to match found mods to known mods using
+		// a precision to round to, and what that precision should be
+		if (massPrecisionToMatch == null) {
+			this.massPrecisionToMatch = null;
+			// if no precision is specified, then
+			// look for a mass difference threshold
+			if (maxMassDifferenceToMatch == null) {
+				matchMods = false;
+				this.maxMassDifferenceToMatch = null;
+			} else try {
+				matchMods = true;
+				this.maxMassDifferenceToMatch =
+					Math.abs(Double.parseDouble(maxMassDifferenceToMatch));
+			} catch (NumberFormatException error) {
+				throw new IllegalArgumentException(String.format(
+					"Maximum mass difference to match mods [%s] must be a " +
+					"valid real number representing a mass difference in " +
+					"Daltons.", maxMassDifferenceToMatch));
+			}
+		} else try {
+			matchMods = true;
+			this.massPrecisionToMatch =
+				Math.abs(Integer.parseInt(massPrecisionToMatch));
+			this.maxMassDifferenceToMatch = null;
+		} catch (NumberFormatException error) {
+			throw new IllegalArgumentException(String.format(
+				"Mass rounding precision to match mods [%s] must be a valid " +
+				"integer representing the number of decimal places to which " +
+				"the masses in the TSV file must be rounded to match " +
+				"ontology mods.", massPrecisionToMatch));
+		}
 		// parse and process the input tab-delimited result file
 		BufferedReader reader = null;
 		String line = null;
@@ -351,14 +394,17 @@ public class TSVToMzTabParamGenerator
 					}
 				}
 			}
-			// add mods for any remaining found masses that haven't yet been
-			// assigned to a mod, but which are close enough to reasonably do so
-			if (foundMods.isEmpty() == false &&
+			// if the mod-matching mode is mass difference threshold,
+			// and there are any remaining found masses that haven't
+			// yet been assigned to a mod, then try to match the
+			// leftovers to mods that were already added
+			if (matchMods && this.maxMassDifferenceToMatch != null &&
+				foundMods.isEmpty() == false &&
 				variableModMasses.isEmpty() == false) {
 				for (Double floatingModMass : foundMods) {
 					for (Double addedModMass : variableModMasses.keySet()) {
 						if (Math.abs(floatingModMass - addedModMass) <=
-							ACCEPTABLE_MASS_DIFFERENCE_TO_MATCH) {
+							this.maxMassDifferenceToMatch) {
 							String[] mod = variableModMasses.get(addedModMass);
 							// build a separate mod CV term string
 							// for each possible mod format
@@ -589,31 +635,53 @@ public class TSVToMzTabParamGenerator
 	) {
 		if (cvTerm == null)
 			return;
-		// try to match this mod to the best found mod
-		if (mass != null) {
+		// determine how to process this mass to actually
+		// match the mods that occur in the TSV file
+		if (matchMods == false) {
+			// do nothing; the literal mass string provided
+			// must occur as-is in the file to be matched
+		} else if (mass != null) {
 			Double massValue = null;
 			try { massValue = Double.parseDouble(mass); }
 			catch (NumberFormatException error) {}
 			if (massValue != null) {
-				// look at all found mods, find the closest one
-				Double smallestDifference = null;
-				Double bestMatch = null;
-				for (Double foundMod : foundMods) {
-					double difference = Math.abs(massValue - foundMod);
-					if (smallestDifference == null ||
-						smallestDifference > difference) {
-						smallestDifference = difference;
-						bestMatch = foundMod;
+				// if a precision was provided, then round
+				// the argument mass to that precision
+				if (massPrecisionToMatch != null) {
+					StringBuilder formatString = new StringBuilder("#");
+					if (massPrecisionToMatch > 0) {
+						formatString.append(".");
+						for (int i=0; i<massPrecisionToMatch; i++)
+							formatString.append("#");
 					}
+					DecimalFormat format =
+						new DecimalFormat(formatString.toString());
+					format.setRoundingMode(RoundingMode.HALF_UP);
+					mass = format.format(massValue);
 				}
-				// only take the best match if it's within some
-				// reasonable difference of the declared mass
-				if (bestMatch != null && smallestDifference != null &&
-					smallestDifference <= ACCEPTABLE_MASS_DIFFERENCE_TO_MATCH) {
-					mass = Double.toString(bestMatch);
-					// remove this found mass from the map, so we
-					// can handle whatever's left separately
-					foundMods.remove(mass);
+				// otherwise, if a difference threshold was provided, then
+				// try to match this mod to the closest found mod
+				else if (maxMassDifferenceToMatch != null) {
+					// look at all found mods, find the closest one
+					Double smallestDifference = null;
+					Double bestMatch = null;
+					for (Double foundMod : foundMods) {
+						double difference = Math.abs(massValue - foundMod);
+						if (smallestDifference == null ||
+							smallestDifference > difference) {
+							smallestDifference = difference;
+							bestMatch = foundMod;
+						}
+					}
+					// only take the best match if it's within some
+					// reasonable difference of the declared mass
+					if (bestMatch != null && smallestDifference != null &&
+						smallestDifference <= maxMassDifferenceToMatch) {
+						mass = Double.toString(bestMatch);
+						// remove this found mass from the map, so we
+						// can handle whatever's left separately
+						foundMods.remove(mass);
+					}
 				}
 			}
 		}
@@ -792,6 +860,8 @@ public class TSVToMzTabParamGenerator
 		String indexNumbering = null;
 		String accessionColumn = null;
 		String chargeColumn = null;
+		String massPrecisionToMatch = null;
+		String maxMassDifferenceToMatch = null;
 		Collection<String> modPatterns = new LinkedHashSet<String>();
 		Collection<String> fixedMods = new LinkedHashSet<String>();
 		Collection<String> variableMods = new LinkedHashSet<String>();
@@ -830,6 +900,10 @@ public class TSVToMzTabParamGenerator
 					accessionColumn = value;
 				else if (argument.equalsIgnoreCase("-charge"))
 					chargeColumn = value;
+				else if (argument.equalsIgnoreCase("-match_mass_precision"))
+					massPrecisionToMatch = value;
+				else if (argument.equalsIgnoreCase("-match_mass_difference"))
+					maxMassDifferenceToMatch = value;
 				else if (argument.equalsIgnoreCase("-mod_pattern"))
 					modPatterns.add(value);
 				else if (argument.equalsIgnoreCase("-fixed_mod"))
@@ -847,6 +921,7 @@ public class TSVToMzTabParamGenerator
 				paramsFile, hasHeader, filenameColumn, sequenceColumn,
 				fixedModsReported, specIDType, scanColumn, indexColumn,
 				indexNumbering, accessionColumn, chargeColumn,
+				massPrecisionToMatch, maxMassDifferenceToMatch,
 				modPatterns, fixedMods, variableMods);
 		} catch (IOException error) {
 			throw new RuntimeException(error);
