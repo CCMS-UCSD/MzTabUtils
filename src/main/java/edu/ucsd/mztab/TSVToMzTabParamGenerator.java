@@ -9,9 +9,11 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 
 import org.apache.xpath.XPathAPI;
@@ -78,6 +80,7 @@ public class TSVToMzTabParamGenerator
 	private Map<String, String>   columnIdentifiers;
 	private Map<String, Integer>  columnIndices;
 	private Map<Double, String[]> variableModMasses;
+	private Set<String>           staticModAccessions;
 	private Collection<Double>    foundMods;
 	private Collection<String>    fixedMods;
 	private Collection<String>    variableMods;
@@ -154,6 +157,7 @@ public class TSVToMzTabParamGenerator
 		variableMods = new LinkedHashSet<String>();
 		foundMods = new LinkedHashSet<Double>();
 		variableModMasses = new HashMap<Double, String[]>();
+		staticModAccessions = new HashSet<String>();
 		// set mod patterns
 		if (modPatterns == null || modPatterns.isEmpty())
 			throw new NullPointerException(
@@ -298,15 +302,18 @@ public class TSVToMzTabParamGenerator
 			zeroBased = true;
 			if (indexNumbering != null && indexNumbering.trim().equals("1"))
 				zeroBased = false;
-			// read the remaining lines of the file to collect all found
-			// mods from the values of the modified_sequence column
-			reader.reset();
-			while ((line = reader.readLine()) != null) {
-				elements = line.split("\t");
-				if (elements == null || elements.length <= psmIndex)
-					continue;
-				addModMasses(elements[psmIndex]);
-				lineNumber++;
+			// if the mod-matching mode calls for it, read the remaining
+			// lines of the file to collect all found mods from the values
+			// of the modified_sequence column
+			if (matchMods) {
+				reader.reset();
+				while ((line = reader.readLine()) != null) {
+					elements = line.split("\t");
+					if (elements == null || elements.length <= psmIndex)
+						continue;
+					addModMasses(elements[psmIndex]);
+					lineNumber++;
+				}
 			}
 		} catch (Throwable error) {
 			throw new RuntimeException(String.format("There was an error " +
@@ -633,7 +640,16 @@ public class TSVToMzTabParamGenerator
 		String cvTerm, String aminoAcids, String mass,
 		boolean fixed, Boolean terminal
 	) {
+		// validate this mod's CV term
 		if (cvTerm == null)
+			return;
+		Matcher matcher = MzTabConstants.CV_TERM_PATTERN.matcher(cvTerm);
+		if (matcher.matches() == false)
+			throw new IllegalStateException();
+		// extract this mod's accession, and if it has already been
+		// added statically, do not add it again dynamically
+		String accession = matcher.group(2);
+		if (staticModAccessions.contains(accession))
 			return;
 		// determine how to process this mass to actually
 		// match the mods that occur in the TSV file
@@ -749,6 +765,9 @@ public class TSVToMzTabParamGenerator
 		if (fixed)
 			fixedMods.add(modCVTerm);
 		else variableMods.add(modCVTerm);
+		// note that this mod accession was statically added,
+		// so we should not try to add it dynamically
+		staticModAccessions.add(accession);
 	}
 	
 	/**
