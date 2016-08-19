@@ -47,6 +47,13 @@ public class TSVToMzTabParamGenerator
 		"\n\t-variable_mod           <ModAccession>|<ModPattern> " +
 			"(parameter may occur more than once)" +
 		"\n\t[-fixed_mods_reported   \"true\"/\"false\" (default \"false\")]" +
+		"\n\t[-match_mass_precision  <RoundingToMatchMod> " +
+			"(if specified, will attempt to match mod masses found in TSV " +
+			"file to known standard mod masses by rounding to this precision)]" +
+		"\n\t[-match_mass_difference <LargestMassDifferenceToMatchMod> "+
+			"(if specified, will attempt to match mod masses found in TSV " +
+			"file to known standard mod masses according to given " +
+			"difference threshold)]" +
 		"\n\t[-spectrum_id_type      \"scan\"/\"index\"]" +
 		"\n\t[-scan                  <ScanColumnHeaderOrIndex> "+
 			"(if -spectrum_id_type=\"scan\")]" +
@@ -56,14 +63,7 @@ public class TSVToMzTabParamGenerator
 			"(if -spectrum_id_type=\"index\", " +
 			"specify 0-based/1-based numbering, default 0)]" +
 		"\n\t[-accession             <ProteinAccessionColumnHeaderOrIndex>]" +
-		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]" +
-		"\n\t[-match_mass_precision  <RoundingToMatchMod> " +
-			"(if specified, will attempt to match mod masses found in TSV " +
-			"file to known standard mod masses by rounding to this precision)]" +
-		"\n\t[-match_mass_difference <LargestMassDifferenceToMatchMod> "+
-			"(if specified, will attempt to match mod masses found in TSV " +
-			"file to known standard mod masses according to given " +
-			"difference threshold)]";
+		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]";
 	
 	/*========================================================================
 	 * Properties
