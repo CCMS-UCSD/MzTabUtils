@@ -220,12 +220,22 @@ implements MzTabProcessor
 					"\"spectra_ref\" column value [%s] contains invalid " +
 					"ms_run index %d; ms_run indices should start at 1.",
 					lineNumber, mzTabFilename, line, spectraRef, msRunIndex));
+			// if this PSM row has already been marked as invalid by some
+			// upstream validator, then don't bother with this validation
+			String valid = row[validIndex];
+			if (valid != null && valid.trim().equalsIgnoreCase("INVALID"))
+				return line;
+			// also don't bother with further validation unless parsed spectra
+			// are present; some workflows don't do this and therefore their
+			// PSMs cannot be validated against any source peak list files
+			else if (spectra == null || spectra.isEmpty())
+				return line;
 			// extract nativeID
 			String nativeID = matcher.group(2);
 			// get spectrum IDs file for this PSM row
 			MzTabMsRun msRun = mzTabFile.getMsRun(msRunIndex);
 			String mangledPeakListFilename = msRun.getMangledPeakListFilename();
-			if (msRun == null || mangledPeakListFilename == null)
+			if (mangledPeakListFilename == null)
 				throw new IllegalArgumentException(String.format(
 					"Line %d of mzTab file [%s] is invalid:" +
 					"\n----------\n%s\n----------\n" +
@@ -244,11 +254,6 @@ implements MzTabProcessor
 					"(parsed into spectra summary file [%s]).",
 					lineNumber, mzTabFilename, line, msRunIndex,
 					msRun.getPeakListFilename(), spectrumIDsFilename));
-			// if this PSM row has already been marked as invalid by some
-			// upstream validator, then don't bother with this validation
-			String valid = row[validIndex];
-			if (valid != null && valid.trim().equalsIgnoreCase("INVALID"))
-				return line;
 			// otherwise, validate nativeID
 			String validatedNativeID =
 				validateNativeID(nativeID, sequence, spectrumIDs);
