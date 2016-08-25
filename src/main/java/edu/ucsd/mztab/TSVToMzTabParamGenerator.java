@@ -81,6 +81,7 @@ public class TSVToMzTabParamGenerator
 	private Map<String, Integer>  columnIndices;
 	private Map<Double, String[]> variableModMasses;
 	private Set<String>           staticModAccessions;
+	private Set<String>           dynamicFixedModAccessions;
 	private Collection<Double>    foundMods;
 	private Collection<String>    fixedMods;
 	private Collection<String>    variableMods;
@@ -158,6 +159,7 @@ public class TSVToMzTabParamGenerator
 		foundMods = new LinkedHashSet<Double>();
 		variableModMasses = new HashMap<Double, String[]>();
 		staticModAccessions = new HashSet<String>();
+		dynamicFixedModAccessions = new HashSet<String>();
 		// set mod patterns
 		if (modPatterns == null || modPatterns.isEmpty())
 			throw new NullPointerException(
@@ -428,6 +430,20 @@ public class TSVToMzTabParamGenerator
 					}
 				}
 			}
+			// finally, go through all fixed mods, and only keep those
+			// for which a dynamic add was triggered (meaning the user
+			// actually selected them in the input form), removing all
+			// other fixed mods (since presumably they do not occur in
+			// this search due to not having been selected by the user)
+			for (String cvTerm : new HashSet<String>(fixedMods)) {
+				Matcher matcher =
+					MzTabConstants.CV_TERM_PATTERN.matcher(cvTerm);
+				if (matcher.matches() == false)
+					throw new IllegalStateException();
+				String accession = matcher.group(2);
+				if (dynamicFixedModAccessions.contains(accession) == false)
+					fixedMods.remove(cvTerm);
+			}
 		} catch (Throwable error) {
 			die(null, error);
 		}
@@ -646,9 +662,16 @@ public class TSVToMzTabParamGenerator
 		Matcher matcher = MzTabConstants.CV_TERM_PATTERN.matcher(cvTerm);
 		if (matcher.matches() == false)
 			throw new IllegalStateException();
-		// extract this mod's accession, and if it has already been
-		// added statically, do not add it again dynamically
+		// extract this mod's accession
 		String accession = matcher.group(2);
+		// if this is a fixed mod, then the fact that it is being added
+		// dynamically means that it was actually selected by the user in
+		// the input form; note this, so we can later cull the hard-coded
+		// static fixed mods that were not selected by the user
+		if (fixed)
+			dynamicFixedModAccessions.add(accession);
+		// if this mod has already been added statically,
+		// do not add it again dynamically
 		if (staticModAccessions.contains(accession))
 			return;
 		// determine how to process this mass to actually
