@@ -91,7 +91,12 @@ public class MzTabConstants
 	
 	// constants pertaining to general CV term syntax
 	public static final Pattern CV_TERM_PATTERN = Pattern.compile(
-		"^\\[([^,]*),\\s*([^,]*),\\s*\"?([^\"]*)\"?,\\s*([^,]*)\\]$");
+		"^\\[" +
+		"([^,]*),\\s*" +						// ontology identifier
+		"([^,]*),\\s*" +						// CV term accession
+		"((?:\"[^\"]*\")|(?:[^,]*)),\\s*" +		// CV term name
+		"((?:\"[^\"]*\")|(?:[^,]*))" +			// CV term "value"
+		"\\]$");
 	public static final Pattern CV_ACCESSION_PATTERN = Pattern.compile(
 		"^(.*?:\\d*)$");
 	
