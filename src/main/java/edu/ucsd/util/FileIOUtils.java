@@ -7,7 +7,6 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.io.StringWriter;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -21,6 +20,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.apache.commons.io.FileUtils;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
@@ -74,33 +74,66 @@ public class FileIOUtils
 		}
 	}
 	
-	public static final boolean copyFile(File source, File destination)
-	throws IOException {
-		if (source == null || destination == null)
-			return false;
-		BufferedReader reader = null;
-		PrintWriter writer = null;
-		try {
-			reader = new BufferedReader(new FileReader(source));
-			writer = new PrintWriter(
-				new BufferedWriter(new FileWriter(destination, false)));
-			String line = null;
-			while ((line = reader.readLine()) != null)
-				writer.println(line);
-			return true;
-		} catch (IOException error) {
-			throw new IOException(String.format(
-					"Error copying contents of file \"%s\" to file \"%s\"",
-					source.getAbsolutePath(), destination.getAbsolutePath()),
-				error);
-		} finally {
-			if (reader != null) try {
-				reader.close();
-			} catch (Throwable error) {}
-			if (writer != null) try {
-				writer.close();
-			} catch (Throwable error) {}
-		}
+	public static final File copyFile(
+		File source, File destinationFolder, String newFilename
+	) throws IOException {
+		if (source == null || destinationFolder == null)
+			return null;
+		// verify source file
+		else if (source.canRead() == false)
+			throw new IllegalArgumentException(String.format(
+				"Error copying dataset file [%s]: file cannot be read.",
+				source.getAbsolutePath()));
+		// verify destination directory
+		else if (destinationFolder.exists() == false &&
+			destinationFolder.mkdirs() == false)
+			throw new IllegalArgumentException(String.format("Error copying " +
+				"dataset file: Destination directory [%s] does not exist " +
+				"and could not be created.",
+				destinationFolder.getAbsolutePath()));
+		else if (destinationFolder.isDirectory() == false)
+			throw new IllegalArgumentException(String.format("Error copying " +
+				"dataset file: Destination directory [%s] is not a valid " +
+				"directory.", destinationFolder.getAbsolutePath()));
+		else if (destinationFolder.canWrite() == false)
+			throw new IllegalArgumentException(String.format("Error copying " +
+				"dataset file: Destination directory [%s] is not writable.",
+				destinationFolder.getAbsolutePath()));
+		// if no new filename is specified, use existing source filename
+		if (newFilename == null)
+			newFilename = source.getName();
+		// derive source file verification data
+		long sourceSize = source.length();
+		long sourceChecksum = FileUtils.checksumCRC32(source);
+		// copy file to specified destination
+		File destination = new File(destinationFolder, newFilename);
+		// if file already exists, check to be sure it was copied properly;
+		// if it doesn't exist, or its stats don't match, then copy now
+		if (destination.exists()) {
+			long destinationSize = destination.length();
+			long destinationChecksum = FileUtils.checksumCRC32(destination);
+			if (destinationSize != sourceSize ||
+				destinationChecksum != sourceChecksum)
+				FileUtils.copyFile(source, destination);
+			// if file already exists and its stats match, then we're done
+			else return destination;
+		} else FileUtils.copyFile(source, destination);
+		// verify copied file
+		long destinationSize = destination.length();
+		if (destinationSize != sourceSize)
+			throw new IOException(String.format("Error copying dataset " +
+				"file [%s] to destination [%s]: file size comparison " +
+				"failed (expected %d, found %d).",
+				source.getAbsolutePath(), destination.getAbsolutePath(),
+				sourceSize, destinationSize));
+		long destinationChecksum = FileUtils.checksumCRC32(destination);
+		if (destinationChecksum != sourceChecksum)
+			throw new IOException(String.format("Error copying dataset " +
+				"file [%s] to destination [%s]: checksum comparison " +
+				"failed (expected %d, found %d).",
+				source.getAbsolutePath(), destination.getAbsolutePath(),
+				sourceChecksum, destinationChecksum));
+		return destination;
 	}
 	
 	public static final Document parseXML(File file)

@@ -8,8 +8,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.commons.io.FilenameUtils;
-
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.exceptions.UnverifiableNativeIDException;
@@ -37,7 +35,7 @@ public class MzTabValidator
 		"\n\t[-log       <LogFile> " +
 			"(if not specified, log output will be printed to stdout)]" +
 		"\n\t[-threshold <InvalidPSMPercentageToFail: 0-100> (default 10)]";
-	private static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
+	public static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	
 	/*========================================================================
 	 * Public interface methods
@@ -153,8 +151,7 @@ public class MzTabValidator
 						mzTabFile.getUploadedResultPath(), percentage));
 				}
 				// get relevant file name to print to output file
-				String uploadedFilename = FilenameUtils.getName(
-					mzTabFile.getUploadedResultPath());
+				String uploadedFilename = mzTabFile.getUploadedResultPath();
 				if (uploadedFilename == null)
 					uploadedFilename = mzTabFile.getMzTabFilename();
 				// write log line
@@ -295,8 +292,7 @@ public class MzTabValidator
 				throw new IllegalArgumentException(String.format(
 					"Failure threshold [%s] must be a real number " +
 					"between 0 and 100.", failureThreshold));
-			}
-			else this.failureThreshold = DEFAULT_FAILURE_THRESHOLD;
+			} else this.failureThreshold = DEFAULT_FAILURE_THRESHOLD;
 		}
 	}
 	
