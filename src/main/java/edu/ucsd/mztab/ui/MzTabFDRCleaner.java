@@ -887,8 +887,9 @@ public class MzTabFDRCleaner
 	private static String formatFDR(Double fdr) {
 		if (fdr == null)
 			return null;
-		else return String.format("%.4f", fdr)
-			.replaceFirst("(\\..?\\d*?)0+$", "$1");	// trim trailing zeros
+		else return Double.toString(fdr);
+//		else return String.format("%.4f", fdr)
+//			.replaceFirst("(\\..?\\d*?)0+$", "$1");	// trim trailing zeros
 	}
 	
 	private static boolean isMTDFieldAfterFDR(String field) {
