@@ -40,11 +40,19 @@ public class MzTabCounter
 			// parse out file mapping context for this task from params.xml
 			TaskMzTabContext context = new TaskMzTabContext(
 				count.mzTabDirectory, null, count.parameters);
-			// set up output file writer
+			// ensure output file exists; create blank output file if not
 			if (count.outputFile.exists() == false &&
 				count.outputFile.createNewFile() == false)
 				die(String.format("Could not create output file [%s]",
 					count.outputFile.getAbsolutePath()));
+			// get files from input mzTab directory
+			File[] files = count.mzTabDirectory.listFiles();
+			// if the input mzTab directory is empty, leave the stats file blank
+			if (files.length < 1)
+				return;
+			// otherwise, sort files alphabetically
+			Arrays.sort(files);
+			// set up output file writer and write header line
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(count.outputFile, false)));
 			writer.println("MzTab_file\tUploaded_file\t" +
@@ -52,9 +60,6 @@ public class MzTabCounter
 				"Peptide_rows\tFound_Peptides\tPeptide_FDR\t" +
 				"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods");
 			// read through all mzTab files, write counts to output file
-			File[] files = count.mzTabDirectory.listFiles();
-			// sort files alphabetically
-			Arrays.sort(files);
 			for (File file : files) {
 				Map<String, Integer> counts = new HashMap<String, Integer>(7);
 				MzTabFile mzTabFile = context.getMzTabFile(file);
