@@ -289,26 +289,30 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				row[qValueIndex] = qValue == null ? "null" : qValue;
 				line = getLine(row);
 			}
-			// note this row's Q-Value, if present
-			try {
-				statistics.recordQValue(
-					FDRType.PSM, Double.parseDouble(qValue));
-			} catch (NumberFormatException error) {}
-			// increment the proper count for this PSM if it passes
-			// threshold and its "isDecoy" value is not null.
-			if (passThreshold && isDecoy != null) {
-				// deal with the mzTab producer mistakenly
-				// labeling this PSM as both target and decoy
-				if (isDecoy) {
-					// any decoy PSM should explicitly not be in the target set
-					statistics.addElement("decoyPSM", psmID);
-					statistics.removeElement("targetPSM", psmID);
+			// keep track of this PSM for FDR statistical
+			// purposes if it passes threshold
+			if (passThreshold) {
+				// if this PMS row is not a decoy, then note its Q-Value
+				if (isDecoy == null || isDecoy == false) try {
+					statistics.recordQValue(
+						FDRType.PSM, Double.parseDouble(qValue));
+				} catch (NumberFormatException error) {}
+				// increment the proper count for this PSM if it passes
+				// threshold and its "isDecoy" value is not null.
+				if (isDecoy != null) {
+					// a PSM is a target PSM if any of its rows
+					// have isDecoy=false; any target PSM should
+					// explicitly not be in the decoy set
+					if (isDecoy == false) {
+						statistics.addElement("targetPSM", psmID);
+						statistics.removeElement("decoyPSM", psmID);
+					}
+					// a PSM should only be added to the deoy
+					// set if it's not already in the target set
+					else if (
+						statistics.containsElement("targetPSM", psmID) == false)
+						statistics.addElement("decoyPSM", psmID);
 				}
-				// a PSM should only be added to the target
-				// set if it's not already in the decoy set
-				else if (
-					statistics.containsElement("decoyPSM", psmID) == false)
-					statistics.addElement("targetPSM", psmID);
 			}
 			// add this PSM row's peptide sequence to the proper maps
 			Integer peptideIndex =
