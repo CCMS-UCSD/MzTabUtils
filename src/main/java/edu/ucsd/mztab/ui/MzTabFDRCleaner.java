@@ -132,10 +132,10 @@ public class MzTabFDRCleaner
 	}
 	
 	public static Double calculateFDR(Integer target, Integer decoy) {
-		if (target == null || target == 0 || decoy == null)
+		if (target == null || target == 0 || decoy == null || decoy == 0)
 			return null;
-		else if (decoy == 0)
-			return 0.0;
+		// we can only calculate FDR if the count of
+		// both targets and decoys is above zero
 		else return (double)decoy / (double)target;
 	}
 	
