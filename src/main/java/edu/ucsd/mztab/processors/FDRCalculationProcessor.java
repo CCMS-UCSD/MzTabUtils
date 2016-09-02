@@ -155,7 +155,7 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			if (columns.get(MzTabConstants.PASS_THRESHOLD_COLUMN) == null) {
 				columns.put(
 					MzTabConstants.PASS_THRESHOLD_COLUMN, headers.size());
-				line = String.format( "%s\t%s", line.trim(),
+				line = String.format("%s\t%s", line.trim(),
 					MzTabConstants.PASS_THRESHOLD_COLUMN);
 				headers.add(MzTabConstants.PASS_THRESHOLD_COLUMN);
 			}
