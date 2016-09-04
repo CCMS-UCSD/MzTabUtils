@@ -290,9 +290,9 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				line = getLine(row);
 			}
 			// keep track of this PSM for FDR statistical
-			// purposes if it passes threshold
+			// purposes only if it passes threshold
 			if (passThreshold) {
-				// if this PMS row is not a decoy, then note its Q-Value
+				// if this PSM row is not a decoy, then note its Q-Value
 				if (isDecoy == null || isDecoy == false) try {
 					statistics.recordQValue(
 						FDRType.PSM, Double.parseDouble(qValue));
@@ -330,7 +330,7 @@ public class FDRCalculationProcessor implements MzTabProcessor
 		// calculate FDR attributes for all proteins
 		for (String accession : statistics.getPeptideMappedProteins()) {
 			// ensure this protein is counted by adding a default record for it
-			statistics.addProtein(accession, false, null);
+			statistics.addProtein(accession, null, null);
 			// determine the protein's attributes from those of its peptides
 			Boolean passThreshold = null;
 			Boolean isDecoy = null;

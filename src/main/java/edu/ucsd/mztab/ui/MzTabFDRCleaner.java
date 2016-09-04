@@ -132,11 +132,16 @@ public class MzTabFDRCleaner
 	}
 	
 	public static Double calculateFDR(Integer target, Integer decoy) {
-		if (target == null || target == 0 || decoy == null || decoy == 0)
+		// we can only calculate FDR if both target and decoy counts
+		// are not null, and there is at least one decoy
+		if (target == null || decoy == null || decoy <= 0)
 			return null;
-		// we can only calculate FDR if the count of
-		// both targets and decoys is above zero
-		else return (double)decoy / (double)target;
+		// if we have non-zero decoys, but no targets (very unlikely),
+		// then we say there is one target to avoid a divide by zero error
+		else if (target <= 0)
+			target = 1;
+		// global FDR = ratio of # decoys / # targets
+		return (double)decoy / (double)target;
 	}
 	
 	/**

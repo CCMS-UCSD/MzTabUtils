@@ -185,15 +185,30 @@ public class MzTabFDRStatistics
 			map = peptides;
 		else map = proteins;
 		ImmutablePair<Boolean, Boolean> attributes = map.get(identifier);
-		// if one of the saved attributes is already true, then keep it
 		if (attributes != null) {
 			Boolean savedPassThreshold = attributes.getLeft();
 			Boolean savedIsDecoy = attributes.getRight();
+			// overwrite this passThreshold with the saved one only if this
+			// one is null, or if the saved one is true; consequently:
+			// 1. null is always overwritten, so passThreshold will end up
+			//    null only if every child of this element has a value of null
+			// 2. false overwrites null, so if there is one false among
+			//    many nulls, the element will NOT pass threshold
+			// 3. true overwrites everything, so if there is even
+			//    one true, the element WILL pass threshold
 			if (passThreshold == null ||
 				(savedPassThreshold != null && savedPassThreshold == true))
 				passThreshold = savedPassThreshold;
+			// overwrite this isDecoy with the saved one only if this
+			// one is null, or if the saved one is false; consequently:
+			// 1. null is always overwritten, so isDecoy will end up null
+			//    only if every child of this element has a value of null
+			// 2. true overwrites null, so if there is one true among
+			//    many nulls, the element will be a decoy
+			// 3. false overwrites everything, so if there is even
+			//    one false, the element will be a target
 			if (isDecoy == null ||
-				(savedIsDecoy != null && savedIsDecoy == true))
+				(savedIsDecoy != null && savedIsDecoy == false))
 				isDecoy = savedIsDecoy;
 		}
 		// save these attributes for this identifier
