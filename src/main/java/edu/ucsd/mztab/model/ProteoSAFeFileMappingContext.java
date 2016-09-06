@@ -22,8 +22,8 @@ public class ProteoSAFeFileMappingContext
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
-	Collection<UploadCollection>     uploadCollections;
-	Map<String, Map<String, String>> resultFileMappings;
+	private Collection<UploadCollection>     uploadCollections;
+	private Map<String, Map<String, String>> resultFileMappings;
 	
 	/*========================================================================
 	 * Constructor
@@ -118,12 +118,35 @@ public class ProteoSAFeFileMappingContext
 		return mappings;
 	}
 	
+	public Collection<UploadMapping> getUploadMappings(
+		String collectionParameter
+	) {
+		if (collectionParameter == null)
+			return null;
+		Collection<UploadMapping> mappings = new LinkedHashSet<UploadMapping>();
+		for (UploadCollection collection : uploadCollections)
+			if (collection.getParameterName().equals(collectionParameter))
+				mappings.addAll(collection.getUploadMappings());
+		return mappings;
+	}
+	
 	public Collection<String> getMangledFilenames() {
 		Collection<String> mangledFilenames = new LinkedHashSet<String>();
 		Collection<UploadMapping> mappings = getUploadMappings();
 		for (UploadMapping mapping : mappings)
 			mangledFilenames.add(mapping.getMangledFilename());
 		return mangledFilenames;
+	}
+	
+	public String getMangledFilename(String normalizedUploadFilePath) {
+		if (normalizedUploadFilePath == null)
+			return null;
+		Collection<UploadMapping> mappings = getUploadMappings();
+		for (UploadMapping mapping : mappings)
+			if (normalizedUploadFilePath.equals(
+				mapping.getNormalizedUploadFilePath()))
+				return mapping.getMangledFilename();
+		return null;
 	}
 	
 	public String getUploadFilePath(String mangledFilename) {
