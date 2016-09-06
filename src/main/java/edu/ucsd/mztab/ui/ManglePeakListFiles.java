@@ -7,7 +7,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.apache.commons.io.FilenameUtils;
 import org.w3c.dom.Document;
 
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
