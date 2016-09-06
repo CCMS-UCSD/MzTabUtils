@@ -13,32 +13,31 @@ import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext.UploadMapping;
 import edu.ucsd.util.FileIOUtils;
 
-public class ManglePeakListFiles
+public class RemangleFiles
 {
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
 	private static final String USAGE =
-		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.ManglePeakListFiles" +
-		"\n\t-peak   <PeakDirectoryInDataset>" +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.RemangleFiles" +
+		"\n\t-input  <CollectionDirectoryInDataset>" +
 		"\n\t-params <ProteoSAFeParametersFile>" +
-		"\n\t-output <MangledPeakLinksDirectory>";
+		"\n\t-output <MangledLinksDirectory>";
 	
 	/*========================================================================
 	 * Public interface methods
 	 *========================================================================*/
 	public static void main(String[] args) {
-		ManglePeakListFilesOperation mangle = extractArguments(args);
+		RemangleFilesOperation mangle = extractArguments(args);
 		if (mangle == null)
 			die(USAGE);
 		// link each peak list file to its mangled filename
 		// within the designated output directory
-		for (String mangledFilename : mangle.mangledPeakListFiles.keySet()) {
-			File peakListFile =
-				mangle.mangledPeakListFiles.get(mangledFilename);
-			File mangledPeakListFileLink =
+		for (String mangledFilename : mangle.mangledFiles.keySet()) {
+			File collectionFile = mangle.mangledFiles.get(mangledFilename);
+			File mangledFileLink =
 				new File(mangle.outputDirectory, mangledFilename);
-			FileIOUtils.makeLink(peakListFile, mangledPeakListFileLink);
+			FileIOUtils.makeLink(collectionFile, mangledFileLink);
 		}
 	}
 	
@@ -47,33 +46,33 @@ public class ManglePeakListFiles
 	 *========================================================================*/
 	/**
 	 * Struct to maintain context data for each
-	 * peak directory rebuilding operation.
+	 * dataset file collection re-mangling operation.
 	 */
-	private static class ManglePeakListFilesOperation {
+	private static class RemangleFilesOperation {
 		/*====================================================================
 		 * Properties
 		 *====================================================================*/
-		private Map<String, File> mangledPeakListFiles;
+		private Map<String, File> mangledFiles;
 		private File              outputDirectory;
 		
 		/*====================================================================
 		 * Constructors
 		 *====================================================================*/
-		public ManglePeakListFilesOperation(
-			File peakDirectory, File parametersFile, File outputDirectory
+		public RemangleFilesOperation(
+			File collectionDirectory, File parametersFile, File outputDirectory
 		) {
-			// validate input peak list files directory
-			if (peakDirectory == null)
+			// validate input collection directory
+			if (collectionDirectory == null)
 				throw new NullPointerException(
-					"Peak list files directory cannot be null.");
-			else if (peakDirectory.isDirectory() == false)
+					"Dataset collection directory cannot be null.");
+			else if (collectionDirectory.isDirectory() == false)
 				throw new IllegalArgumentException(String.format(
-					"Peak list files directory [%s] must be a directory.",
-					peakDirectory.getAbsolutePath()));
-			else if (peakDirectory.canRead() == false)
+					"Dataset collection directory [%s] must be a directory.",
+					collectionDirectory.getAbsolutePath()));
+			else if (collectionDirectory.canRead() == false)
 				throw new IllegalArgumentException(String.format(
-					"Peak list files directory [%s] must be readable.",
-					peakDirectory.getAbsolutePath()));
+					"Dataset collection directory [%s] must be readable.",
+					collectionDirectory.getAbsolutePath()));
 			// validate params.xml file
 			if (parametersFile == null)
 				throw new NullPointerException(
@@ -82,7 +81,7 @@ public class ManglePeakListFiles
 				parametersFile.canRead() == false)
 				throw new IllegalArgumentException(
 					"Argument params.xml file must be a readable file.");
-			// validate mangled peak list links output directory
+			// validate mangled links output directory
 			if (outputDirectory == null)
 				throw new NullPointerException(
 					"Output directory cannot be null.");
@@ -105,58 +104,66 @@ public class ManglePeakListFiles
 			// get file mapping context from params.xml
 			ProteoSAFeFileMappingContext context =
 				new ProteoSAFeFileMappingContext(parameters);
-			// recursively search input directory for all peak list files
-			Collection<File> peakListFiles = findFiles(peakDirectory);
-			// map all found peak list files to their mangled names
-			mangledPeakListFiles = new LinkedHashMap<String, File>();
-			String peakListRoot = peakDirectory.getAbsolutePath();
-			for (File peakListFile : peakListFiles) {
-				// get this peak list file's relative path
-				// under the input peak list files directory
-				String peakListRelativePath =
-					peakListFile.getAbsolutePath().substring(
-						peakListRoot.length());
+			// recursively search input directory for all collection files
+			Collection<File> collectionFiles = findFiles(collectionDirectory);
+			// map all found collection files to their mangled names
+			mangledFiles = new LinkedHashMap<String, File>();
+			String collectionRoot = collectionDirectory.getAbsolutePath();
+			for (File collectionFile : collectionFiles) {
+				// get this collection file's relative path
+				// under the input collection files directory
+				String fileRelativePath =
+					collectionFile.getAbsolutePath().substring(
+						collectionRoot.length());
 				// chomp leading slash, if present
-				if (peakListRelativePath.isEmpty() == false &&
-					peakListRelativePath.charAt(0) == File.separatorChar)
-					peakListRelativePath = peakListRelativePath.substring(1);
-				// find this peak list file's upload mapping
+				if (fileRelativePath.isEmpty() == false &&
+					fileRelativePath.charAt(0) == File.separatorChar)
+					fileRelativePath = fileRelativePath.substring(1);
+				// find this collection file's upload mapping
 				String mangledFilename =
-					context.getMangledFilename(peakListRelativePath);
+					context.getMangledFilename(fileRelativePath);
 				if (mangledFilename == null)
 					throw new IllegalArgumentException(String.format(
 						"No \"upload_file_mapping\" parameter could be found " +
-						"for peak list file [%s] in parameters file [%s].",
-						peakListFile.getAbsolutePath(),
+						"for collection file [%s] in parameters file [%s].",
+						collectionFile.getAbsolutePath(),
 						parametersFile.getAbsolutePath()));
-				else mangledPeakListFiles.put(mangledFilename, peakListFile);
+				else mangledFiles.put(mangledFilename, collectionFile);
 			}
 			// verify that all params.xml mapped files are present
-			// in the input peak list files directory
+			// in the input collection files directory
+			String collectionName = collectionDirectory.getName();
+			String collectionParameter = null;
+			if (collectionName.equals("peak"))
+				collectionParameter = "peak_list_files";
+			else if (collectionName.equals("result"))
+				collectionParameter = "result_files";
+			// TODO: handle all other possible collections,
+			// throw error if directory name isn't one of them
 			for (UploadMapping uploadMapping : context.getUploadMappings(
-				"peak_list_files"))
-				if (mangledPeakListFiles.containsKey(
-					uploadMapping.getMangledFilename()) == false)
+				collectionParameter))
+				if (mangledFiles.containsKey(uploadMapping.getMangledFilename())
+					== false)
 					throw new IllegalArgumentException(String.format(
 						"Parameter file [%s] contained an " +
-						"\"upload_file_mapping\" parameter for peak list " +
+						"\"upload_file_mapping\" parameter for collection " +
 						"file [%s], yet no such file was found under input " +
-						"peak list files directory [%s].",
+						"collection files directory [%s].",
 						parametersFile.getAbsolutePath(),
 						uploadMapping.getUploadFilePath(),
-						peakDirectory.getAbsolutePath()));
+						collectionDirectory.getAbsolutePath()));
 		}
 	}
 	
 	/*====================================================================
 	 * Convenience methods
 	 *====================================================================*/
-	private static ManglePeakListFilesOperation extractArguments(
+	private static RemangleFilesOperation extractArguments(
 		String[] args
 	) {
 		if (args == null || args.length < 1)
 			return null;
-		File peakDirectory = null;
+		File collectionDirectory = null;
 		File parametersFile = null;
 		File outputDirectory = null;
 		for (int i=0; i<args.length; i++) {
@@ -168,8 +175,8 @@ public class ManglePeakListFiles
 				if (i >= args.length)
 					return null;
 				String value = args[i];
-				if (argument.equals("-peak"))
-					peakDirectory = new File(value);
+				if (argument.equals("-input"))
+					collectionDirectory = new File(value);
 				else if (argument.equals("-params"))
 					parametersFile = new File(value);
 				else if (argument.equals("-output"))
@@ -177,8 +184,8 @@ public class ManglePeakListFiles
 			}
 		}
 		try {
-			return new ManglePeakListFilesOperation(
-				peakDirectory, parametersFile, outputDirectory);
+			return new RemangleFilesOperation(
+				collectionDirectory, parametersFile, outputDirectory);
 		} catch (Throwable error) {
 			error.printStackTrace();
 			return null;
