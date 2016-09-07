@@ -515,6 +515,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			converter = extractArguments(args);
 			if (converter == null)
 				die(USAGE);
+			System.out.println("Preparing output mzTab file...");
 			// run converter, print to stdout
 			output = new FileOutputStream(converter.params.getMzTabFile());
 			System.out.println("Running converter...");

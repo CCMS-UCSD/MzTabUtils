@@ -59,6 +59,7 @@ public class TSVToMzTabParameters
 	public TSVToMzTabParameters(
 		File paramsFile, File tsvFile, File mzTabDirectory
 	) throws IOException {
+		System.out.println("Processing converter parameters...");
 		// validate input parameter file
 		if (paramsFile == null)
 			throw new NullPointerException(
@@ -115,6 +116,9 @@ public class TSVToMzTabParameters
 		fixedModsReported = false;
 		Map<String, String> columns = new LinkedHashMap<String, String>();
 		// read all parameters from input parameters file
+		System.out.println(String.format(
+			"Reading converter parameters file [%s]...",
+			paramsFile.getAbsolutePath()));
 		Properties properties = new Properties();
 		properties.load(new FileInputStream(paramsFile));
 		for (String parameter : properties.stringPropertyNames()) {
@@ -193,6 +197,9 @@ public class TSVToMzTabParameters
 					"An index or header string for column \"%s\" is required.",
 					column));
 		// parse and process the input tab-delimited result file
+		System.out.println(String.format(
+			"Reading input TSV file [%s] to finish setting up converter...",
+			this.tsvFile.getAbsolutePath()));
 		BufferedReader reader = null;
 		String line = null;
 		int lineNumber = -1;
@@ -361,6 +368,7 @@ public class TSVToMzTabParameters
 			try { reader.close(); }
 			catch (Throwable error) {}
 		}
+		System.out.println("Done processing converter parameters.");
 	}
 	
 	/*========================================================================
