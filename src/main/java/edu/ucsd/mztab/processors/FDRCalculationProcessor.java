@@ -131,8 +131,26 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			psmHeader = new MzTabSectionHeader(line);
 			psmHeader.validateHeaderExpectations(
 				MzTabSection.PSM, Arrays.asList(RELEVANT_PSM_COLUMNS));
-			// record all relevant column indices
+			// get PSM section column headers
 			List<String> headers = psmHeader.getColumns();
+			// if the user did not specify a Q-value column, then
+			// look for one that we know corresponds to Q-value
+			if (qValueColumn == null) {
+				for (String column : MzTabConstants.KNOWN_QVALUE_COLUMNS) {
+					for (int i=0; i<headers.size(); i++) {
+						String header = headers.get(i);
+						if (header == null)
+							continue;
+						else if (header.equalsIgnoreCase(column)) {
+							qValueColumn = header;
+							break;
+						}
+					}
+					if (qValueColumn != null)
+						break;
+				}
+			}
+			// record all relevant column indices
 			for (int i=0; i<headers.size(); i++) {
 				String header = headers.get(i);
 				if (header == null)

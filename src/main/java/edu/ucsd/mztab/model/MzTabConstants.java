@@ -82,6 +82,11 @@ public class MzTabConstants
 	public static final String GLOBAL_PROTEIN_FDR_TERM =
 		"[MS, MS:1001214, protein-level global FDR, %s]";
 	
+	// constants pertaining to known optional column values
+	public static final String[] KNOWN_QVALUE_COLUMNS = new String[]{
+		"QValue", "MS-GF:QValue"
+	};
+	
 	// constants pertaining to peptide strings
 	public static final String AMINO_ACID_CHARSET = "ARDNCEQGHILKMFPSTWYV";
 	public static final Pattern AMINO_ACID_PATTERN = Pattern.compile(
