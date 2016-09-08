@@ -334,7 +334,7 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			// determine the protein's attributes from those of its peptides
 			Boolean passThreshold = null;
 			Boolean isDecoy = null;
-			boolean nonDecoyPeptideFound = false;
+			boolean decoyPeptideFound = false;
 			Set<String> sequences = statistics.getProteinPeptides(accession);
 			if (sequences != null) {
 				for (String sequence : sequences) {
@@ -354,30 +354,30 @@ public class FDRCalculationProcessor implements MzTabProcessor
 							if (peptidePassThreshold != null)
 								passThreshold = peptidePassThreshold;
 						}
-						// a protein is labeled decoy iff
-						// ALL of its peptides are decoys
+						// a protein is labeled target iff ALL of
+						// its peptides are targets (or at least
+						// one target with the rest null)
 						Boolean peptideIsDecoy = attributes.getRight();
-						// if this peptide's decoy status is null, then the
-						// protein is not a decoy; it's either false or null
 						if (peptideIsDecoy == null) {
-							nonDecoyPeptideFound = true;
-							// only leave the protein's decoy status null
-							// if all peptides found so far have been null
-							if (isDecoy != null)
-								isDecoy = false;
+							// if this peptide's decoy status is null,
+							// then it has no effect on the overall
+							// decoy status of the protein, so do nothing;
+							// if isDecoy=null so far, then this doesn't
+							// change it, and if it's true or false then
+							// a null peptide doesn't change that either
 						}
-						// if this peptide is not a decoy,
-						// then the protein isn't either
-						else if (peptideIsDecoy == false) {
-							nonDecoyPeptideFound = true;
-							isDecoy = false;
+						// if this peptide is a decoy,
+						// then the protein is as well
+						else if (peptideIsDecoy == true) {
+							decoyPeptideFound = true;
+							isDecoy = true;
 						}
-						// if this peptide is a decoy, then the protein
-						// is only marked as a decoy if no other
-						// non-decoy peptides have been found
-						else if (nonDecoyPeptideFound)
-							isDecoy = false;
-						else isDecoy = true;
+						// if this peptide is a target, then the protein
+						// is only marked as a target if no other
+						// decoy peptides have been found
+						else if (decoyPeptideFound) {
+							isDecoy = true;
+						} else isDecoy = false;
 					}
 				}
 			}

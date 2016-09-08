@@ -85,7 +85,39 @@ public class MzTabFDRStatistics
 	public void addPeptide(
 		String sequence, Boolean passThreshold, Boolean isDecoy
 	) {
-		addFDRAttributes(true, sequence, passThreshold, isDecoy);
+		if (sequence == null)
+			return;
+		ImmutablePair<Boolean, Boolean> attributes = peptides.get(sequence);
+		if (attributes != null) {
+			Boolean savedPassThreshold = attributes.getLeft();
+			Boolean savedIsDecoy = attributes.getRight();
+			// overwrite this passThreshold with the saved one only if this
+			// one is null, or if the saved one is true; consequently:
+			// 1. null is always overwritten, so passThreshold will end up null
+			//    only if every PSM of this peptide has passThreshold=null
+			// 2. false overwrites null, so if there is one passThreshold=false
+			//    PSM among many nulls, the peptide will NOT pass threshold
+			// 3. true overwrites everything, so if there is even one
+			//    passThreshold=true PSM, the peptide WILL pass threshold
+			if (passThreshold == null ||
+				(savedPassThreshold != null && savedPassThreshold == true))
+				passThreshold = savedPassThreshold;
+			// overwrite this isDecoy with the saved one only if this
+			// one is null, or if the saved one is false; consequently:
+			// 1. null is always overwritten, so isDecoy will end up null
+			//    only if every PSM of this peptide has isDecoy=null
+			// 2. true overwrites null, so if there is one isDecoy=true
+			//    PSM among many nulls, the peptide will be a decoy
+			// 3. false overwrites everything, so if there is even one
+			//    isDecoy=false PSM, the peptide will be a target
+			if (isDecoy == null ||
+				(savedIsDecoy != null && savedIsDecoy == false))
+				isDecoy = savedIsDecoy;
+		}
+		// save these attributes for this identifier
+		attributes =
+			new ImmutablePair<Boolean, Boolean>(passThreshold, isDecoy);
+		peptides.put(sequence, attributes);
 	}
 	
 	public Set<String> getPeptides() {
@@ -113,7 +145,39 @@ public class MzTabFDRStatistics
 	public void addProtein(
 		String accession, Boolean passThreshold, Boolean isDecoy
 	) {
-		addFDRAttributes(false, accession, passThreshold, isDecoy);
+		if (accession == null)
+			return;
+		ImmutablePair<Boolean, Boolean> attributes = proteins.get(accession);
+		if (attributes != null) {
+			Boolean savedPassThreshold = attributes.getLeft();
+			Boolean savedIsDecoy = attributes.getRight();
+			// overwrite this passThreshold with the saved one only if this
+			// one is null, or if the saved one is true; consequently:
+			// 1. null is always overwritten, so passThreshold will end up null
+			//    only if every peptide of this protein has passThreshold=null
+			// 2. false overwrites null, so if there is one passThreshold=false
+			//    peptide among many nulls, the protein will NOT pass threshold
+			// 3. true overwrites everything, so if there is even one
+			//    passThreshold=true peptide, the protein WILL pass threshold
+			if (passThreshold == null ||
+				(savedPassThreshold != null && savedPassThreshold == true))
+				passThreshold = savedPassThreshold;
+			// overwrite this isDecoy with the saved one only if this
+			// one is null, or if the saved one is true; consequently:
+			// 1. null is always overwritten, so isDecoy will end up null
+			//    only if every peptide of this protein has isDecoy=null
+			// 2. false overwrites null, so if there is one isDecoy=false
+			//    peptide among many nulls, the protein will be a target
+			// 3. true overwrites everything, so if there is even one
+			//    isDecoy=true peptide, the protein will be a decoy
+			if (isDecoy == null ||
+				(savedIsDecoy != null && savedIsDecoy == true))
+				isDecoy = savedIsDecoy;
+		}
+		// save these attributes for this identifier
+		attributes =
+			new ImmutablePair<Boolean, Boolean>(passThreshold, isDecoy);
+		proteins.put(accession, attributes);
 	}
 	
 	public Set<String> getProteins() {
@@ -170,50 +234,5 @@ public class MzTabFDRStatistics
 		if (type == null)
 			return null;
 		else return maxQValues.get(type);
-	}
-	
-	/*========================================================================
-	 * Convenience methods
-	 *========================================================================*/
-	private void addFDRAttributes(
-		boolean type, String identifier, Boolean passThreshold, Boolean isDecoy
-	) {
-		if (identifier == null)
-			return;
-		Map<String, ImmutablePair<Boolean, Boolean>> map = null;
-		if (type)
-			map = peptides;
-		else map = proteins;
-		ImmutablePair<Boolean, Boolean> attributes = map.get(identifier);
-		if (attributes != null) {
-			Boolean savedPassThreshold = attributes.getLeft();
-			Boolean savedIsDecoy = attributes.getRight();
-			// overwrite this passThreshold with the saved one only if this
-			// one is null, or if the saved one is true; consequently:
-			// 1. null is always overwritten, so passThreshold will end up
-			//    null only if every child of this element has a value of null
-			// 2. false overwrites null, so if there is one false among
-			//    many nulls, the element will NOT pass threshold
-			// 3. true overwrites everything, so if there is even
-			//    one true, the element WILL pass threshold
-			if (passThreshold == null ||
-				(savedPassThreshold != null && savedPassThreshold == true))
-				passThreshold = savedPassThreshold;
-			// overwrite this isDecoy with the saved one only if this
-			// one is null, or if the saved one is false; consequently:
-			// 1. null is always overwritten, so isDecoy will end up null
-			//    only if every child of this element has a value of null
-			// 2. true overwrites null, so if there is one true among
-			//    many nulls, the element will be a decoy
-			// 3. false overwrites everything, so if there is even
-			//    one false, the element will be a target
-			if (isDecoy == null ||
-				(savedIsDecoy != null && savedIsDecoy == false))
-				isDecoy = savedIsDecoy;
-		}
-		// save these attributes for this identifier
-		attributes =
-			new ImmutablePair<Boolean, Boolean>(passThreshold, isDecoy);
-		map.put(identifier, attributes);
 	}
 }
