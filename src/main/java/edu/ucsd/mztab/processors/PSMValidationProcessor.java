@@ -1,16 +1,27 @@
 package edu.ucsd.mztab.processors;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
+import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 
 public class PSMValidationProcessor
 implements MzTabProcessor
 {
+	/*========================================================================
+	 * Constants
+	 *========================================================================*/
+	private static final String[] RELEVANT_PSM_COLUMNS = new String[]{
+		MzTabConstants.PSH_PSM_ID_COLUMN
+	};
+	
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
@@ -19,8 +30,11 @@ implements MzTabProcessor
 	private MzTabSectionHeader   psmHeader;
 	private int                  validIndex;
 	private int                  invalidReasonIndex;
-	// PSM row counter map ("psmRows", "invalidRows")
+	private int                  psmIDIndex;
+	// PSM row counter map ("PSM", "invalid_PSM", "PSM_ID")
 	private Map<String, Integer> counts;
+	// unique PSM ID set
+	private Set<String>          psmIDs;
 	
 	/*========================================================================
 	 * Constructor
@@ -30,9 +44,12 @@ implements MzTabProcessor
 		if (counts == null)
 			throw new NullPointerException("Argument counts map is null.");
 		else this.counts = counts;
-		// initialize mzTab validity column indices
+		// initialize unique PSM ID set
+		psmIDs = new HashSet<String>();
+		// initialize column indices
 		validIndex = -1;
 		invalidReasonIndex = -1;
+		psmIDIndex = -1;
 	}
 	
 	/*========================================================================
@@ -57,6 +74,8 @@ implements MzTabProcessor
 					"A \"PSH\" row was already seen previously in this file.",
 					lineNumber, mzTabFilename, line));
 			psmHeader = new MzTabSectionHeader(line);
+			psmHeader.validateHeaderExpectations(
+				MzTabSection.PSM, Arrays.asList(RELEVANT_PSM_COLUMNS));
 			// record all relevant column indices
 			List<String> headers = psmHeader.getColumns();
 			for (int i=0; i<headers.size(); i++) {
@@ -64,12 +83,23 @@ implements MzTabProcessor
 				if (header == null)
 					continue;
 				else if (header.equalsIgnoreCase(
+					MzTabConstants.PSH_PSM_ID_COLUMN))
+					psmIDIndex = i;
+				else if (header.equalsIgnoreCase(
 					MzTabConstants.VALID_COLUMN))
 					validIndex = i;
 				else if (header.equalsIgnoreCase(
 					MzTabConstants.INVALID_REASON_COLUMN))
 					invalidReasonIndex = i;
 			}
+			// ensure that the PSM_ID column was found
+			if (psmIDIndex < 0)
+				throw new IllegalArgumentException(String.format(
+					"Line %d of mzTab file [%s] is invalid:" +
+					"\n----------\n%s\n----------\n" +
+					"No \"%s\" column was found.",
+					lineNumber, mzTabFilename, line,
+					MzTabConstants.PSH_PSM_ID_COLUMN));
 			// add CCMS-controlled validity columns, if not already present
 			if (validIndex < 0) {
 				validIndex = headers.size();
@@ -94,9 +124,11 @@ implements MzTabProcessor
 					lineNumber, mzTabFilename, line));
 			else psmHeader.validateMzTabRow(line);
 			// add this row to the overall count of PSM rows encountered so far
-			incrementCount("psmRows");
-			// ensure that the valid column is present in this row
+			incrementCount("PSM");
+			// add this row's PSM_ID to the set of unique PSMs
 			String[] row = line.split("\\t");
+			psmIDs.add(row[psmIDIndex]);
+			// ensure that the valid column is present in this row
 			if (validIndex >= row.length) {
 				String[] newRow = new String[validIndex + 1];
 				for (int i=0; i<row.length; i++)
@@ -120,7 +152,7 @@ implements MzTabProcessor
 			// count of invalid rows and ensure that a reason is given
 			String valid = row[validIndex];
 			if (valid != null && valid.trim().equalsIgnoreCase("INVALID")) {
-				incrementCount("invalidRows");
+				incrementCount("invalid_PSM");
 				String reason = row[invalidReasonIndex];
 				if (reason == null || reason.trim().equalsIgnoreCase("null")) {
 					row[invalidReasonIndex] =
@@ -132,7 +164,10 @@ implements MzTabProcessor
 		return line;
 	}
 	
-	public void tearDown() {}
+	public void tearDown() {
+		// add the number of unique PSMs found to the counts map
+		counts.put("PSM_ID", psmIDs.size());
+	}
 	
 	/*========================================================================
 	 * Convenience methods

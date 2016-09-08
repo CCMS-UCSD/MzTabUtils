@@ -76,8 +76,8 @@ public class MzTabValidator
 			// otherwise, just write to stdout
 			else writer = new PrintWriter(System.out);
 			// write the header line of the log file
-			writer.println(
-				"MzTab_file\tUploaded_file\tPSM_rows\tInvalid_PSM_rows");
+			writer.println("MzTab_file\tUploaded_file\t" +
+				"PSM_rows\tInvalid_PSM_rows\tFound_PSMs");
 			// validate all PSM rows, write proper line for each to the log
 			for (File file : files) {
 				// get this mzTab file
@@ -130,10 +130,10 @@ public class MzTabValidator
 					else throw error;
 				}
 				// calculate invalid percentage, apply specified threshold
-				Integer psmRows = counts.get("psmRows");
+				Integer psmRows = counts.get("PSM");
 				if (psmRows == null)
 					psmRows = 0;
-				Integer invalidRows = counts.get("invalidRows");
+				Integer invalidRows = counts.get("invalid_PSM");
 				if (invalidRows == null)
 					invalidRows = 0;
 				// if the mzTab file has more than the indicated
@@ -154,9 +154,14 @@ public class MzTabValidator
 				String uploadedFilename = mzTabFile.getUploadedResultPath();
 				if (uploadedFilename == null)
 					uploadedFilename = mzTabFile.getMzTabFilename();
+				// get counted number of unique PSMs
+				Integer uniquePSMs = counts.get("PSM_ID");
+				if (uniquePSMs == null)
+					uniquePSMs = 0;
 				// write log line
-				writer.println(String.format("%s\t%s\t%d\t%d",
-					file.getName(), uploadedFilename, psmRows, invalidRows));
+				writer.println(String.format("%s\t%s\t%d\t%d\t%d",
+					file.getName(), uploadedFilename,
+					psmRows, invalidRows, uniquePSMs));
 				writer.flush();
 			}
 		} catch (Throwable error) {
