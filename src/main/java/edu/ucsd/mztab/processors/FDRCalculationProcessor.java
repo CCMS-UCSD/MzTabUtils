@@ -42,13 +42,17 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	private String               decoyColumn;
 	private String               decoyPattern;
 	private String               qValueColumn;
+	// FDR filter threshold
+	private FDRType              filterType;
+	private Double               filterFDR;
 	
 	/*========================================================================
 	 * Constructor
 	 *========================================================================*/
 	public FDRCalculationProcessor(
 		MzTabFDRStatistics statistics, String passThresholdColumn,
-		String decoyColumn, String decoyPattern, String qValueColumn
+		String decoyColumn, String decoyPattern, String qValueColumn,
+		FDRType filterType, Double filterFDR
 	) {
 		// initialize FDR statistics data structure
 		if (statistics == null)
@@ -67,6 +71,9 @@ public class FDRCalculationProcessor implements MzTabProcessor
 		this.decoyColumn = decoyColumn;
 		this.decoyPattern = decoyPattern;
 		this.qValueColumn = qValueColumn;
+		// initialize FDR filter settings
+		this.filterType = filterType;
+		this.filterFDR = filterFDR;
 	}
 	
 	/*========================================================================
@@ -295,7 +302,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				// if this PSM row is not a decoy, then note its Q-Value
 				if (isDecoy == null || isDecoy == false) try {
 					statistics.recordQValue(
-						FDRType.PSM, Double.parseDouble(qValue));
+						FDRType.PSM, Double.parseDouble(qValue),
+						filterType, filterFDR);
 				} catch (NumberFormatException error) {}
 				// increment the proper count for this PSM if it passes
 				// threshold and its "isDecoy" value is not null.

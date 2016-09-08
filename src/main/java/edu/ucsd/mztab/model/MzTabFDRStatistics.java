@@ -222,8 +222,15 @@ public class MzTabFDRStatistics
 		else return proteinPeptides.get(accession);
 	}
 	
-	public void recordQValue(FDRType type, Double qValue) {
+	public void recordQValue(
+		FDRType type, Double qValue, FDRType filterType, Double filterFDR
+	) {
 		if (type == null || qValue == null)
+			return;
+		// if an FDR filter threshold (of this Q-value type) was specified,
+		// only record this Q-value if it's less than or equal to the threshold
+		if (filterType != null && filterType.equals(type) &&
+			filterFDR != null && filterFDR < qValue)
 			return;
 		Double currentMaxQValue = maxQValues.get(type);
 		if (currentMaxQValue == null || currentMaxQValue < qValue)

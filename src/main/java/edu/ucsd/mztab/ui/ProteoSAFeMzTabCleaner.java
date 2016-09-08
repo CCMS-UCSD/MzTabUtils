@@ -12,7 +12,6 @@ import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.FDRCalculationProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
-import edu.ucsd.mztab.ui.MzTabFDRCleaner.FDRFilterType;
 import edu.ucsd.util.CommonUtils;
 
 public class ProteoSAFeMzTabCleaner
@@ -86,7 +85,8 @@ public class ProteoSAFeMzTabCleaner
 			reader.addProcessor(new FDRCalculationProcessor(
 				statistics, cleanup.passThresholdColumn,
 				cleanup.decoyColumn, cleanup.decoyPattern,
-				cleanup.psmQValueColumn));
+				cleanup.psmQValueColumn,
+				cleanup.filterType, cleanup.filterFDR));
 			// ensure that each PSM row has the special columns
 			// needed by ProteoSAFe to ensure validity
 			reader.addProcessor(new ValidityProcessor());
@@ -161,7 +161,7 @@ public class ProteoSAFeMzTabCleaner
 		private String           peptideQValueColumn;
 		private String           proteinQValueColumn;
 		private boolean          filter;
-		private FDRFilterType    filterType;
+		private FDRType          filterType;
 		private Double           filterFDR;
 		private Double           psmFDR;
 		private Double           peptideFDR;
@@ -247,7 +247,7 @@ public class ProteoSAFeMzTabCleaner
 				this.filterType = null;
 			else try {
 				this.filterType =
-					FDRFilterType.valueOf(filterType.trim().toUpperCase());
+					FDRType.valueOf(filterType.trim().toUpperCase());
 			} catch (Throwable error) {
 				throw new IllegalArgumentException(
 					String.format("Unrecognized filter type [%s]: must be  " +

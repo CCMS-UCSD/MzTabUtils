@@ -60,7 +60,6 @@ public class MzTabFDRCleaner
 	private static final String[] RELEVANT_PEP_COLUMNS = new String[]{
 		MzTabConstants.PEH_PEPTIDE_COLUMN
 	};
-	public static enum FDRFilterType { PSM, PEPTIDE, PROTEIN }
 	
 	/*========================================================================
 	 * Public interface methods
@@ -87,7 +86,8 @@ public class MzTabFDRCleaner
 			reader.addProcessor(new FDRCalculationProcessor(
 				statistics, cleanup.passThresholdColumn,
 				cleanup.decoyColumn, cleanup.decoyPattern,
-				cleanup.psmQValueColumn));
+				cleanup.psmQValueColumn,
+				cleanup.filterType, cleanup.filterFDR));
 			// clean file
 			reader.read();
 			// calculate global FDR values from returned count maps
@@ -182,7 +182,7 @@ public class MzTabFDRCleaner
 	 */
 	public static void doSecondFDRPass(
 		File input, File output, String mzTabFilename,
-		boolean filter, FDRFilterType filterType, Double filterFDR,
+		boolean filter, FDRType filterType, Double filterFDR,
 		String peptideQValueColumn, String proteinQValueColumn,
 		Double psmFDR, Double peptideFDR, Double proteinFDR,
 		MzTabFDRStatistics statistics
@@ -438,13 +438,13 @@ public class MzTabFDRCleaner
 						Integer qValueIndex = null;
 						String qValueColumnName = null;
 						if (filterType == null ||
-							filterType.equals(FDRFilterType.PSM)) {
+							filterType.equals(FDRType.PSM)) {
 							qValueIndex = psmQValueIndex;
 							qValueColumnName = MzTabConstants.Q_VALUE_COLUMN;
-						} else if (filterType.equals(FDRFilterType.PEPTIDE)) {
+						} else if (filterType.equals(FDRType.PEPTIDE)) {
 							qValueIndex = peptideQValueIndex;
 							qValueColumnName = peptideQValueColumn;
-						} else if (filterType.equals(FDRFilterType.PROTEIN)) {
+						} else if (filterType.equals(FDRType.PROTEIN)) {
 							qValueIndex = proteinQValueIndex;
 							qValueColumnName = proteinQValueColumn;
 						}
@@ -481,11 +481,11 @@ public class MzTabFDRCleaner
 							// based on selected FDR filter type
 							Double globalFDR = null;
 							if (filterType == null ||
-								filterType.equals(FDRFilterType.PSM))
+								filterType.equals(FDRType.PSM))
 								globalFDR = psmFDR;
-							else if (filterType.equals(FDRFilterType.PEPTIDE))
+							else if (filterType.equals(FDRType.PEPTIDE))
 								globalFDR = peptideFDR;
-							else if (filterType.equals(FDRFilterType.PROTEIN))
+							else if (filterType.equals(FDRType.PROTEIN))
 								globalFDR = proteinFDR;
 							// if the global FDR of the appropriate type is
 							// null or greater than the user-specified cutoff,
@@ -721,17 +721,17 @@ public class MzTabFDRCleaner
 		/*====================================================================
 		 * Properties
 		 *====================================================================*/
-		private File           mzTabDirectory;
-		private File           outputDirectory;
-		private String         passThresholdColumn;
-		private String         decoyColumn;
-		private String         decoyPattern;
-		private String         psmQValueColumn;
-		private String         peptideQValueColumn;
-		private String         proteinQValueColumn;
-		private boolean        filter;
-		private FDRFilterType  filterType;
-		private Double         filterFDR;
+		private File    mzTabDirectory;
+		private File    outputDirectory;
+		private String  passThresholdColumn;
+		private String  decoyColumn;
+		private String  decoyPattern;
+		private String  psmQValueColumn;
+		private String  peptideQValueColumn;
+		private String  proteinQValueColumn;
+		private boolean filter;
+		private FDRType filterType;
+		private Double  filterFDR;
 		
 		/*====================================================================
 		 * Constructors
@@ -784,7 +784,7 @@ public class MzTabFDRCleaner
 				this.filterType = null;
 			else try {
 				this.filterType =
-					FDRFilterType.valueOf(filterType.trim().toUpperCase());
+					FDRType.valueOf(filterType.trim().toUpperCase());
 			} catch (Throwable error) {
 				throw new IllegalArgumentException(
 					String.format("Unrecognized filter type [%s]: must be  " +

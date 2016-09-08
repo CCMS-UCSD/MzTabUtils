@@ -31,7 +31,6 @@ import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.PSMValidationProcessor;
 import edu.ucsd.mztab.processors.SpectraRefValidationProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
-import edu.ucsd.mztab.ui.MzTabFDRCleaner.FDRFilterType;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.FileIOUtils;
 
@@ -291,7 +290,8 @@ public class MzTabReprocessor
 			reader.addProcessor(new FDRCalculationProcessor(
 				statistics, reprocessing.passThresholdColumn,
 				reprocessing.decoyColumn, reprocessing.decoyPattern,
-				reprocessing.psmQValueColumn));
+				reprocessing.psmQValueColumn,
+				reprocessing.filterType, reprocessing.filterFDR));
 			// ensure that each PSM row has the special columns
 			// needed by ProteoSAFe to ensure validity
 			reader.addProcessor(new ValidityProcessor());
@@ -466,27 +466,27 @@ public class MzTabReprocessor
 		/*====================================================================
 		 * Properties
 		 *====================================================================*/
-		private File          resultDirectory;
-		private File          outputDirectory;
-		private File          peakListDirectory;
-		private File          scansDirectory;
-		private File          parameters;
-		private String        mzTabRelativePath;
-		private String        peakListRelativePath;
-		private String        datasetID;
-		private String        passThresholdColumn;
-		private String        decoyColumn;
-		private String        decoyPattern;
-		private String        psmQValueColumn;
-		private String        peptideQValueColumn;
-		private String        proteinQValueColumn;
-		private boolean       filter;
-		private FDRFilterType filterType;
-		private Double        failureThreshold;
-		private Double        filterFDR;
-		private Double        psmFDR;
-		private Double        peptideFDR;
-		private Double        proteinFDR;
+		private File    resultDirectory;
+		private File    outputDirectory;
+		private File    peakListDirectory;
+		private File    scansDirectory;
+		private File    parameters;
+		private String  mzTabRelativePath;
+		private String  peakListRelativePath;
+		private String  datasetID;
+		private String  passThresholdColumn;
+		private String  decoyColumn;
+		private String  decoyPattern;
+		private String  psmQValueColumn;
+		private String  peptideQValueColumn;
+		private String  proteinQValueColumn;
+		private boolean filter;
+		private FDRType filterType;
+		private Double  filterFDR;
+		private Double  failureThreshold;
+		private Double  psmFDR;
+		private Double  peptideFDR;
+		private Double  proteinFDR;
 		
 		/*====================================================================
 		 * Constructors
@@ -590,7 +590,7 @@ public class MzTabReprocessor
 				this.filterType = null;
 			else try {
 				this.filterType =
-					FDRFilterType.valueOf(filterType.trim().toUpperCase());
+					FDRType.valueOf(filterType.trim().toUpperCase());
 			} catch (Throwable error) {
 				throw new IllegalArgumentException(
 					String.format("Unrecognized filter type [%s]: must be  " +
