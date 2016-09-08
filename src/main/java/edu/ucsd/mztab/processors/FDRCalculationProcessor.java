@@ -141,7 +141,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 						String header = headers.get(i);
 						if (header == null)
 							continue;
-						else if (header.equalsIgnoreCase(column)) {
+						else if (CommonUtils.headerCorrespondsToColumn(
+							header, column, scoreColumns)) {
 							qValueColumn = header;
 							break;
 						}
