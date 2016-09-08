@@ -13,6 +13,9 @@ import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.xpath.XPathAPI;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
@@ -578,6 +581,7 @@ public class MzTabReprocessor
 			this.psmQValueColumn = psmQValueColumn;
 			this.peptideQValueColumn = peptideQValueColumn;
 			this.proteinQValueColumn = proteinQValueColumn;
+			// TODO: check params.xml to fill in any missing values above
 			// initialize filter settings
 			this.filter = filter;
 			this.filterFDR = filterFDR;
@@ -596,6 +600,39 @@ public class MzTabReprocessor
 			this.psmFDR = psmFDR;
 			this.peptideFDR = peptideFDR;
 			this.proteinFDR = proteinFDR;
+			// if any of the global FDR values are
+			// null, look them up in params.xml
+			if (psmFDR == null || peptideFDR == null || proteinFDR == null) {
+				Document params = null;
+				try { params = FileIOUtils.parseXML(parameters); }
+				catch (Throwable error) {}
+				if (params != null) {
+					// PSM-level FDR
+					if (psmFDR == null) try {
+						Node parameter = XPathAPI.selectSingleNode(
+							params, "//parameter[@name='fdr.psm']");
+						if (parameter != null)
+							this.psmFDR = Double.parseDouble(
+								parameter.getFirstChild().getNodeValue());
+					} catch (Throwable error) {}
+					// peptide-level FDR
+					if (peptideFDR == null) try {
+						Node parameter = XPathAPI.selectSingleNode(
+							params, "//parameter[@name='fdr.peptide']");
+						if (parameter != null)
+							this.peptideFDR = Double.parseDouble(
+								parameter.getFirstChild().getNodeValue());
+					} catch (Throwable error) {}
+					// protein-level FDR
+					if (proteinFDR == null) try {
+						Node parameter = XPathAPI.selectSingleNode(
+							params, "//parameter[@name='fdr.protein']");
+						if (parameter != null)
+							this.proteinFDR = Double.parseDouble(
+								parameter.getFirstChild().getNodeValue());
+					} catch (Throwable error) {}
+				}
+			}
 		}
 	}
 	
