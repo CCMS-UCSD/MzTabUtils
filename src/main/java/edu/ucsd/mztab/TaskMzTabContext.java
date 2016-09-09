@@ -245,6 +245,29 @@ public class TaskMzTabContext
 		return null;
 	}
 	
+	public MzTabMsRun getPeakListFile(String spectrumIDsFilename) {
+		if (spectrumIDsFilename == null)
+			return null;
+		Collection<MzTabFile> mzTabFiles = getMzTabFiles();
+		if (mzTabFiles == null || mzTabFiles.isEmpty())
+			return null;
+		else for (MzTabFile mzTabFile : getMzTabFiles()) {
+			Map<Integer, MzTabMsRun> msRuns = mzTabFile.getMsRuns();
+			if (msRuns == null || msRuns.isEmpty())
+				continue;
+			else for (MzTabMsRun msRun : msRuns.values()) {
+				String mangledPeakListFilename =
+					msRun.getMangledPeakListFilename();
+				if (mangledPeakListFilename == null)
+					continue;
+				else if (spectrumIDsFilename.equals(String.format("%s.scans",
+					FilenameUtils.getBaseName(mangledPeakListFilename))))
+					return msRun;
+			}
+		}
+		return null;
+	}
+	
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/

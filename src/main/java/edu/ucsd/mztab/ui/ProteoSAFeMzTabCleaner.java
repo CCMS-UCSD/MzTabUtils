@@ -3,14 +3,14 @@ package edu.ucsd.mztab.ui;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 
-import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabConstants.FDRType;
-import edu.ucsd.mztab.model.MzTabFDRStatistics;
 import edu.ucsd.mztab.model.MzTabFile;
+import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
-import edu.ucsd.mztab.processors.FDRCalculationProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
 import edu.ucsd.util.CommonUtils;
 
@@ -71,73 +71,25 @@ public class ProteoSAFeMzTabCleaner
 		for (File file : files) {
 			// get this input mzTab file
 			MzTabFile inputFile = cleanup.context.getMzTabFile(file);
-			// set up first intermediate output file
-			File tempFile1 =
-				new File(String.format("%s.1.temp", file.getName()));
-			// set up reader
-			MzTabReader reader = new MzTabReader(inputFile, tempFile1);
+			// get final output file
+			File outputFile = new File(cleanup.outputDirectory, file.getName());
+			// add all processors needed for general mzTab file cleanup
+			Collection<MzTabProcessor> processors =
+				new LinkedHashSet<MzTabProcessor>(2);
 			// clean all ms_run-location file references to use
 			// fully qualified ProteoSAFe file descriptor paths
-			reader.addProcessor(new MsRunCleanProcessor());
-			// ensure that each PSM row has the FDR columns
-			// needed by ProteoSAFe to enforce quality control
-			MzTabFDRStatistics statistics = new MzTabFDRStatistics();
-			reader.addProcessor(new FDRCalculationProcessor(
-				statistics, cleanup.passThresholdColumn,
-				cleanup.decoyColumn, cleanup.decoyPattern,
-				cleanup.psmQValueColumn,
-				cleanup.filterType, cleanup.filterFDR));
+			processors.add(new MsRunCleanProcessor());
 			// ensure that each PSM row has the special columns
 			// needed by ProteoSAFe to ensure validity
-			reader.addProcessor(new ValidityProcessor());
-			// clean file
-			reader.read();
-			// calculate global FDR values from returned count maps
-			Double psmFDR = MzTabFDRCleaner.calculateFDR(
-				statistics.getElementCount("targetPSM"),
-				statistics.getElementCount("decoyPSM"));
-			// if no FDR could be calculated, use highest found Q-Value, if any
-			if (psmFDR == null)
-				psmFDR = statistics.getMaxQValue(FDRType.PSM);
-			// if FDR could still not be determined, use user-specified FDR
-			if (psmFDR == null)
-				psmFDR = cleanup.psmFDR;
-			// peptide-level FDR
-			Double peptideFDR = MzTabFDRCleaner.calculateFDR(
-				statistics.getElementCount("targetPeptide"),
-				statistics.getElementCount("decoyPeptide"));
-			if (peptideFDR == null)
-				peptideFDR = statistics.getMaxQValue(FDRType.PEPTIDE);
-			if (peptideFDR == null)
-				peptideFDR = cleanup.peptideFDR;
-			// protein-level FDR
-			Double proteinFDR = MzTabFDRCleaner.calculateFDR(
-				statistics.getElementCount("targetProtein"),
-				statistics.getElementCount("decoyProtein"));
-			if (proteinFDR == null)
-				proteinFDR = statistics.getMaxQValue(FDRType.PROTEIN);
-			if (proteinFDR == null)
-				proteinFDR = cleanup.proteinFDR;
-			// set up second intermediate output file
-			File tempFile2 =
-				new File(String.format("%s.2.temp", file.getName()));
-			// add global FDR values to output file's metadata section,
-			// filter out all PSM rows that do not meet the FDR cutoff,
-			// and propagate calculated global FDR to any empty Q-Values
-			MzTabFDRCleaner.doSecondFDRPass(tempFile1, tempFile2,
-				inputFile.getMzTabFilename(), cleanup.filter,
+			processors.add(new ValidityProcessor());
+			// FDR-process this mzTab file
+			MzTabFDRCleaner.processMzTabFileFDR(inputFile, outputFile,
+				processors, cleanup.passThresholdColumn,
+				cleanup.decoyColumn, cleanup.decoyPattern,
+				cleanup.psmQValueColumn, cleanup.peptideQValueColumn,
+				cleanup.proteinQValueColumn, cleanup.filter,
 				cleanup.filterType, cleanup.filterFDR,
-				cleanup.peptideQValueColumn, cleanup.proteinQValueColumn,
-				psmFDR, peptideFDR, proteinFDR, statistics);
-			// set up final output file
-			File outputFile = new File(cleanup.outputDirectory, file.getName());
-			// filter out all protein and peptide rows no
-			// longer supported by remaining PSM rows
-			MzTabFDRCleaner.doThirdFDRPass(tempFile2, outputFile,
-				inputFile.getMzTabFilename(), cleanup.filter, statistics);
-			// remove temporary files
-			tempFile1.delete();
-			tempFile2.delete();
+				cleanup.psmFDR, cleanup.peptideFDR, cleanup.proteinFDR);
 		}
 	}
 	

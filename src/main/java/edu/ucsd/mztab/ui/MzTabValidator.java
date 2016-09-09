@@ -2,7 +2,9 @@ package edu.ucsd.mztab.ui;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.LineNumberReader;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -12,6 +14,7 @@ import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.exceptions.UnverifiableNativeIDException;
 import edu.ucsd.mztab.model.MzTabFile;
+import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.mztab.processors.PSMValidationProcessor;
 import edu.ucsd.mztab.processors.SpectraRefValidationProcessor;
 
@@ -85,90 +88,152 @@ public class MzTabValidator
 				// set up output file
 				File outputFile =
 					new File(validation.outputDirectory, file.getName());
-				// set up reader
-				MzTabReader reader = new MzTabReader(mzTabFile, outputFile);
-				reader.addProcessor(new SpectraRefValidationProcessor(
+				// validate this mzTab File
+				validateMzTabFile(mzTabFile, outputFile,
 					validation.uploadedResultDirectory,
-					validation.scansDirectory));
-				Map<String, Integer> counts = new HashMap<String, Integer>(2);
-				reader.addProcessor(new PSMValidationProcessor(counts));
-				// validate file
-				try { reader.read(); }
-				catch (RuntimeException error) {
-					// if a RuntimeException is caught, and its parent
-					// is an UnverifiableNativeIDException, then that
-					// means that the validator tried to interpret
-					// ambiguous nativeIDs as scan numbers but failed
-					// somewhere along the way; in this case, try again
-					// with a hard-coded interpretation scheme of indices
-					Throwable parent = error.getCause();
-					if (parent != null && parent.getClass().isInstance(
-						UnverifiableNativeIDException.class)) {
-						// be sure to clear the output file, since the previous
-						// attempt may have written some rows to it
-						try {
-							if (outputFile.delete() == false)
-								throw new RuntimeException(
-									"File.delete() returned false.");
-						} catch (Throwable innerError) {
-							die(String.format("Could not delete output " +
-								"file [%s] to attempt a second validation " +
-								"pass on input mzTab file [%s].",
-								outputFile.getAbsolutePath(),
-								mzTabFile.getMzTabPath()), innerError);
-						}
-						reader = new MzTabReader(mzTabFile, outputFile);
-						reader.addProcessor(new SpectraRefValidationProcessor(
-							validation.uploadedResultDirectory,
-							validation.scansDirectory, false));
-						counts = new HashMap<String, Integer>(2);
-						reader.addProcessor(new PSMValidationProcessor(counts));
-						reader.read();
-					}
-					// otherwise, it's some other kind of
-					// RuntimeException, so just throw it
-					else throw error;
-				}
-				// calculate invalid percentage, apply specified threshold
-				Integer psmRows = counts.get("PSM");
-				if (psmRows == null)
-					psmRows = 0;
-				Integer invalidRows = counts.get("invalid_PSM");
-				if (invalidRows == null)
-					invalidRows = 0;
-				// if the mzTab file has more than the indicated
-				// percentage of invalid PSMs, then fail
-				Double percentage = null;
-				if (psmRows == 0)
-					percentage = 0.0;
-				else percentage = (double)invalidRows / (double)psmRows * 100.0;
-				if (percentage > validation.failureThreshold) {
-					//System.err.println(validation.context.toString());
-					die(String.format("Result file [%s] contains %s%% " +
-						"invalid PSM rows. Please correct the file and " +
-						"ensure that its referenced spectra are accessible " +
-						"within linked peak list files, and then re-submit.",
-						mzTabFile.getUploadedResultPath(), percentage));
-				}
-				// get relevant file name to print to output file
-				String uploadedFilename = mzTabFile.getUploadedResultPath();
-				if (uploadedFilename == null)
-					uploadedFilename = mzTabFile.getMzTabFilename();
-				// get counted number of unique PSMs
-				Integer uniquePSMs = counts.get("PSM_ID");
-				if (uniquePSMs == null)
-					uniquePSMs = 0;
-				// write log line
-				writer.println(String.format("%s\t%s\t%d\t%d\t%d",
-					file.getName(), uploadedFilename,
-					psmRows, invalidRows, uniquePSMs));
-				writer.flush();
+					validation.scansDirectory, validation.failureThreshold,
+					writer);
 			}
+			// write peak list stats to log
+			logPeakListStats(
+				validation.scansDirectory, validation.context, writer);
 		} catch (Throwable error) {
 			die(error.getMessage(), error);
 		} finally {
 			try { writer.close(); }
 			catch (Throwable error) {}
+		}
+	}
+	
+	public static void validateMzTabFile(
+		MzTabFile inputFile, File outputFile, File uploadedResultDirectory,
+		File scansDirectory, double failureThreshold, PrintWriter writer
+	) {
+		if (inputFile == null || outputFile == null || writer == null)
+			return;
+		// set up reader
+		MzTabReader reader = new MzTabReader(inputFile, outputFile);
+		reader.addProcessor(new SpectraRefValidationProcessor(
+			//resultDirectory,
+			null,	// using null here for performance reasons
+			scansDirectory));
+		Map<String, Integer> counts = new HashMap<String, Integer>(2);
+		reader.addProcessor(new PSMValidationProcessor(counts));
+		// validate file
+		try { reader.read(); }
+		catch (RuntimeException error) {
+			// if a RuntimeException is caught, and its parent
+			// is an UnverifiableNativeIDException, then that
+			// means that the validator tried to interpret
+			// ambiguous nativeIDs as scan numbers but failed
+			// somewhere along the way; in this case, try again
+			// with a hard-coded interpretation scheme of indices
+			Throwable parent = error.getCause();
+			if (parent != null && parent.getClass().isInstance(
+				UnverifiableNativeIDException.class)) {
+				// be sure to clear the output file, since the previous
+				// attempt may have written some rows to it
+				try {
+					if (outputFile.delete() == false)
+						throw new RuntimeException(
+							"File.delete() returned false.");
+				} catch (Throwable innerError) {
+					die(String.format("Could not delete output " +
+						"file [%s] to attempt a second validation " +
+						"pass on input mzTab file [%s].",
+						outputFile.getAbsolutePath(),
+						inputFile.getMzTabPath()), innerError);
+				}
+				reader = new MzTabReader(inputFile, outputFile);
+				reader.addProcessor(new SpectraRefValidationProcessor(
+					uploadedResultDirectory, scansDirectory, false));
+				counts = new HashMap<String, Integer>(2);
+				reader.addProcessor(new PSMValidationProcessor(counts));
+				reader.read();
+			}
+			// otherwise, it's some other kind of
+			// RuntimeException, so just throw it
+			else throw error;
+		}
+		// calculate invalid percentage, apply specified threshold
+		Integer psmRows = counts.get("PSM");
+		if (psmRows == null)
+			psmRows = 0;
+		Integer invalidRows = counts.get("invalid_PSM");
+		if (invalidRows == null)
+			invalidRows = 0;
+		// if the mzTab file has more than the indicated
+		// percentage of invalid PSMs, then fail
+		Double percentage = null;
+		if (psmRows == 0)
+			percentage = 0.0;
+		else percentage = (double)invalidRows / (double)psmRows * 100.0;
+		if (percentage > failureThreshold) {
+			//System.err.println(validation.context.toString());
+			die(String.format("Result file [%s] contains %s%% " +
+				"invalid PSM rows. Please correct the file and " +
+				"ensure that its referenced spectra are accessible " +
+				"within linked peak list files, and then re-submit.",
+				inputFile.getUploadedResultPath(), percentage));
+		}
+		// get relevant file name to print to output file
+		String uploadedFilename = inputFile.getUploadedResultPath();
+		if (uploadedFilename == null)
+			uploadedFilename = inputFile.getMzTabFilename();
+		// get counted number of unique PSMs
+		Integer uniquePSMs = counts.get("PSM_ID");
+		if (uniquePSMs == null)
+			uniquePSMs = 0;
+		// write log line
+		writer.println(String.format("%s\t%s\t%d\t%d\t%d",
+			inputFile.getFile().getName(), uploadedFilename,
+			psmRows, invalidRows, uniquePSMs));
+		writer.flush();
+	}
+	
+	public static void logPeakListStats(
+		File scansDirectory, TaskMzTabContext context, PrintWriter writer
+	) {
+		if (scansDirectory == null || scansDirectory.canRead() == false ||
+			context == null || writer == null)
+			return;
+		// write to the log the spectrum counts from all scans files
+		writer.println("Scans_file\tUploaded_file\tSpectra");
+		File[] files = scansDirectory.listFiles();
+		if (files != null && files.length > 0) {
+			LineNumberReader reader = null;
+			for (File file : files) try {
+				// get uploaded peak list file descriptor
+				MzTabMsRun msRun = context.getPeakListFile(file.getName());
+				if (msRun == null)
+					throw new NullPointerException(String.format(
+						"No uploaded peak list file could be found for " +
+						"spectrum IDs file [%s].", file.getAbsolutePath()));
+				// read through file, counting the lines
+				reader = new LineNumberReader(new FileReader(file));
+				String line = null;
+				while (true) {
+					line = reader.readLine();
+					if (line == null)
+						break;
+				}
+				// write log line; normally we would increment the output
+				// of LineNumberReader.getLineNumber() since its count is
+				// 0-based, but ProteoSAFe scans files always write an
+				// empty line at the end that we don't want to count, so
+				// the 0-based indexing accounts for this automatically
+				writer.println(String.format("%s\t%s\t%d",
+					file.getName(), msRun.getUploadedPeakListPath(),
+					reader.getLineNumber()));
+				writer.flush();
+			} catch (RuntimeException error) {
+				throw error;
+			} catch (Throwable error) {
+				throw new RuntimeException(error);
+			} finally {
+				try { reader.close(); }
+				catch (Throwable error) {}
+			}
 		}
 	}
 	

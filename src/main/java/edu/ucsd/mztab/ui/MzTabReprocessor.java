@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
@@ -21,15 +22,11 @@ import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.converters.MzIdToMzTabConverter;
 import edu.ucsd.mztab.converters.PRIDEXMLToMzTabConverter;
-import edu.ucsd.mztab.exceptions.UnverifiableNativeIDException;
-import edu.ucsd.mztab.model.MzTabFDRStatistics;
 import edu.ucsd.mztab.model.MzTabFile;
+import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabConstants.FDRType;
 import edu.ucsd.mztab.processors.CountProcessor;
-import edu.ucsd.mztab.processors.FDRCalculationProcessor;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
-import edu.ucsd.mztab.processors.PSMValidationProcessor;
-import edu.ucsd.mztab.processors.SpectraRefValidationProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.FileIOUtils;
@@ -167,84 +164,15 @@ public class MzTabReprocessor
 					destinationFile.getAbsolutePath()));
 				// get this mzTab file
 				MzTabFile mzTabFile = context.getMzTabFile(resultFile);
-				// set up reader
-				MzTabReader reader =
-					new MzTabReader(mzTabFile, destinationFile);
-				reader.addProcessor(new SpectraRefValidationProcessor(
-					//reprocessing.resultDirectory,
-					null,	// using null here for performance reasons
-					reprocessing.scansDirectory));
-				Map<String, Integer> counts = new HashMap<String, Integer>(2);
-				reader.addProcessor(new PSMValidationProcessor(counts));
-				// validate file
-				try { reader.read(); }
-				catch (RuntimeException error) {
-					// if a RuntimeException is caught, and its parent
-					// is an UnverifiableNativeIDException, then that
-					// means that the validator tried to interpret
-					// ambiguous nativeIDs as scan numbers but failed
-					// somewhere along the way; in this case, try again
-					// with a hard-coded interpretation scheme of indices
-					Throwable parent = error.getCause();
-					if (parent != null && parent.getClass().isInstance(
-						UnverifiableNativeIDException.class)) {
-						// be sure to clear the output file, since the previous
-						// attempt may have written some rows to it
-						try {
-							if (destinationFile.delete() == false)
-								throw new RuntimeException(
-									"File.delete() returned false.");
-						} catch (Throwable innerError) {
-							die(String.format("Could not delete output " +
-								"file [%s] to attempt a second validation " +
-								"pass on input mzTab file [%s].",
-								destinationFile.getAbsolutePath(),
-								mzTabFile.getMzTabPath()), innerError);
-						}
-						reader = new MzTabReader(mzTabFile, destinationFile);
-						reader.addProcessor(new SpectraRefValidationProcessor(
-							//reprocessing.resultDirectory,
-							null,	// using null here for performance reasons
-							reprocessing.scansDirectory, false));
-						counts = new HashMap<String, Integer>(2);
-						reader.addProcessor(new PSMValidationProcessor(counts));
-						reader.read();
-					}
-					// otherwise, it's some other kind of
-					// RuntimeException, so just throw it
-					else throw error;
-				}
-				// calculate invalid percentage, apply specified threshold
-				Integer psmRows = counts.get("psmRows");
-				if (psmRows == null)
-					psmRows = 0;
-				Integer invalidRows = counts.get("invalidRows");
-				if (invalidRows == null)
-					invalidRows = 0;
-				// if the mzTab file has more than the indicated
-				// percentage of invalid PSMs, then fail
-				Double percentage = null;
-				if (psmRows == 0)
-					percentage = 0.0;
-				else percentage = (double)invalidRows / (double)psmRows * 100.0;
-				if (percentage > reprocessing.failureThreshold) {
-					//System.err.println(validation.context.toString());
-					die(String.format("Result file [%s] contains %s%% " +
-						"invalid PSM rows. Please correct the file and " +
-						"ensure that its referenced spectra are accessible " +
-						"within linked peak list files, and then re-submit.",
-						mzTabFile.getUploadedResultPath(), percentage));
-				}
-				// get relevant file name to print to output file
-				String uploadedFilename = mzTabFile.getUploadedResultPath();
-				if (uploadedFilename == null)
-					uploadedFilename = mzTabFile.getMzTabFilename();
-				// write log line
-				writer.println(String.format("%s\t%s\t%d\t%d",
-					resultFile.getName(), uploadedFilename, psmRows,
-					invalidRows));
-				writer.flush();
+				// validate this mzTab File
+				MzTabValidator.validateMzTabFile(mzTabFile, destinationFile,
+					reprocessing.resultDirectory,
+					reprocessing.scansDirectory, reprocessing.failureThreshold,
+					writer);
 			}
+			// write peak list stats to log
+			MzTabValidator.logPeakListStats(
+					reprocessing.scansDirectory, context, writer);
 		} catch (Throwable error) {
 			die(error.getMessage(), error);
 		} finally {
@@ -276,72 +204,24 @@ public class MzTabReprocessor
 				destinationFile.getAbsolutePath()));
 			// get this input mzTab file
 			MzTabFile inputFile = context.getMzTabFile(resultFile);
-			// set up first intermediate output file
-			File tempFile1 = new File(destinationFile.getParentFile(),
-				String.format("%s.1.temp", resultFile.getName()));
-			// set up reader
-			MzTabReader reader = new MzTabReader(inputFile, tempFile1);
+			// add all processors needed for general mzTab file cleanup
+			Collection<MzTabProcessor> processors =
+				new LinkedHashSet<MzTabProcessor>(2);
 			// clean all ms_run-location file references to use
 			// fully qualified ProteoSAFe file descriptor paths
-			reader.addProcessor(new MsRunCleanProcessor());
-			// ensure that each PSM row has the FDR columns
-			// needed by ProteoSAFe to enforce quality control
-			MzTabFDRStatistics statistics = new MzTabFDRStatistics();
-			reader.addProcessor(new FDRCalculationProcessor(
-				statistics, reprocessing.passThresholdColumn,
-				reprocessing.decoyColumn, reprocessing.decoyPattern,
-				reprocessing.psmQValueColumn,
-				reprocessing.filterType, reprocessing.filterFDR));
+			processors.add(new MsRunCleanProcessor());
 			// ensure that each PSM row has the special columns
 			// needed by ProteoSAFe to ensure validity
-			reader.addProcessor(new ValidityProcessor());
-			// clean file
-			reader.read();
-			// calculate global FDR values from returned count maps
-			Double psmFDR = MzTabFDRCleaner.calculateFDR(
-				statistics.getElementCount("targetPSM"),
-				statistics.getElementCount("decoyPSM"));
-			// if no FDR could be calculated, use highest found Q-Value, if any
-			if (psmFDR == null)
-				psmFDR = statistics.getMaxQValue(FDRType.PSM);
-			// if FDR could still not be determined, use user-specified FDR
-			if (psmFDR == null)
-				psmFDR = reprocessing.psmFDR;
-			// peptide-level FDR
-			Double peptideFDR = MzTabFDRCleaner.calculateFDR(
-				statistics.getElementCount("targetPeptide"),
-				statistics.getElementCount("decoyPeptide"));
-			if (peptideFDR == null)
-				peptideFDR = statistics.getMaxQValue(FDRType.PEPTIDE);
-			if (peptideFDR == null)
-				peptideFDR = reprocessing.peptideFDR;
-			// protein-level FDR
-			Double proteinFDR = MzTabFDRCleaner.calculateFDR(
-				statistics.getElementCount("targetProtein"),
-				statistics.getElementCount("decoyProtein"));
-			if (proteinFDR == null)
-				proteinFDR = statistics.getMaxQValue(FDRType.PROTEIN);
-			if (proteinFDR == null)
-				proteinFDR = reprocessing.proteinFDR;
-			// set up second intermediate output file
-			File tempFile2 = new File(destinationFile.getParentFile(),
-				String.format("%s.2.temp", resultFile.getName()));
-			// add global FDR values to output file's metadata section,
-			// filter out all PSM rows that do not meet the FDR cutoff,
-			// and propagate calculated global FDR to any empty Q-Values
-			MzTabFDRCleaner.doSecondFDRPass(tempFile1, tempFile2,
-				inputFile.getMzTabFilename(), reprocessing.filter,
+			processors.add(new ValidityProcessor());
+			// FDR-process this mzTab file
+			MzTabFDRCleaner.processMzTabFileFDR(inputFile, destinationFile,
+				processors, reprocessing.passThresholdColumn,
+				reprocessing.decoyColumn, reprocessing.decoyPattern,
+				reprocessing.psmQValueColumn, reprocessing.peptideQValueColumn,
+				reprocessing.proteinQValueColumn, reprocessing.filter,
 				reprocessing.filterType, reprocessing.filterFDR,
-				reprocessing.peptideQValueColumn,
-				reprocessing.proteinQValueColumn,
-				psmFDR, peptideFDR, proteinFDR, statistics);
-			// filter out all protein and peptide rows no
-			// longer supported by remaining PSM rows
-			MzTabFDRCleaner.doThirdFDRPass(tempFile2, destinationFile,
-				inputFile.getMzTabFilename(), reprocessing.filter, statistics);
-			// remove temporary files
-			tempFile1.delete();
-			tempFile2.delete();
+				reprocessing.psmFDR, reprocessing.peptideFDR,
+				reprocessing.proteinFDR);
 		}
 		// rebuild mzTab file-mapping context from cleaned result directory
 		context = new TaskMzTabContext(

@@ -229,7 +229,8 @@ public class MzTabFDRStatistics
 			return;
 		// if an FDR filter threshold (of this Q-value type) was specified,
 		// only record this Q-value if it's less than or equal to the threshold
-		if (filterType != null && filterType.equals(type) &&
+		if (((filterType == null && type.equals(FDRType.PSM)) ||
+			(filterType != null && filterType.equals(type))) &&
 			filterFDR != null && filterFDR < qValue)
 			return;
 		Double currentMaxQValue = maxQValues.get(type);
