@@ -8,9 +8,7 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
-import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -18,14 +16,12 @@ import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
-import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.converters.MzIdToMzTabConverter;
 import edu.ucsd.mztab.converters.PRIDEXMLToMzTabConverter;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabConstants.FDRType;
-import edu.ucsd.mztab.processors.CountProcessor;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
 import edu.ucsd.util.CommonUtils;
@@ -251,48 +247,16 @@ public class MzTabReprocessor
 					statistics.getAbsolutePath()));
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(statistics, false)));
-			writer.println("MzTab_file\tUploaded_file\tDataset_mzTab\t" +
-				"File_descriptor\tPSM_rows\tInvalid_PSM_rows\tFound_PSMs\t" +
-				"PSM_FDR\tPeptide_rows\tFound_Peptides\tPeptide_FDR\t" +
-				"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods");
+			writer.println(MzTabCounter.MZTAB_SUMMARY_FILE_HEADER_LINE);
 			// read through all mzTab files, write counts to output file
 			for (File file : files) {
 				System.out.println(String.format("Writing counts in " +
 					"cleaned mzTab result file [%s] to statistics file [%s]...",
 					file.getAbsolutePath(), statistics.getAbsolutePath()));
-				Map<String, Integer> counts = new HashMap<String, Integer>(7);
+				// get this mzTab file
 				MzTabFile mzTabFile = context.getMzTabFile(file);
-				MzTabReader reader = new MzTabReader(mzTabFile);
-				reader.addProcessor(new CountProcessor(counts));
-				reader.read();
-				// get relevant file names to print to output file
-				String uploadedFilename = mzTabFile.getUploadedResultPath();
-				if (uploadedFilename == null)
-					uploadedFilename = mzTabFile.getMzTabFilename();
-				String mzTabPath = mzTabFile.getMappedMzTabPath();
-				if (mzTabPath == null)
-					mzTabPath = file.getName();
-				StringBuilder datasetFilePath = new StringBuilder();
-				if (reprocessing.mzTabRelativePath != null) {
-					datasetFilePath.append(reprocessing.mzTabRelativePath);
-					// add trailing slash, if not already present
-					if (datasetFilePath.charAt(datasetFilePath.length() - 1)
-						!= '/')
-						datasetFilePath.append("/");
-				} else datasetFilePath.append("ccms_result/");
-				datasetFilePath.append(mzTabPath);
-				// extract global FDR values to print to output file
-				String[] fdr = MzTabCounter.extractGlobalFDRValues(file);
-				writer.println(String.format(
-					"%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t" +
-					"%d\t%d\t%s\t%d\t%d\t%s\t%d",
-					file.getName(), uploadedFilename,
-					datasetFilePath.toString(), mzTabFile.getDescriptor(),
-					counts.get("PSM"), counts.get("invalid_PSM"),
-					counts.get("PSM_ID"), fdr[0],
-					counts.get("PEP"), counts.get("sequence"), fdr[1],
-					counts.get("PRT"), counts.get("accession"), fdr[2],
-					counts.get("modification")));
+				// summarize this mzTab file
+				MzTabCounter.summarizeMzTabFile(mzTabFile, writer);
 			}
 		} catch (Throwable error) {
 			die(error.getMessage(), error);

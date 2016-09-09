@@ -27,6 +27,11 @@ public class MzTabCounter
 		"\n\t-mztab  <MzTabDirectory>" +
 		"\n\t-params <ProteoSAFeParametersFile>" +
 		"\n\t-output <OutputFile>";
+	public static final String MZTAB_SUMMARY_FILE_HEADER_LINE =
+		"MzTab_file\tUploaded_file\t" +
+		"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPSM_FDR\t" +
+		"Peptide_rows\tFound_Peptides\tPeptide_FDR\t" +
+		"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -55,31 +60,13 @@ public class MzTabCounter
 			// set up output file writer and write header line
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(count.outputFile, false)));
-			writer.println("MzTab_file\tUploaded_file\t" +
-				"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPSM_FDR\t" +
-				"Peptide_rows\tFound_Peptides\tPeptide_FDR\t" +
-				"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods");
+			writer.println(MZTAB_SUMMARY_FILE_HEADER_LINE);
 			// read through all mzTab files, write counts to output file
 			for (File file : files) {
-				Map<String, Integer> counts = new HashMap<String, Integer>(7);
+				// get this mzTab file
 				MzTabFile mzTabFile = context.getMzTabFile(file);
-				MzTabReader reader = new MzTabReader(mzTabFile);
-				reader.addProcessor(new CountProcessor(counts));
-				reader.read();
-				// get relevant file names to print to output file
-				String uploadedFilename = mzTabFile.getUploadedResultPath();
-				if (uploadedFilename == null)
-					uploadedFilename = mzTabFile.getMzTabFilename();
-				// extract global FDR values to print to output file
-				String[] fdr = extractGlobalFDRValues(file);
-				writer.println(String.format(
-					"%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
-					file.getName(), uploadedFilename,
-					counts.get("PSM"), counts.get("invalid_PSM"),
-					counts.get("PSM_ID"), fdr[0],
-					counts.get("PEP"), counts.get("sequence"), fdr[1],
-					counts.get("PRT"), counts.get("accession"), fdr[2],
-					counts.get("modification")));
+				// summarize this mzTab file
+				summarizeMzTabFile(mzTabFile, writer);
 			}
 		} catch (Throwable error) {
 			die(error.getMessage(), error);
@@ -166,6 +153,31 @@ public class MzTabCounter
 			try { reader.close(); } catch (Throwable error) {}
 		}
 		return fdr;
+	}
+	
+	public static void summarizeMzTabFile(
+		MzTabFile inputFile, PrintWriter writer
+	) {
+		if (inputFile == null || writer == null)
+			return;
+		Map<String, Integer> counts = new HashMap<String, Integer>(7);
+		MzTabReader reader = new MzTabReader(inputFile);
+		reader.addProcessor(new CountProcessor(counts));
+		reader.read();
+		// get relevant file names to print to output file
+		String uploadedFilename = inputFile.getUploadedResultPath();
+		if (uploadedFilename == null)
+			uploadedFilename = inputFile.getMzTabFilename();
+		// extract global FDR values to print to output file
+		String[] fdr = extractGlobalFDRValues(inputFile.getFile());
+		writer.println(String.format(
+			"%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
+			inputFile.getFile().getName(), uploadedFilename,
+			counts.get("PSM"), counts.get("invalid_PSM"),
+			counts.get("PSM_ID"), fdr[0],
+			counts.get("PEP"), counts.get("sequence"), fdr[1],
+			counts.get("PRT"), counts.get("accession"), fdr[2],
+			counts.get("modification")));
 	}
 	
 	/*========================================================================
