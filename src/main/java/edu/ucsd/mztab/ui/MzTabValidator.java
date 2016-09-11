@@ -205,6 +205,12 @@ public class MzTabValidator
 			for (File file : files) try {
 				// get uploaded peak list file descriptor
 				MzTabMsRun msRun = context.getPeakListFile(file.getName());
+				// if no peak list file mapping could be found for this scans
+				// file, then that means the corresponding peak list file was
+				// not actually searched by this set of mzTabs, and therefore
+				// we do not want to include it in this summary
+				if (msRun == null)
+					continue;
 				// read through file, counting the lines
 				reader = new LineNumberReader(new FileReader(file));
 				String line = null;
@@ -218,8 +224,8 @@ public class MzTabValidator
 				// 0-based, but ProteoSAFe scans files always write an
 				// empty line at the end that we don't want to count, so
 				// the 0-based indexing accounts for this automatically
-				writer.println(String.format("%s\t%s\t%d", file.getName(),
-					msRun != null ? msRun.getUploadedPeakListPath() : "null",
+				writer.println(String.format("%s\t%s\t%d",
+					file.getName(), msRun.getUploadedPeakListPath(),
 					reader.getLineNumber()));
 				writer.flush();
 			} catch (RuntimeException error) {
