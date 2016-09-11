@@ -168,7 +168,7 @@ public class MzTabReprocessor
 			}
 			// write peak list stats to log
 			MzTabValidator.logPeakListStats(
-					reprocessing.scansDirectory, context, writer);
+				reprocessing.scansDirectory, context, writer);
 		} catch (Throwable error) {
 			die(error.getMessage(), error);
 		} finally {
