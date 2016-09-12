@@ -31,7 +31,7 @@ public class MzTabCounter
 		"\n\t-output     <OutputFile>" +
 		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
 	public static final String MZTAB_SUMMARY_FILE_HEADER_LINE =
-		"MzTab_file\tUploaded_file\tMzTab_path\tFile_descriptor\t" +
+		"MzTab_file\tUploaded_file\tDataset_mzTab\tFile_descriptor\t" +
 		"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPSM_FDR\t" +
 		"Peptide_rows\tFound_Peptides\tPeptide_FDR\t" +
 		"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods";
