@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,11 +25,13 @@ public class MzTabCounter
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabCounter" +
-		"\n\t-mztab  <MzTabDirectory>" +
-		"\n\t-params <ProteoSAFeParametersFile>" +
-		"\n\t-output <OutputFile>";
+		"\n\t-mztab      <MzTabDirectory>" +
+		"\n\t[-mztabPath <MzTabRelativePath>]" +
+		"\n\t-params     <ProteoSAFeParametersFile>" +
+		"\n\t-output     <OutputFile>" +
+		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
 	public static final String MZTAB_SUMMARY_FILE_HEADER_LINE =
-		"MzTab_file\tUploaded_file\t" +
+		"MzTab_file\tUploaded_file\tMzTab_path\tFile_descriptor\t" +
 		"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPSM_FDR\t" +
 		"Peptide_rows\tFound_Peptides\tPeptide_FDR\t" +
 		"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods";
@@ -44,7 +47,8 @@ public class MzTabCounter
 		try {
 			// parse out file mapping context for this task from params.xml
 			TaskMzTabContext context = new TaskMzTabContext(
-				count.mzTabDirectory, null, count.parameters);
+				count.mzTabDirectory, count.mzTabRelativePath,
+				null, null, count.parameters, count.datasetID);
 			// ensure output file exists; create blank output file if not
 			if (count.outputFile.exists() == false &&
 				count.outputFile.createNewFile() == false)
@@ -171,8 +175,9 @@ public class MzTabCounter
 		// extract global FDR values to print to output file
 		String[] fdr = extractGlobalFDRValues(inputFile.getFile());
 		writer.println(String.format(
-			"%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
+			"%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
 			inputFile.getFile().getName(), uploadedFilename,
+			inputFile.getMzTabPath(), inputFile.getDescriptor(),
 			counts.get("PSM"), counts.get("invalid_PSM"),
 			counts.get("PSM_ID"), fdr[0],
 			counts.get("PEP"), counts.get("sequence"), fdr[1],
@@ -190,15 +195,18 @@ public class MzTabCounter
 		/*====================================================================
 		 * Properties
 		 *====================================================================*/
-		private File mzTabDirectory;
-		private File parameters;
-		private File outputFile;
+		private File   mzTabDirectory;
+		private File   parameters;
+		private File   outputFile;
+		private String mzTabRelativePath;
+		private String datasetID;
 		
 		/*====================================================================
 		 * Constructors
 		 *====================================================================*/
 		public MzTabCountOperation(
-			File mzTabDirectory, File parameters,File outputFile
+			File mzTabDirectory, String mzTabRelativePath,
+			File parameters, File outputFile, String datasetID
 		) {
 			// validate mzTab directory
 			if (mzTabDirectory == null)
@@ -230,6 +238,9 @@ public class MzTabCounter
 					"Output file [%s] must be a normal (non-directory) file.",
 					outputFile.getAbsolutePath()));
 			else this.outputFile = outputFile;
+			// initialize file context properties (any or all may be null)
+			this.mzTabRelativePath = mzTabRelativePath;
+			this.datasetID = datasetID;
 		}
 	}
 	
@@ -240,8 +251,10 @@ public class MzTabCounter
 		if (args == null || args.length < 1)
 			return null;
 		File mzTabDirectory = null;
+		String mzTabRelativePath = null;
 		File parameters = null;
 		File output = null;
+		String datasetID = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -253,15 +266,36 @@ public class MzTabCounter
 				String value = args[i];
 				if (argument.equals("-mztab"))
 					mzTabDirectory = new File(value);
+				else if (argument.equals("-mztabPath"))
+					mzTabRelativePath = value;
 				else if (argument.equals("-params"))
 					parameters = new File(value);
 				else if (argument.equals("-output"))
 					output = new File(value);
-				else return null;
+				else if (argument.equals("-dataset")) {
+					// if this argument is a file, read it to get dataset ID
+					File datasetIDFile = new File(value);
+					if (datasetIDFile.isFile() && datasetIDFile.canRead()) {
+						RandomAccessFile input = null;
+						try {
+							input = new RandomAccessFile(datasetIDFile, "r");
+							datasetID = input.readLine();
+						} catch (Throwable error) {
+							die(String.format(
+								"Could not read dataset ID from file [%s].",
+								datasetIDFile.getAbsolutePath()), error);
+						} finally {
+							try { input.close(); } catch (Throwable error) {}
+						}
+					}
+					// otherwise treat the argument as the literal dataset ID
+					else datasetID = value;
+				} else return null;
 			}
 		}
 		try {
-			return new MzTabCountOperation(mzTabDirectory, parameters, output);
+			return new MzTabCountOperation(mzTabDirectory, mzTabRelativePath,
+				parameters, output, datasetID);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;

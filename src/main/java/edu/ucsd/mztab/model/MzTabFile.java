@@ -19,6 +19,7 @@ public class MzTabFile
 	private String                   mangledResultFilename;
 	private String                   uploadedResultPath;
 	private String                   mappedResultPath;
+	private String                   relativePath;
 	private Map<Integer, MzTabMsRun> msRuns;
 	
 	/*========================================================================
@@ -37,6 +38,8 @@ public class MzTabFile
 		descriptor = null;
 		mangledResultFilename = null;
 		uploadedResultPath = null;
+		mappedResultPath = null;
+		relativePath = null;
 		msRuns = parseMsRuns(mzTabFile);
 		if (msRuns == null)
 			msRuns = new TreeMap<Integer, MzTabMsRun>();
@@ -62,21 +65,14 @@ public class MzTabFile
 	public void setDatasetDescriptor(
 		String datasetID, String mzTabRelativePath
 	) {
-		// dataset ID is required for dataset file descriptors
-		if (datasetID == null) {
-			this.descriptor = null;
-			return;
-		}
-		// build descriptor appropriately based on parameters
-		StringBuilder descriptor = new StringBuilder("f.").append(datasetID);
 		// dataset files are never directly under the dataset directory; if no
 		// mzTab relative path is provided, then it defaults to "ccms_result"
 		if (mzTabRelativePath == null || mzTabRelativePath.trim().isEmpty())
 			mzTabRelativePath = "ccms_result";
-		// append the relative path of the mzTab directory
-		descriptor.append(File.separator).append(mzTabRelativePath);
+		// build relative path of this mzTab file under its dataset
+		StringBuilder relativePath = new StringBuilder(mzTabRelativePath);
 		// append the final file path under the mzTab directory
-		descriptor.append(File.separator);
+		relativePath.append(File.separator);
 		// if this is a dataset file, then it should have a mapped file path
 		String filePath = getMappedMzTabPath();
 		if (filePath == null)
@@ -84,27 +80,33 @@ public class MzTabFile
 		// trim off leading slash, if present
 		if (filePath.startsWith(File.separator))
 			filePath = filePath.substring(1);
-		descriptor.append(filePath);
+		relativePath.append(filePath);
+		// save built relative path
+		setRelativePath(
+			FilenameUtils.separatorsToUnix(relativePath.toString()));
+		// dataset ID is required for dataset file descriptors
+		if (datasetID == null) {
+			this.descriptor = null;
+			return;
+		}
+		// build descriptor appropriately based on parameters
+		StringBuilder descriptor = new StringBuilder("f.").append(datasetID);
+		// append the built relative path of the mzTab file
+		descriptor.append(File.separator).append(this.relativePath);
 		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
 	}
 	
 	public void setTaskDescriptor(
 		String username, String taskID, String mzTabRelativePath
 	) {
-		// username and task ID are required for task file descriptors
-		if (username == null || taskID == null) {
-			this.descriptor = null;
-			return;
-		}
-		// build descriptor appropriately based on parameters
-		StringBuilder descriptor = new StringBuilder("u.");
-		descriptor.append(username).append(File.separator).append(taskID);
+		// build relative path of this mzTab file under its task
+		StringBuilder relativePath = new StringBuilder();
 		// append the relative path of the mzTab directory, if specified
 		if (mzTabRelativePath != null &&
 			mzTabRelativePath.trim().isEmpty() == false)
-			descriptor.append(File.separator).append(mzTabRelativePath);
+			relativePath.append(mzTabRelativePath);
 		// append the final file path under the mzTab directory
-		descriptor.append(File.separator);
+		relativePath.append(File.separator);
 		// if this is a task file, then it should either have a mangled filename
 		// or the file itself should be present in the task mzTab directory
 		String filePath = getMangledMzTabFilename();
@@ -113,7 +115,20 @@ public class MzTabFile
 		// trim off leading slash, if present
 		if (filePath.startsWith(File.separator))
 			filePath = filePath.substring(1);
-		descriptor.append(filePath);
+		relativePath.append(filePath);
+		// save built relative path
+		setRelativePath(
+			FilenameUtils.separatorsToUnix(relativePath.toString()));
+		// username and task ID are required for task file descriptors
+		if (username == null || taskID == null) {
+			this.descriptor = null;
+			return;
+		}
+		// build descriptor appropriately based on parameters
+		StringBuilder descriptor = new StringBuilder("u.");
+		descriptor.append(username).append(File.separator).append(taskID);
+		// append the built relative path of the mzTab file
+		descriptor.append(File.separator).append(this.relativePath);
 		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
 	}
 	
@@ -173,8 +188,18 @@ public class MzTabFile
 		this.mappedResultPath = mappedResultPath;
 	}
 	
+	public String getRelativePath() {
+		return relativePath;
+	}
+	
+	public void setRelativePath(String relativePath) {
+		this.relativePath = relativePath;
+	}
+	
 	public String getMzTabPath() {
-		String path = getMappedMzTabPath();
+		String path = getRelativePath();
+		if (path == null)
+			path = getMappedMzTabPath();
 		if (path == null)
 			path = getUploadedMzTabPath();
 		if (path == null)
