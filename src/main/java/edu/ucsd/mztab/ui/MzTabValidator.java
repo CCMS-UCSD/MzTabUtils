@@ -202,6 +202,9 @@ public class MzTabValidator
 		writer.println("Scans_file\tUploaded_file\tSpectra");
 		File[] files = scansDirectory.listFiles();
 		if (files != null && files.length > 0) {
+			// sort files alphabetically
+			Arrays.sort(files);
+			// read through each scans file and log its line count
 			LineNumberReader reader = null;
 			for (File file : files) try {
 				// get uploaded peak list file descriptor
