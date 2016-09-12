@@ -148,8 +148,7 @@ public class MzTabReprocessor
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(validationLog, false)));
 			// write the header line of the log file
-			writer.println(
-				"MzTab_file\tUploaded_file\tPSM_rows\tInvalid_PSM_rows");
+			writer.println(MzTabValidator.MZTAB_VALIDATION_LOG_HEADER_LINE);
 			// validate all PSM rows, write proper line for each to the log
 			for (File resultFile : resultFiles) {
 				File destinationFile = getDestinationFile(

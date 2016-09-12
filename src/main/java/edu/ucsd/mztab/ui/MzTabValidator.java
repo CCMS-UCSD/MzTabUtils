@@ -39,6 +39,8 @@ public class MzTabValidator
 			"(if not specified, log output will be printed to stdout)]" +
 		"\n\t[-threshold <InvalidPSMPercentageToFail: 0-100> (default 10)]";
 	public static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
+	public static final String MZTAB_VALIDATION_LOG_HEADER_LINE =
+		"MzTab_file\tUploaded_file\tPSM_rows\tInvalid_PSM_rows\tFound_PSMs";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -79,8 +81,7 @@ public class MzTabValidator
 			// otherwise, just write to stdout
 			else writer = new PrintWriter(System.out);
 			// write the header line of the log file
-			writer.println("MzTab_file\tUploaded_file\t" +
-				"PSM_rows\tInvalid_PSM_rows\tFound_PSMs");
+			writer.println(MZTAB_VALIDATION_LOG_HEADER_LINE);
 			// validate all PSM rows, write proper line for each to the log
 			for (File file : files) {
 				// get this mzTab file
