@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.LineNumberReader;
 import java.io.PrintWriter;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +35,7 @@ public class MzTabValidator
 			"(if not under PeakListFilesDirectory)]" +
 		"\n\t[-scans     <ScansDirectory>]" +
 		"\n\t[-result    <UploadedResultDirectory>]" +
+		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]" +
 		"\n\t-output     <ValidatedMzTabDirectory>" +
 		"\n\t[-log       <LogFile> " +
 			"(if not specified, log output will be printed to stdout)]" +
@@ -199,7 +201,7 @@ public class MzTabValidator
 			context == null || writer == null)
 			return;
 		// write to the log the spectrum counts from all scans files
-		writer.println("Scans_file\tUploaded_file\tSpectra");
+		writer.println("Scans_file\tUploaded_file\tFile_descriptor\tSpectra");
 		File[] files = scansDirectory.listFiles();
 		if (files != null && files.length > 0) {
 			// sort files alphabetically
@@ -228,9 +230,9 @@ public class MzTabValidator
 				// 0-based, but ProteoSAFe scans files always write an
 				// empty line at the end that we don't want to count, so
 				// the 0-based indexing accounts for this automatically
-				writer.println(String.format("%s\t%s\t%d",
+				writer.println(String.format("%s\t%s\t%s\t%d",
 					file.getName(), msRun.getUploadedPeakListPath(),
-					reader.getLineNumber()));
+					msRun.getDescriptor(), reader.getLineNumber()));
 				writer.flush();
 			} catch (RuntimeException error) {
 				throw error;
@@ -267,8 +269,8 @@ public class MzTabValidator
 		public MzTabValidationOperation(
 			File parameters, File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File scansDirectory, File resultDirectory, File outputDirectory,
-			File logFile, String failureThreshold
+			File scansDirectory, File resultDirectory, String datasetID,
+			File outputDirectory, File logFile, String failureThreshold
 		) {
 			// validate parameters file
 			if (parameters == null)
@@ -311,7 +313,8 @@ public class MzTabValidator
 			if (mzTabDirectory != null)
 				context = new TaskMzTabContext(
 					mzTabDirectory, mzTabRelativePath,
-					peakListDirectory, peakListRelativePath, parameters);
+					peakListDirectory, peakListRelativePath,
+					parameters, datasetID);
 			else context = null;
 			// validate scans directory (can be null)
 			if (scansDirectory != null) {
@@ -385,6 +388,7 @@ public class MzTabValidator
 		String peakListRelativePath = null;
 		File scansDirectory = null;
 		File resultDirectory = null;
+		String datasetID = null;
 		File outputDirectory = null;
 		File logFile = null;
 		String failureThreshold = null;
@@ -411,7 +415,25 @@ public class MzTabValidator
 					scansDirectory = new File(value);
 				else if (argument.equals("-result"))
 					resultDirectory = new File(value);
-				else if (argument.equals("-output"))
+				else if (argument.equals("-dataset")) {
+					// if this argument is a file, read it to get dataset ID
+					File datasetIDFile = new File(value);
+					if (datasetIDFile.isFile() && datasetIDFile.canRead()) {
+						RandomAccessFile input = null;
+						try {
+							input = new RandomAccessFile(datasetIDFile, "r");
+							datasetID = input.readLine();
+						} catch (Throwable error) {
+							die(String.format(
+								"Could not read dataset ID from file [%s].",
+								datasetIDFile.getAbsolutePath()), error);
+						} finally {
+							try { input.close(); } catch (Throwable error) {}
+						}
+					}
+					// otherwise treat the argument as the literal dataset ID
+					else datasetID = value;
+				} else if (argument.equals("-output"))
 					outputDirectory = new File(value);
 				else if (argument.equals("-log"))
 					logFile = new File(value);
@@ -423,8 +445,8 @@ public class MzTabValidator
 		try {
 			return new MzTabValidationOperation(params, mzTabDirectory,
 				mzTabRelativePath, peakListDirectory, peakListRelativePath,
-				scansDirectory, resultDirectory, outputDirectory, logFile,
-				failureThreshold);
+				scansDirectory, resultDirectory, datasetID,
+				outputDirectory, logFile, failureThreshold);
 		} catch (Throwable error) {
 			die("There was an error reading command line parameters " +
 				"to set up mzTab validation operation.", error);
