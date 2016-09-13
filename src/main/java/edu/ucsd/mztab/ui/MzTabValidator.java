@@ -42,7 +42,8 @@ public class MzTabValidator
 		"\n\t[-threshold <InvalidPSMPercentageToFail: 0-100> (default 10)]";
 	public static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	public static final String MZTAB_VALIDATION_LOG_HEADER_LINE =
-		"MzTab_file\tUploaded_file\tPSM_rows\tInvalid_PSM_rows\tFound_PSMs";
+		"MzTab_file\tUploaded_file\tFile_descriptor\t" +
+		"PSM_rows\tInvalid_PSM_rows\tFound_PSMs";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -188,9 +189,9 @@ public class MzTabValidator
 		if (uniquePSMs == null)
 			uniquePSMs = 0;
 		// write log line
-		writer.println(String.format("%s\t%s\t%d\t%d\t%d",
+		writer.println(String.format("%s\t%s\t%s\t%d\t%d\t%d",
 			inputFile.getFile().getName(), uploadedFilename,
-			psmRows, invalidRows, uniquePSMs));
+			inputFile.getDescriptor(), psmRows, invalidRows, uniquePSMs));
 		writer.flush();
 	}
 	
