@@ -1,12 +1,13 @@
 package edu.ucsd.mztab.ui;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
+import org.apache.commons.io.FilenameUtils;
 import org.w3c.dom.Document;
 
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
@@ -20,7 +21,8 @@ public class RemangleFiles
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.RemangleFiles" +
-		"\n\t-input  <CollectionDirectoryInDataset>" +
+		"\n\t-input  <CollectionDirectoriesInDataset> " +
+			"(semicolon-delimited list)" +
 		"\n\t-params <ProteoSAFeParametersFile>" +
 		"\n\t-output <MangledLinksDirectory>";
 	
@@ -59,20 +61,54 @@ public class RemangleFiles
 		 * Constructors
 		 *====================================================================*/
 		public RemangleFilesOperation(
-			File collectionDirectory, File parametersFile, File outputDirectory
+			Collection<File> collectionDirectories, File parametersFile,
+			File outputDirectory
 		) {
-			// validate input collection directory
-			if (collectionDirectory == null)
-				throw new NullPointerException(
-					"Dataset collection directory cannot be null.");
-			else if (collectionDirectory.isDirectory() == false)
-				throw new IllegalArgumentException(String.format(
-					"Dataset collection directory [%s] must be a directory.",
-					collectionDirectory.getAbsolutePath()));
-			else if (collectionDirectory.canRead() == false)
-				throw new IllegalArgumentException(String.format(
-					"Dataset collection directory [%s] must be readable.",
-					collectionDirectory.getAbsolutePath()));
+			// validate input collection directories
+			if (collectionDirectories == null ||
+				collectionDirectories.isEmpty())
+				throw new NullPointerException("At least one dataset " +
+					"collection directory must be provided.");
+			else for (File collectionDirectory : collectionDirectories) {
+				if (collectionDirectory == null)
+					throw new NullPointerException(
+						"Dataset collection directory cannot be null.");
+				else if (collectionDirectory.isDirectory() == false)
+					throw new IllegalArgumentException(String.format(
+						"Dataset collection directory [%s] must be a " +
+						"directory.", collectionDirectory.getAbsolutePath()));
+				else if (collectionDirectory.canRead() == false)
+					throw new IllegalArgumentException(String.format(
+						"Dataset collection directory [%s] must be readable.",
+						collectionDirectory.getAbsolutePath()));
+			}
+			// determine input collection parameter
+			String collectionParameter = null;
+			for (File collectionDirectory : collectionDirectories) {
+				String collectionName = collectionDirectory.getName();
+				String thisParameter = null;
+				if (collectionName.equals("peak") ||
+					collectionName.equals("ccms_peak"))
+					thisParameter = "peak_list_files";
+				else if (collectionName.equals("result"))
+					thisParameter = "result_files";
+				// TODO: handle all other possible collections,
+				// throw error if directory name isn't one of them
+				if (thisParameter == null)
+					throw new IllegalArgumentException(String.format(
+						"Unrecognized dataset collection directory type: [%s],",
+						collectionDirectory.getAbsolutePath()));
+				// if two different kinds of collection directories
+				// were provided, throw an error
+				else if (collectionParameter != null &&
+					collectionParameter.equals(thisParameter) == false)
+					throw new IllegalArgumentException(String.format(
+						"Improperly mixed dataset collection directory " +
+						"types: expected all collections to be of type [%s], " +
+						"yet found a collection of type [%s].",
+						collectionParameter, thisParameter));
+				else collectionParameter = thisParameter;
+			}
 			// validate params.xml file
 			if (parametersFile == null)
 				throw new NullPointerException(
@@ -104,54 +140,81 @@ public class RemangleFiles
 			// get file mapping context from params.xml
 			ProteoSAFeFileMappingContext context =
 				new ProteoSAFeFileMappingContext(parameters);
-			// recursively search input directory for all collection files
-			Collection<File> collectionFiles = findFiles(collectionDirectory);
+			// recursively search input directories for all collection files
+			Collection<File> collectionFiles = new LinkedHashSet<File>();
+			for (File collectionDirectory : collectionDirectories) {
+				Collection<File> theseFiles = findFiles(collectionDirectory);
+				if (theseFiles != null && theseFiles.isEmpty() == false)
+					collectionFiles.addAll(theseFiles);
+			}
 			// map all found collection files to their mangled names
 			mangledFiles = new LinkedHashMap<String, File>();
-			String collectionRoot = collectionDirectory.getAbsolutePath();
 			for (File collectionFile : collectionFiles) {
+				// find the input collection that this file belongs to
+				String filePath = FilenameUtils.separatorsToUnix(
+					collectionFile.getAbsolutePath());
+				File collectionDirectory = null;
+				String collectionPath = null;
+				for (File collection : collectionDirectories) {
+					collectionPath = FilenameUtils.separatorsToUnix(
+						collection.getAbsolutePath());
+					if (filePath.startsWith(collectionPath)) {
+						collectionDirectory = collection;
+						break;
+					}
+				}
+				// collection directory should never be null at this point,
+				// since all files were found under some collection directory
+				if (collectionDirectory == null)
+					throw new IllegalStateException();
 				// get this collection file's relative path
 				// under the input collection files directory
 				String fileRelativePath =
-					collectionFile.getAbsolutePath().substring(
-						collectionRoot.length());
+					filePath.substring(collectionPath.length());
 				// chomp leading slash, if present
 				if (fileRelativePath.isEmpty() == false &&
-					fileRelativePath.charAt(0) == File.separatorChar)
+					fileRelativePath.charAt(0) == '/')
 					fileRelativePath = fileRelativePath.substring(1);
 				// find this collection file's upload mapping
 				String mangledFilename =
 					context.getMangledFilename(fileRelativePath);
-				if (mangledFilename == null)
-					throw new IllegalArgumentException(String.format(
-						"No \"upload_file_mapping\" parameter could be found " +
-						"for collection file [%s] in parameters file [%s].",
-						collectionFile.getAbsolutePath(),
-						parametersFile.getAbsolutePath()));
-				else mangledFiles.put(mangledFilename, collectionFile);
+				// if no mangled filename was found, then try prepending the
+				// collection directory name, since in the case of attachment
+				// workflows the user might have selected the parent collection
+				// directory as their input for this collection
+				if (mangledFilename == null) {
+					fileRelativePath = String.format("%s/%s",
+						collectionDirectory.getName(), fileRelativePath);
+					mangledFilename =
+						context.getMangledFilename(fileRelativePath);
+				}
+				// it's okay if no mangled filename was found, since this
+				// might be a collection that is only partially used by a
+				// dataset child task, e.g. update or reanalysis
+				if (mangledFilename != null)
+					mangledFiles.put(mangledFilename, collectionFile);
 			}
 			// verify that all params.xml mapped files are present
-			// in the input collection files directory
-			String collectionName = collectionDirectory.getName();
-			String collectionParameter = null;
-			if (collectionName.equals("peak"))
-				collectionParameter = "peak_list_files";
-			else if (collectionName.equals("result"))
-				collectionParameter = "result_files";
-			// TODO: handle all other possible collections,
-			// throw error if directory name isn't one of them
-			for (UploadMapping uploadMapping : context.getUploadMappings(
-				collectionParameter))
-				if (mangledFiles.containsKey(uploadMapping.getMangledFilename())
-					== false)
-					throw new IllegalArgumentException(String.format(
-						"Parameter file [%s] contained an " +
-						"\"upload_file_mapping\" parameter for collection " +
-						"file [%s], yet no such file was found under input " +
-						"collection files directory [%s].",
-						parametersFile.getAbsolutePath(),
-						uploadMapping.getUploadFilePath(),
-						collectionDirectory.getAbsolutePath()));
+			// in one of the input collection files directories
+			Collection<UploadMapping> uploadMappings =
+				context.getUploadMappings(collectionParameter);
+			Collection<UploadMapping> missingFiles =
+				new LinkedHashSet<UploadMapping>(uploadMappings);
+			for (UploadMapping uploadMapping : uploadMappings)
+				if (mangledFiles.containsKey(
+					uploadMapping.getMangledFilename())) {
+					missingFiles.remove(uploadMapping);
+				}
+			// if even one params.xml mapped file was not found in any
+			// of the input collection directories, then throw an error
+			if (missingFiles.isEmpty() == false)
+				throw new IllegalArgumentException(String.format(
+					"Parameter file [%s] contained an " +
+					"\"upload_file_mapping\" parameter for " +
+					"collection file [%s], yet no such file was " +
+					"found under any of the input collection directories.",
+					parametersFile.getAbsolutePath(),
+					missingFiles.iterator().next().getUploadFilePath()));
 		}
 	}
 	
@@ -163,7 +226,7 @@ public class RemangleFiles
 	) {
 		if (args == null || args.length < 1)
 			return null;
-		File collectionDirectory = null;
+		Collection<File> collectionDirectories = new LinkedHashSet<File>();
 		File parametersFile = null;
 		File outputDirectory = null;
 		for (int i=0; i<args.length; i++) {
@@ -175,9 +238,11 @@ public class RemangleFiles
 				if (i >= args.length)
 					return null;
 				String value = args[i];
-				if (argument.equals("-input"))
-					collectionDirectory = new File(value);
-				else if (argument.equals("-params"))
+				if (argument.equals("-input")) {
+					String[] directories = value.split(";");
+					for (String directory : directories)
+						collectionDirectories.add(new File(directory));
+				} else if (argument.equals("-params"))
 					parametersFile = new File(value);
 				else if (argument.equals("-output"))
 					outputDirectory = new File(value);
@@ -185,7 +250,7 @@ public class RemangleFiles
 		}
 		try {
 			return new RemangleFilesOperation(
-				collectionDirectory, parametersFile, outputDirectory);
+				collectionDirectories, parametersFile, outputDirectory);
 		} catch (Throwable error) {
 			error.printStackTrace();
 			return null;
@@ -202,7 +267,7 @@ public class RemangleFiles
 		// sort files alphabetically
 		Arrays.sort(files);
 		// add all found files to collection
-		Collection<File> foundFiles = new ArrayList<File>();
+		Collection<File> foundFiles = new LinkedHashSet<File>();
 		for (File file : files) {
 			// recurse into subdirectories
 			if (file.isDirectory()) {
