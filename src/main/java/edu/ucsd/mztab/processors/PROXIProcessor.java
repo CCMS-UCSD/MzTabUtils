@@ -244,7 +244,7 @@ public class PROXIProcessor implements MzTabProcessor
 					"\n----------\n%s\n----------\n%s",
 					lineNumber, mzTabFilename, line,
 					getRootCause(error).getMessage()));
-				//error.printStackTrace();
+				error.printStackTrace();
 			}
 		}
 		return line;
@@ -601,40 +601,40 @@ public class PROXIProcessor implements MzTabProcessor
 		try {
 			StringBuilder sql = new StringBuilder(
 				"INSERT IGNORE INTO proxi.psms " +
-				"(nativeid, variant_sequence, charge, exp_mass_to_charge, " +
+				"(id_in_file, nativeid, variant_sequence, " +
+				"charge, exp_mass_to_charge, " +
 				"resultfile_id, spectrumfile_id, peptide_id, variant_id");
 			if (mzTabRecord.datasetID != null)
 				sql.append(", dataset_id");
-			sql.append(") VALUES(?, ?, ?, ?, ?, ?, ?, ?");
+			sql.append(") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?");
 			if (mzTabRecord.datasetID != null)
 				sql.append(", ?");
 			sql.append(")");
 			statement = connection.prepareStatement(
 				sql.toString(), Statement.RETURN_GENERATED_KEYS);
-			statement.setString(1, psm.getNativeID());
-			statement.setString(2, psm.getModifiedSequence());
-			statement.setInt(3, psm.getCharge());
+			statement.setInt(1, psm.getID());
+			statement.setString(2, psm.getNativeID());
+			statement.setString(3, psm.getModifiedSequence());
+			statement.setInt(4, psm.getCharge());
 			Double massToCharge = psm.getMassToCharge();
 			if (massToCharge == null)
-				statement.setNull(4, Types.DOUBLE);
-			else statement.setDouble(4, massToCharge);
-			statement.setInt(5, mzTabRecord.id);
-			statement.setInt(6, spectrumFileID);
-			statement.setInt(7, peptideID);
-			statement.setInt(8, variantID);
+				statement.setNull(5, Types.DOUBLE);
+			else statement.setDouble(5, massToCharge);
+			statement.setInt(6, mzTabRecord.id);
+			statement.setInt(7, spectrumFileID);
+			statement.setInt(8, peptideID);
+			statement.setInt(9, variantID);
 			if (mzTabRecord.datasetID != null)
-				statement.setInt(9, mzTabRecord.datasetID);
+				statement.setInt(10, mzTabRecord.datasetID);
 			int insertion = statement.executeUpdate();
 			// if the row already exists, need to look it up manually to get ID
 			if (insertion == 0) {
 				try { statement.close(); } catch (Throwable error) {}
 				statement = connection.prepareStatement(
 					"SELECT id FROM proxi.psms " +
-					"WHERE resultfile_id=? AND spectrumfile_id=? " +
-					"AND nativeid=?");
+					"WHERE resultfile_id=? AND id_in_file=?");
 				statement.setInt(1, mzTabRecord.id);
-				statement.setInt(2, spectrumFileID);
-				statement.setString(3, psm.getNativeID());
+				statement.setInt(2, psm.getID());
 				result = statement.executeQuery();
 				if (result.next())
 					psmID = result.getInt(1);
