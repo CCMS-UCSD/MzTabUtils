@@ -16,8 +16,8 @@ public class CopyReprocessedFiles
 	 * Constants
 	 *========================================================================*/
 	private static final String USAGE =
-		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabReprocessor" +
-			"\n\t-input      <ResultDirectory>" +
+		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.CopyReprocessedFiles" +
+			"\n\t-mztab      <MzTabDirectory>" +
 			"\n\t[-mztabPath <MzTabRelativePath>]" +
 			"\n\t[-peak      <PeakListFilesDirectory>]" +
 			"\n\t[-peakPath  <PeakListRelativePath>]" +
@@ -156,7 +156,7 @@ public class CopyReprocessedFiles
 	private static ReprocessedFileCopyOperation extractArguments(String[] args) {
 		if (args == null || args.length < 1)
 			return null;
-		File resultDirectory = null;
+		File mzTabDirectory = null;
 		String mzTabRelativePath = null;
 		File peakListDirectory = null;
 		String peakListRelativePath = null;
@@ -172,8 +172,8 @@ public class CopyReprocessedFiles
 				if (i >= args.length)
 					return null;
 				String value = args[i];
-				if (argument.equals("-input"))
-					resultDirectory = new File(value);
+				if (argument.equals("-mztab"))
+					mzTabDirectory = new File(value);
 				else if (argument.equals("-mztabPath"))
 					mzTabRelativePath = value;
 				else if (argument.equals("-peak"))
@@ -211,7 +211,7 @@ public class CopyReprocessedFiles
 		}
 		try {
 			return new ReprocessedFileCopyOperation(
-				resultDirectory, mzTabRelativePath,
+				mzTabDirectory, mzTabRelativePath,
 				peakListDirectory, peakListRelativePath,
 				parameters, outputDirectory, datasetID);
 		} catch (Throwable error) {
