@@ -352,7 +352,7 @@ public class ProteoSAFeFileMappingContext
 				new UploadMapping(mangledFilename, uploadFilePath);
 			// note the mangled filename prefix and ensure it's consistent
 			String[] mangledTokens = mangledFilename.split("-");
-			if (mangledTokens == null || mangledTokens.length != 2)
+			if (mangledTokens == null || mangledTokens.length < 2)
 				throw new IllegalArgumentException(String.format(
 					"\"upload_file_mapping\" parameter [%s] is invalid - " +
 					"its mangled filename component [%s] should contain " +
