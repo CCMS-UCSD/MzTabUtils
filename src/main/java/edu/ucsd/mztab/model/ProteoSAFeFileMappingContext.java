@@ -405,7 +405,7 @@ public class ProteoSAFeFileMappingContext
 			// first check to see if the mangled prefix
 			// is known, and matches this one
 			String[] mangledTokens = mangledFilename.split("-");
-			if (mangledTokens == null || mangledTokens.length != 2)
+			if (mangledTokens == null || mangledTokens.length < 2)
 				throw new IllegalArgumentException(String.format(
 					"\"upload_file_mapping\" parameter [%s] is invalid - " +
 					"its mangled filename component [%s] should contain " +
