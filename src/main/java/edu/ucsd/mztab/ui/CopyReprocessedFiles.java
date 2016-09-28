@@ -17,13 +17,13 @@ public class CopyReprocessedFiles
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.CopyReprocessedFiles" +
-			"\n\t-mztab      <MzTabDirectory>" +
-			"\n\t[-mztabPath <MzTabRelativePath>]" +
-			"\n\t[-peak      <PeakListFilesDirectory>]" +
-			"\n\t[-peakPath  <PeakListRelativePath>]" +
-			"\n\t-params     <ProteoSAFeParametersFile>" +
-			"\n\t-output     <OutputDirectory>" +
-			"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
+		"\n\t-mztab      <MzTabDirectory>" +
+		"\n\t[-mztabPath <MzTabRelativePath>]" +
+		"\n\t[-peak      <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath  <PeakListRelativePath>]" +
+		"\n\t-params     <ProteoSAFeParametersFile>" +
+		"\n\t-output     <OutputDirectory>" +
+		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -95,7 +95,8 @@ public class CopyReprocessedFiles
 		public ReprocessedFileCopyOperation(
 			File inputDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File parameters, File outputDirectory, String datasetID) {
+			File parameters, File outputDirectory, String datasetID
+		) {
 			// validate input directory
 			if (inputDirectory == null)
 				throw new NullPointerException(
