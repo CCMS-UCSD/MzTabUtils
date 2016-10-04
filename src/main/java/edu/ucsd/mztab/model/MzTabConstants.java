@@ -87,6 +87,11 @@ public class MzTabConstants
 		"QValue", "MS-GF:QValue"
 	};
 	
+	// constants pertaining to ProteoSAFe params.xml result/peak file mapping
+	public static final String EXTRACTED_FILE_DELIMITER = "#";
+	public static final Pattern EXTRACTED_FILE_DELIMITER_PATTERN =
+		Pattern.compile("((?i)mztab|mzid)" + EXTRACTED_FILE_DELIMITER);
+	
 	// constants pertaining to peptide strings
 	public static final String AMINO_ACID_CHARSET = "ARDNCEQGHILKMFPSTWYV";
 	public static final Pattern AMINO_ACID_PATTERN = Pattern.compile(

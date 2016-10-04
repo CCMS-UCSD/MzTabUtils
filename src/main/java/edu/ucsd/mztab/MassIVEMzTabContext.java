@@ -13,6 +13,8 @@ import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
+import edu.ucsd.mztab.model.MzTabConstants;
+import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
 import edu.ucsd.util.CommonUtils;
 import edu.ucsd.util.FileIOUtils;
 import edu.ucsd.util.FilePathComparator;
@@ -303,13 +305,16 @@ public class MassIVEMzTabContext
 						"is invalid - it should contain two tokens " +
 						"separated by a pipe (\"|\") character.", value));
 				// split the mapped value to extract the referenced filename
-				String[] mapped = tokens[0].split("#");
+				String[] mapped =
+					ProteoSAFeFileMappingContext.splitResultFileReference(
+						tokens[0]);
 				if (mapped == null || mapped.length != 2)
 					throw new IllegalArgumentException(String.format(
 						"\"result_file_mapping\" parameter value [%s] " +
 						"is invalid - its first token ([%s]) should " +
 						"consist of two values separated by a hash " +
-						"(\"#\") character.", value, tokens[0]));
+						"(\"%s\") character.", value, tokens[0],
+						MzTabConstants.EXTRACTED_FILE_DELIMITER));
 				// build this mapping
 				PeakListFileMapping mapping = new PeakListFileMapping(
 					mapped[0], mapped[1], tokens[1]);

@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
@@ -85,13 +86,14 @@ public class ProteoSAFeFileMappingContext
 							"is invalid - it should contain two tokens " +
 							"separated by a pipe (\"|\") character.", value));
 					// split the mapped value to extract the referenced filename
-					String[] mapped = tokens[0].split("#");
+					String[] mapped = splitResultFileReference(tokens[0]);
 					if (mapped == null || mapped.length != 2)
 						throw new IllegalArgumentException(String.format(
 							"\"result_file_mapping\" parameter value [%s] " +
 							"is invalid - its first token ([%s]) should " +
 							"consist of two values separated by a hash " +
-							"(\"#\") character.", value, tokens[0]));
+							"(\"%s\") character.", value, tokens[0],
+							MzTabConstants.EXTRACTED_FILE_DELIMITER));
 					// add this result file mapping to the context
 					Map<String, String> msRunMappings =
 						resultFileMappings.get(mapped[0]);
@@ -207,6 +209,21 @@ public class ProteoSAFeFileMappingContext
 		if (msRuns == null)
 			return null;
 		else return msRuns.get(msRunLocation);
+	}
+	
+	public static String[] splitResultFileReference(String reference) {
+		if (reference == null)
+			return null;
+		Matcher matcher =
+			MzTabConstants.EXTRACTED_FILE_DELIMITER_PATTERN.matcher(reference);
+		if (matcher.find() == false)
+			return null;
+		String delimiter = matcher.group();
+		int position = reference.indexOf(delimiter) + delimiter.length();
+		String[] tokens = new String[2];
+		tokens[0] = reference.substring(0, position - 1);
+		tokens[1] = reference.substring(position);
+		return tokens;
 	}
 	
 	/*========================================================================
