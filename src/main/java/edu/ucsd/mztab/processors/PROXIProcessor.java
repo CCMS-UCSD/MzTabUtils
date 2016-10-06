@@ -381,6 +381,8 @@ public class PROXIProcessor implements MzTabProcessor
 			else throw new RuntimeException(String.format(
 				"The resultfile insert statement returned a value of \"%d\".",
 				insertion));
+			// commit result file insertion
+			connection.commit();
 		} catch (Throwable error) {
 			throw new RuntimeException("Error recording resultfile: There " +
 				"was an error inserting the resultfile row into the database.",
@@ -457,7 +459,7 @@ public class PROXIProcessor implements MzTabProcessor
 				}
 			}
 		}
-		return peptideID;
+		return variantID;
 	}
 	
 	private Integer cascadeModification(Modification modification) {
@@ -473,49 +475,75 @@ public class PROXIProcessor implements MzTabProcessor
 	) {
 		PSM psm = new PSM(psmFileID, spectraRef, sequence,
 			charge, massToCharge, modifications);
-		// retrieve and record this PSM's spectrum file
-		int msRun = psm.getMsRun();
-		MzTabMsRun spectrumFile =
-			mzTabRecord.mzTabFile.getMsRun(msRun);
-		if (spectrumFile == null)
-			throw new NullPointerException(String.format(
-				"No spectrum file could be found " +
-				"for ms_run[%d] of mzTab file [%s].",
-				msRun, mzTabRecord.mzTabFile.getMzTabFilename()));
-		Integer spectrumFileID = recordSpectrumFile(spectrumFile);
-		if (spectrumFileID == null || spectrumFileID <= 0)
-			throw new IllegalArgumentException(String.format(
-				"Spectrum file ms_run[%d] [%s] could not be recorded.",
-				msRun, spectrumFile.getMsRunLocation()));
-		// be sure this PSM's peptide and variant have been recorded
-		String peptide = psm.getSequence();
-		Integer peptideID = cascadePeptide(peptide, accession, modifications);
-		if (peptideID == null || peptideID <= 0)
-			throw new IllegalArgumentException(String.format(
-				"Peptide sequence [%s] is invalid.", peptide));
-		String variant = psm.getModifiedSequence();
-		Integer variantID = cascadeVariant(
-			variant, accession, psm.getCharge(), peptideID, modifications);
-		if (variantID == null || variantID <= 0)
-			throw new IllegalArgumentException(String.format(
-				"Variant peptide sequence [%s] is invalid.", variant));
-		Integer psmID = recordPSM(psm, spectrumFileID, peptideID, variantID);
-		// only process further if this is a legitimate psm
-		if (psmID != null && psmID > 0) {
-			// record the protein associated with this psm
-			Integer proteinID = cascadeProtein(accession, modifications);
-			if (proteinID != null && proteinID > 0)
-				recordPSMProtein(psmID, proteinID);
-			// record all modifications associated with this psm
-			if (modifications != null && modifications.isEmpty() == false) {
-				for (Modification modification : modifications) {
-					Integer modificationID = cascadeModification(modification);
-					if (modificationID != null && modificationID > 0)
-						recordPSMModification(psmID, modificationID);
+		Integer spectrumFileID = null;
+		Integer peptideID = null;
+		Integer variantID = null;
+		Integer psmID = null;
+		Integer proteinID = null;
+		Integer modificationID = null;
+		try {
+			// retrieve and record this PSM's spectrum file
+			int msRun = psm.getMsRun();
+			MzTabMsRun spectrumFile =
+				mzTabRecord.mzTabFile.getMsRun(msRun);
+			if (spectrumFile == null)
+				throw new NullPointerException(String.format(
+					"No spectrum file could be found " +
+					"for ms_run[%d] of mzTab file [%s].",
+					msRun, mzTabRecord.mzTabFile.getMzTabFilename()));
+			spectrumFileID = recordSpectrumFile(spectrumFile);
+			if (spectrumFileID == null || spectrumFileID <= 0)
+				throw new IllegalArgumentException(String.format(
+					"Spectrum file ms_run[%d] [%s] could not be recorded.",
+					msRun, spectrumFile.getMsRunLocation()));
+			// be sure this PSM's peptide and variant have been recorded
+			String peptide = psm.getSequence();
+			peptideID = cascadePeptide(peptide, accession, modifications);
+			if (peptideID == null || peptideID <= 0)
+				throw new IllegalArgumentException(String.format(
+					"Peptide sequence [%s] is invalid.", peptide));
+			String variant = psm.getModifiedSequence();
+			variantID = cascadeVariant(
+				variant, accession, psm.getCharge(), peptideID, modifications);
+			if (variantID == null || variantID <= 0)
+				throw new IllegalArgumentException(String.format(
+					"Variant peptide sequence [%s] is invalid.", variant));
+			psmID = recordPSM(psm, spectrumFileID, peptideID, variantID);
+			// only process further if this is a legitimate psm
+			if (psmID != null && psmID > 0) {
+				// record the protein associated with this psm
+				proteinID = cascadeProtein(accession, modifications);
+				if (proteinID != null && proteinID > 0)
+					recordPSMProtein(psmID, proteinID);
+				// record all modifications associated with this psm
+				if (modifications != null && modifications.isEmpty() == false) {
+					for (Modification modification : modifications) {
+						modificationID = cascadeModification(modification);
+						if (modificationID != null && modificationID > 0)
+							recordPSMModification(psmID, modificationID);
+					}
 				}
 			}
+			return psmID;
+		} catch (Throwable error) {
+			System.err.println(String.format("Could not cascade PSM %d:" +
+				"\n\tspectrum file ID = %s" +
+				"\n\tpeptide ID = %s" +
+				"\n\tvariant ID = %s" +
+				"\n\tPSM ID = %s" +
+				"\n\tprotein ID = %s" +
+				"\n\tmodification ID = %s",
+				psm.getID(),
+				spectrumFileID != null ? spectrumFileID.toString() : "null",
+				peptideID != null ? peptideID.toString() : "null",
+				variantID != null ? variantID.toString() : "null",
+				psmID != null ? psmID.toString() : "null",
+				proteinID != null ? proteinID.toString() : "null",
+				modificationID != null ? modificationID.toString() : "null"));
+			if (error instanceof RuntimeException)
+				throw (RuntimeException)error;
+			else throw new RuntimeException(error);
 		}
-		return psmID;
 	}
 	
 	private Integer recordSpectrumFile(MzTabMsRun spectrumFile) {
@@ -661,8 +689,13 @@ public class PROXIProcessor implements MzTabProcessor
 			try { statement.close(); } catch (Throwable error) {}
 			try { result.close(); } catch (Throwable error) {}
 		}
+		// validate PSM ID
+		if (psmID == null)
+			throw new RuntimeException(String.format(
+				"No valid row ID could be obtained for PSM %d " +
+				"of result file %d.", psm.getID(), mzTabRecord.id));
 		// add this psm to the set of recorded psms
-		addElement("psm", psm.getID().toString(), psmID);
+		else addElement("psm", psm.getID().toString(), psmID);
 		return peptideID;
 	}
 	
@@ -761,8 +794,13 @@ public class PROXIProcessor implements MzTabProcessor
 			try { statement.close(); } catch (Throwable error) {}
 			try { result.close(); } catch (Throwable error) {}
 		}
+		// validate peptide ID
+		if (peptideID == null)
+			throw new RuntimeException(String.format(
+				"No valid row ID could be obtained for peptide [%s].",
+				sequence));
 		// write resultfile/peptide link to the database
-		try {
+		else try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.resultfile_peptides " +
 				"(sequence, resultfile_id, peptide_id) VALUES(?, ?, ?)");
@@ -909,8 +947,13 @@ public class PROXIProcessor implements MzTabProcessor
 			try { statement.close(); } catch (Throwable error) {}
 			try { result.close(); } catch (Throwable error) {}
 		}
+		// validate variant ID
+		if (variantID == null)
+			throw new RuntimeException(String.format(
+				"No valid row ID could be obtained for variant [%s].",
+				sequence));
 		// write resultfile/variant link to the database
-		try {
+		else try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.resultfile_variants " +
 				"(sequence, resultfile_id, variant_id) VALUES(?, ?, ?)");
@@ -1052,8 +1095,13 @@ public class PROXIProcessor implements MzTabProcessor
 			try { statement.close(); } catch (Throwable error) {}
 			try { result.close(); } catch (Throwable error) {}
 		}
+		// validate protein ID
+		if (proteinID == null)
+			throw new RuntimeException(String.format(
+				"No valid row ID could be obtained for protein [%s].",
+				accession));
 		// write resultfile/protein link to the database
-		try {
+		else try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.resultfile_proteins " +
 				"(resultfile_id, protein_id) VALUES(?, ?)");
@@ -1175,8 +1223,13 @@ public class PROXIProcessor implements MzTabProcessor
 			try { statement.close(); } catch (Throwable error) {}
 			try { result.close(); } catch (Throwable error) {}
 		}
+		// validate modification ID
+		if (modificationID == null)
+			throw new RuntimeException(String.format(
+				"No valid row ID could be obtained for modification [%s].",
+				name));
 		// write resultfile/modification link to the database
-		try {
+		else try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.resultfile_modifications " +
 				"(resultfile_id, modification_id) VALUES(?, ?)");
