@@ -196,14 +196,15 @@ implements MzTabProcessor
 			// into file reference and nativeID
 			Matcher matcher =
 				MzTabConstants.SPECTRA_REF_PATTERN.matcher(spectraRef);
-			if (matcher.matches() == false)
-				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n" +
-					"\"spectra_ref\" column value [%s] does not " +
-					"conform to the expected format [%s].",
-					lineNumber, mzTabFilename, line, spectraRef,
-					"ms_run[1-n]:<nativeID-formatted identifier string>"));
+			if (matcher.matches() == false) {
+				row[validIndex] = "INVALID";
+				row[invalidReasonIndex] = String.format(
+					"Invalid \"spectra_ref\" column value [%s]: " +
+					"this value does not  conform to the " +
+					"expected format [%s].", spectraRef,
+					"ms_run[1-n]:<nativeID-formatted identifier string>");
+				return getLine(row);
+			}
 			// extract and validate ms_run index
 			int msRunIndex;
 			try { msRunIndex = Integer.parseInt(matcher.group(1)); }
@@ -213,13 +214,15 @@ implements MzTabProcessor
 			catch (NumberFormatException error) {
 				throw new IllegalStateException(error);
 			}
-			if (msRunIndex <= 0)
-				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n" +
-					"\"spectra_ref\" column value [%s] contains invalid " +
+			if (msRunIndex <= 0) {
+				row[validIndex] = "INVALID";
+				row[invalidReasonIndex] = String.format(
+					"Invalid \"spectra_ref\" column value [%s]: " +
+					"this value contains invalid " +
 					"ms_run index %d; ms_run indices should start at 1.",
-					lineNumber, mzTabFilename, line, spectraRef, msRunIndex));
+					spectraRef, msRunIndex);
+				return getLine(row);
+			}
 			// if this PSM row has already been marked as invalid by some
 			// upstream validator, then don't bother with this validation
 			String valid = row[validIndex];
@@ -235,25 +238,26 @@ implements MzTabProcessor
 			// get spectrum IDs file for this PSM row
 			MzTabMsRun msRun = mzTabFile.getMsRun(msRunIndex);
 			String mangledPeakListFilename = msRun.getMangledPeakListFilename();
-			if (mangledPeakListFilename == null)
-				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n" +
+			if (mangledPeakListFilename == null) {
+				row[validIndex] = "INVALID";
+				row[invalidReasonIndex] = String.format(
 					"Could not resolve any file mapping for \"ms_run\" " +
-					"index %d.", lineNumber, mzTabFilename, line, msRunIndex));
+					"index %d.", msRunIndex);
+				return getLine(row);
+			}
 			String spectrumIDsFilename = String.format(
 				"%s.scans", FilenameUtils.getBaseName(mangledPeakListFilename));
 			ImmutablePair<Integer, Collection<Integer>> spectrumIDs =
 				getSpectrumIDs(spectrumIDsFilename);
-			if (spectrumIDs == null)
-				throw new IllegalArgumentException(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n" +
+			if (spectrumIDs == null) {
+				row[validIndex] = "INVALID";
+				row[invalidReasonIndex] = String.format(
 					"No spectra were found for \"ms_run\" index %d, " +
 					"corresponding to peak list file [%s] " +
-					"(parsed into spectra summary file [%s]).",
-					lineNumber, mzTabFilename, line, msRunIndex,
-					msRun.getPeakListFilename(), spectrumIDsFilename));
+					"(parsed into spectra summary file [%s]).", msRunIndex,
+					msRun.getPeakListFilename(), spectrumIDsFilename);
+				return getLine(row);
+			}
 			// otherwise, validate nativeID
 			String validatedNativeID =
 				validateNativeID(nativeID, sequence, spectrumIDs);
