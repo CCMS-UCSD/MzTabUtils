@@ -601,6 +601,11 @@ public class PROXIProcessor implements MzTabProcessor
 			else throw new RuntimeException(String.format(
 				"The spectrumfile insert statement returned a value of \"%d\".",
 				insertion));
+			// commit spectrum file insertion, since spectrum files might be
+			// shared across multiple concurrent import operations, so we
+			// don't want to try to roll back this insertion if something goes
+			// wrong with some but not all of those imports
+			connection.commit();
 		} catch (Throwable error) {
 			throw new RuntimeException("Error recording spectrumfile: There " +
 				"was an error inserting the spectrumfile row into the " +
