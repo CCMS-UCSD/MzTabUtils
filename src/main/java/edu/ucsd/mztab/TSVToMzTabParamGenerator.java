@@ -19,7 +19,6 @@ import java.util.regex.Matcher;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.FileIOUtils;
@@ -374,35 +373,35 @@ public class TSVToMzTabParamGenerator
 			// more "unknown modifications" will just result in CHEMMODs;
 			// meaning the result will be the same as if we had not bothered to
 			// do this and just let the catch-all mod specifier pick these up
-			NodeList parameters = XPathAPI.selectNodeList(
-				document, "//parameter[@name='ptm.custom_PTM']");
-			if (parameters != null && parameters.getLength() > 0) {
-				for (int i=0; i<parameters.getLength(); i++) {
-					String mod =
-						parameters.item(i).getFirstChild().getNodeValue();
-					if (mod != null && mod.trim().isEmpty() == false) {
-						// "ptm.custom_PTM" parameters should have as their
-						// value a string with the following format:
-						// <mass>,<residues>,<type>
-						String[] tokens = mod.split(",");
-						if (tokens == null || tokens.length != 3)
-							continue;
-						// determine fixed/variable status from declared type
-						boolean fixed = false;
-						if (tokens[2].startsWith("fix"))
-							fixed = true;
-						// determine terminal status from declared type
-						Boolean terminal = null;
-						if (tokens[2].contains("nterm"))
-							terminal = true;
-						else if (tokens[2].contains("cterm"))
-							terminal = false;
-						addDynamicMod(
-							"[MS,MS:1001460,unknown modification,\"%s\"]",
-							tokens[1], tokens[0], fixed, terminal);
-					}
-				}
-			}
+//			NodeList parameters = XPathAPI.selectNodeList(
+//				document, "//parameter[@name='ptm.custom_PTM']");
+//			if (parameters != null && parameters.getLength() > 0) {
+//				for (int i=0; i<parameters.getLength(); i++) {
+//					String mod =
+//						parameters.item(i).getFirstChild().getNodeValue();
+//					if (mod != null && mod.trim().isEmpty() == false) {
+//						// "ptm.custom_PTM" parameters should have as their
+//						// value a string with the following format:
+//						// <mass>,<residues>,<type>
+//						String[] tokens = mod.split(",");
+//						if (tokens == null || tokens.length != 3)
+//							continue;
+//						// determine fixed/variable status from declared type
+//						boolean fixed = false;
+//						if (tokens[2].startsWith("fix"))
+//							fixed = true;
+//						// determine terminal status from declared type
+//						Boolean terminal = null;
+//						if (tokens[2].contains("nterm"))
+//							terminal = true;
+//						else if (tokens[2].contains("cterm"))
+//							terminal = false;
+//						addDynamicMod(
+//							"[MS,MS:1001460,unknown modification,\"%s\"]",
+//							tokens[1], tokens[0], fixed, terminal);
+//					}
+//				}
+//			}
 			// if the mod-matching mode is mass difference threshold,
 			// and there are any remaining found masses that haven't
 			// yet been assigned to a mod, then try to match the
