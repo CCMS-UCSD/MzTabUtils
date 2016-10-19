@@ -417,7 +417,8 @@ public class TaskMzTabContext
 		// from among this task's "upload_file_mapping" parameters
 		String uploadedPeakListMatch = msRun.getMappedPeakListPath();
 		// first try exact matches
-		for (UploadMapping mapping : mappings.getUploadMappings()) {
+		for (UploadMapping mapping :
+			mappings.getUploadMappings("peak_list_files")) {
 			String mangledFilename = mapping.getMangledFilename();
 			String uploadedPeakListPath = mapping.getUploadFilePath();
 			// if an upload mapping exists for this ms_run,
@@ -436,7 +437,8 @@ public class TaskMzTabContext
 		// if no exact matches were found, try to match the mapped
 		// value with the first uploaded path that matches it
 		if (uploadedPeakListMatch != null) {
-			for (UploadMapping mapping : mappings.getUploadMappings()) {
+			for (UploadMapping mapping :
+				mappings.getUploadMappings("peak_list_files")) {
 				String mangledFilename = mapping.getMangledFilename();
 				String uploadedPeakListPath = mapping.getUploadFilePath();
 				// if an upload mapping exists for this ms_run,
