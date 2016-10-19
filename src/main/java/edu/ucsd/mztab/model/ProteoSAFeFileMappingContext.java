@@ -140,14 +140,24 @@ public class ProteoSAFeFileMappingContext
 		return mangledFilenames;
 	}
 	
-	public String getMangledFilename(String normalizedUploadFilePath) {
-		if (normalizedUploadFilePath == null)
+	public String getMangledFilename(
+		String filePathInCollection, String prefix
+	) {
+		if (filePathInCollection == null)
 			return null;
-		Collection<UploadMapping> mappings = getUploadMappings();
-		for (UploadMapping mapping : mappings)
-			if (normalizedUploadFilePath.equals(
-				mapping.getNormalizedUploadFilePath()))
-				return mapping.getMangledFilename();
+		for (UploadCollection collection : uploadCollections) {
+			for (UploadMapping mapping : collection.getUploadMappings()) {
+				if (filePathInCollection.endsWith(
+					mapping.getNormalizedUploadFilePath())) {
+					String mangledFilename = mapping.getMangledFilename();
+					// ensure this file is from the proper
+					// collection, if specified
+					if (prefix == null ||
+						prefix.equals(collection.getMangledPrefix()))
+						return mangledFilename;
+				}
+			}
+		}
 		return null;
 	}
 	

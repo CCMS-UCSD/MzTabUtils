@@ -150,55 +150,47 @@ public class RemangleFiles
 			// map all found collection files to their mangled names
 			mangledFiles = new LinkedHashMap<String, File>();
 			for (File collectionFile : collectionFiles) {
-				// find this collection file's mangled filename; if the file
-				// was selected individually, then the mangled filename will
-				// be mapped to the file's name without any path elements
-				String mangledFilename =
-					context.getMangledFilename(collectionFile.getName());
-				// otherwise, the mangled filename is mapped
-				// to the file's normalized upload path
-				if (mangledFilename == null) {
-					// find the input collection that this file belongs to
-					String filePath = FilenameUtils.separatorsToUnix(
-						collectionFile.getAbsolutePath());
-					File collectionDirectory = null;
-					String collectionPath = null;
-					for (File collection : collectionDirectories) {
-						collectionPath = FilenameUtils.separatorsToUnix(
-							collection.getAbsolutePath());
-						if (filePath.startsWith(collectionPath)) {
-							collectionDirectory = collection;
-							break;
-						}
-					}
-					// collection directory should never be null
-					// at this point, since all files were found
-					// under some collection directory
-					if (collectionDirectory == null)
-						throw new IllegalStateException();
-					// get this collection file's relative path
-					// under the input collection files directory
-					String fileRelativePath =
-						filePath.substring(collectionPath.length());
-					// chomp leading slash, if present
-					if (fileRelativePath.isEmpty() == false &&
-						fileRelativePath.charAt(0) == '/')
-						fileRelativePath = fileRelativePath.substring(1);
-					// find this collection file's upload mapping
-					mangledFilename =
-						context.getMangledFilename(fileRelativePath);
-					// if no mangled filename was found, then try
-					// prepending the collection directory name,
-					// since in the case of attachment workflows the
-					// user might have selected the parent collection
-					// directory as their input for this collection
-					if (mangledFilename == null) {
-						fileRelativePath = String.format("%s/%s",
-							collectionDirectory.getName(), fileRelativePath);
-						mangledFilename =
-							context.getMangledFilename(fileRelativePath);
+				// find the input collection that this file belongs to
+				String filePath = FilenameUtils.separatorsToUnix(
+					collectionFile.getAbsolutePath());
+				File collectionDirectory = null;
+				String collectionPath = null;
+				for (File collection : collectionDirectories) {
+					collectionPath = FilenameUtils.separatorsToUnix(
+						collection.getAbsolutePath());
+					if (filePath.startsWith(collectionPath)) {
+						collectionDirectory = collection;
+						break;
 					}
 				}
+				// collection directory should never be null
+				// at this point, since all files were found
+				// under some collection directory
+				if (collectionDirectory == null)
+					throw new IllegalStateException();
+				// get mangled filename prefix (should be the same as
+				// the collection directory name, in all upper case)
+				String mangledPrefix =
+					collectionDirectory.getName().toUpperCase();
+				// if the collection directory is a CCMS collection (i.e. its
+				// name starts with a "ccms_" prefix), remove that, since the
+				// params.xml mapping will use the original upload collection
+				if (mangledPrefix.startsWith("CCMS_"))
+					mangledPrefix = mangledPrefix.substring(5);
+				// get this collection file's relative path
+				// under the input collection files directory
+				String fileRelativePath =
+					filePath.substring(collectionPath.length());
+				// chomp leading slash, if present
+				if (fileRelativePath.isEmpty() == false &&
+					fileRelativePath.charAt(0) == '/')
+					fileRelativePath = fileRelativePath.substring(1);
+				// prepend collection name
+				fileRelativePath = String.format("%s/%s",
+					collectionDirectory.getName(), fileRelativePath);
+				// find this collection file's upload mapping
+				String mangledFilename =
+					context.getMangledFilename(fileRelativePath, mangledPrefix);
 				// it's okay if no mangled filename was found, since this
 				// might be a collection that is only partially used by a
 				// dataset child task, e.g. update or reanalysis
