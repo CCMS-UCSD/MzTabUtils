@@ -21,6 +21,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import uk.ac.ebi.pride.jmztab.model.Modification;
+import edu.ucsd.mztab.model.ModificationParse;
 import edu.ucsd.util.FileIOUtils;
 import edu.ucsd.util.ProteomicsUtils;
 
@@ -348,10 +349,11 @@ public class TSVToMzTabParameters
 							msRun, ProteomicsUtils.cleanPeptide(peptide));
 						// get this row's modifications
 						// and add them to this protein
-						ImmutablePair<String, Collection<Modification>>
-						extracted = TSVToMzTabConverter.extractPTMsFromPSM(
-							peptide, getModifications());
-						Collection<Modification> mods = extracted.getRight();
+						ModificationParse extracted =
+							TSVToMzTabConverter.extractPTMsFromPSM(
+								peptide, getModifications());
+						Collection<Modification> mods =
+							extracted.getModificationOccurrences();
 						if (mods != null)
 							for (Modification mod : mods)
 								record.addModification(mod);

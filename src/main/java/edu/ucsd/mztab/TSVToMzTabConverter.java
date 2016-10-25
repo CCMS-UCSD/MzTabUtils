@@ -16,8 +16,8 @@ import java.util.SortedMap;
 import java.util.regex.Matcher;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.mztab.model.ModificationParse;
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
@@ -325,10 +325,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		String post = getPost(peptide);
 		// get modifications for this row
 		String stripped = stripPreAndPost(peptide);
-		ImmutablePair<String, Collection<Modification>> extracted =
+		ModificationParse extracted =
 			extractPTMsFromPSM(stripped, params.getModifications());
-		String cleaned = extracted.getLeft();
-		Collection<Modification> mods = extracted.getRight();
+		String cleaned = extracted.getParsedPeptide();
+		Collection<Modification> mods = extracted.getModificationOccurrences();
 		// add a separate PSM row, having the same PSM_ID,
 		// for each protein matched to this PSM
 		String[] proteins = null;
@@ -348,17 +348,23 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			// try to extract "pre" and "post" values from the peptide sequence
 			psm.setPre(pre);
 			psm.setPost(post);
-			// mark this row as "INVALID" if any mods were
-			// left unparsed from the peptide string
-			if (isPeptideClean(cleaned))
-				psm.setOptionColumnValue("valid", "VALID");
-			else {
+			// mark this row as "INVALID" if any errors were found in parsing
+			String error = extracted.getError();
+			if (error != null) {
+				psm.setOptionColumnValue("valid", "INVALID");
+				psm.setOptionColumnValue("invalid_reason", error);
+			}
+			// otherwise, only mark this row as "INVALID" if any
+			// mods were left unparsed from the peptide string
+			else if (isPeptideClean(cleaned) == false) {
 				psm.setOptionColumnValue("valid", "INVALID");
 				psm.setOptionColumnValue("invalid_reason", String.format(
 					"The parsed peptide string [%s] for this row was still " +
 					"found to contain non-amino acid characters, even after " +
 					"extracting all expected modifications.", cleaned));
 			}
+			// if no problems were found, mark this row as "VALID"
+			else psm.setOptionColumnValue("valid", "VALID");
 			// formulate "modifications" value for this row
 			if (mods != null && mods.isEmpty() == false)
 				for (Modification mod : mods)
@@ -544,32 +550,36 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		return url;
 	}
 	
-	public static ImmutablePair<String, Collection<Modification>>
-	extractPTMsFromPSM(String psm, Collection<ModRecord> modifications) {
+	public static ModificationParse extractPTMsFromPSM(
+		String psm, Collection<ModRecord> modifications
+	) {
 		if (psm == null || modifications == null)
 			return null;
 		Collection<Modification> mods = new LinkedHashSet<Modification>();
 		String current = psm;
+		String error = null;
 		// check the psm string for occurrences of all registered mods
 		for (ModRecord record : modifications) {
-			ImmutablePair<String, Collection<Modification>> parsedPSM =
-				record.parsePSM(current);
+			ModificationParse parsedPSM = record.parsePSM(current);
 			if (parsedPSM == null)
 				continue;
 			// keep track of the iteratively cleaned PSM string
-			String cleaned = parsedPSM.getLeft();
+			String cleaned = parsedPSM.getParsedPeptide();
 			if (cleaned != null)
 				current = cleaned;
 			// if no mods of this type were found, continue
-			Collection<Modification> theseMods = parsedPSM.getRight();
+			Collection<Modification> theseMods =
+				parsedPSM.getModificationOccurrences();
 			if (theseMods != null && theseMods.isEmpty() == false)
 				mods.addAll(theseMods);
+			// note any error found, unless one has already been noted
+			String thisError = parsedPSM.getError();
+			if (thisError != null && error == null)
+				error = thisError;
 		}
 		if (mods == null || mods.isEmpty())
-			return new ImmutablePair<String, Collection<Modification>>(
-				current, null);
-		else return new ImmutablePair<String, Collection<Modification>>(
-			current, mods);
+			return new ModificationParse(null, current, error);
+		else return new ModificationParse(mods, current, error);
 	}
 	
 	/*========================================================================

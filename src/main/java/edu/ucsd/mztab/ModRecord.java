@@ -9,6 +9,7 @@ import java.util.regex.PatternSyntaxException;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
+import edu.ucsd.mztab.model.ModificationParse;
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.util.OntologyUtils;
 import edu.ucsd.util.ProteomicsUtils;
@@ -106,9 +107,7 @@ public class ModRecord
 	/*========================================================================
 	 * Public interface methods
 	 *========================================================================*/
-	public ImmutablePair<String, Collection<Modification>> parsePSM(
-		String psm
-	) {
+	public ModificationParse parsePSM(String psm) {
 		if (psm == null)
 			return null;
 		// first, check for the typical "enclosing dot" syntax
@@ -125,6 +124,7 @@ public class ModRecord
 		String cleaned = psm;
 		Collection<Modification> occurrences =
 			new LinkedHashSet<Modification>();
+		String parseError = null;
 		while (true) {
 			matcher = pattern.matcher(cleaned);
 			if (matcher.find() == false)
@@ -139,10 +139,10 @@ public class ModRecord
 			if (isGeneric()) try {
 				this.mass = Double.parseDouble(matcher.group(1));
 			} catch (Throwable error) {
-				throw new IllegalArgumentException(String.format(
+				parseError = String.format(
 					"Could not extract a valid mod mass from generic mod " +
 					"reference [%s] at position %d of input PSM string [%s].",
-					captured, matcher.start(), psm));
+					captured, matcher.start(), psm);
 			}
 			ImmutablePair<Integer, String> extracted =
 				extractMod(cleaned, captured);
@@ -159,8 +159,11 @@ public class ModRecord
 					position = 0;
 				else if (regex.endsWith("$"))
 					position = cTerm;
-				addModificationOccurrence(
-					getModification(position, psm), occurrences);
+				if (addModificationOccurrence(
+					getModification(position, psm), occurrences) == false)
+					parseError = String.format(
+						"Found multiple modifications at position %d " +
+						"of peptide string [%s].", position, psm);
 			}
 			// it should be impossible for the extraction operation to fail,
 			// since the matcher ensures that the mod is present in the PSM
@@ -178,15 +181,17 @@ public class ModRecord
 				if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(current))
 					index++;
 				// if this is a site affected by this fixed mod, then add it
-				if (sites.contains(current))
+				if (sites.contains(current) &&
 					addModificationOccurrence(
-						getModification(index, psm), occurrences);
+						getModification(index, psm), occurrences) == false)
+					parseError = String.format(
+						"Found multiple modifications at position %d " +
+						"of peptide string [%s].", index, psm);
 			}
 		}
 		if (occurrences != null && occurrences.isEmpty())
 			occurrences = null;
-		return new ImmutablePair<String, Collection<Modification>>(
-			cleaned, occurrences);
+		return new ModificationParse(occurrences, cleaned, parseError);
 	}
 	
 	@Override
@@ -555,11 +560,11 @@ public class ModRecord
 		return mod;
 	}
 	
-	private void addModificationOccurrence(
+	private boolean addModificationOccurrence(
 		Modification modification, Collection<Modification> occurrences
 	) {
 		if (modification == null || occurrences == null)
-			return;
+			return false;
 		boolean alreadyOccurred = false;
 		for (int index : modification.getPositionMap().keySet()) {
 			for (Modification occurred : occurrences) {
@@ -571,7 +576,10 @@ public class ModRecord
 			if (alreadyOccurred)
 				break;
 		}
-		if (alreadyOccurred == false)
+		// return true if this modification occurrence is added, false if not
+		if (alreadyOccurred == false) {
 			occurrences.add(modification);
+			return true;
+		} else return false;
 	}
 }
