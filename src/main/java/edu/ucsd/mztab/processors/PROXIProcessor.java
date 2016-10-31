@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import edu.ucsd.mztab.model.Modification;
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
@@ -34,6 +35,7 @@ public class PROXIProcessor implements MzTabProcessor
 		"PSM_ID", "sequence", "accession", "modifications", "spectra_ref",
 		"charge", "exp_mass_to_charge"
 	};
+	private static final double IMPORT_Q_VALUE_THRESHOLD = 0.01;
 	
 	/*========================================================================
 	 * Properties
@@ -45,6 +47,7 @@ public class PROXIProcessor implements MzTabProcessor
 	private MzTabSectionHeader                prtHeader;
 	private MzTabSectionHeader                pepHeader;
 	private MzTabSectionHeader                psmHeader;
+	private Integer                           qValueColumn;
 	private Long                              start;
 	
 	/*========================================================================
@@ -74,6 +77,7 @@ public class PROXIProcessor implements MzTabProcessor
 		prtHeader = null;
 		pepHeader = null;
 		psmHeader = null;
+		qValueColumn = null;
 		// intialize start time
 		start = null;
 	}
@@ -209,6 +213,9 @@ public class PROXIProcessor implements MzTabProcessor
 			psmHeader = new MzTabSectionHeader(line);
 			psmHeader.validateHeaderExpectations(
 				MzTabSection.PSM, Arrays.asList(RELEVANT_PSM_COLUMNS));
+			// determine index of controlled Q-value column, if present
+			qValueColumn =
+				psmHeader.getColumnIndex(MzTabConstants.Q_VALUE_COLUMN);
 		} else if (line.startsWith("PSM")) {
 			incrementRowCount("PSM");
 			if (psmHeader == null)
@@ -220,32 +227,44 @@ public class PROXIProcessor implements MzTabProcessor
 			else psmHeader.validateMzTabRow(line);
 			// extract insertable elements from this PSM row
 			String[] columns = line.split("\\t");
-			// record this psm
-			Collection<Modification> modifications =
-				ProteomicsUtils.getModifications(
-					columns[psmHeader.getColumnIndex("modifications")]);
+			// determine if this PSM has a Q-value at or below the threshold
+			boolean importable = true;
 			try {
-				cascadePSM(
-					columns[psmHeader.getColumnIndex("PSM_ID")],
-					columns[psmHeader.getColumnIndex("spectra_ref")],
-					columns[psmHeader.getColumnIndex("sequence")],
-					columns[psmHeader.getColumnIndex("accession")],
-					columns[psmHeader.getColumnIndex("charge")],
-					columns[psmHeader.getColumnIndex("exp_mass_to_charge")],
-					modifications);
-				connection.commit();
+				double qValue = Double.parseDouble(columns[qValueColumn]);
+				if (qValue > IMPORT_Q_VALUE_THRESHOLD)
+					importable = false;
 			} catch (Throwable error) {
-				try { connection.rollback(); } catch (Throwable innerError) {}
-				// log this insertion failure
-				incrementRowCount("invalid_PSM");
-				// print warning and continue
-				System.err.println(String.format(
-					"Line %d of mzTab file [%s] is invalid:" +
-					"\n----------\n%s\n----------\n%s",
-					lineNumber, mzTabFilename, line,
-					getRootCause(error).getMessage()));
-				error.printStackTrace();
+				importable = false;
 			}
+			// only record this PSM if it passes the threshold
+			if (importable) {
+				Collection<Modification> modifications =
+					ProteomicsUtils.getModifications(
+						columns[psmHeader.getColumnIndex("modifications")]);
+				try {
+					cascadePSM(
+						columns[psmHeader.getColumnIndex("PSM_ID")],
+						columns[psmHeader.getColumnIndex("spectra_ref")],
+						columns[psmHeader.getColumnIndex("sequence")],
+						columns[psmHeader.getColumnIndex("accession")],
+						columns[psmHeader.getColumnIndex("charge")],
+						columns[psmHeader.getColumnIndex("exp_mass_to_charge")],
+						modifications);
+					connection.commit();
+				} catch (Throwable error) {
+					try { connection.rollback(); }
+					catch (Throwable innerError) {}
+					// log this insertion failure
+					incrementRowCount("invalid_PSM");
+					// print warning and continue
+					System.err.println(String.format(
+						"Line %d of mzTab file [%s] is invalid:" +
+						"\n----------\n%s\n----------\n%s",
+						lineNumber, mzTabFilename, line,
+						getRootCause(error).getMessage()));
+					error.printStackTrace();
+				}
+			} else incrementRowCount("unimportable_PSM");
 		}
 		return line;
 	}
@@ -274,14 +293,17 @@ public class PROXIProcessor implements MzTabProcessor
 		success.append(".");
 		success.append("\n\tPSMs:     ");
 		success.append(formatRowCount(getElementCount("psm"),
-			getRowCount("PSM"), getRowCount("invalid_PSM"), seconds));
+			getRowCount("PSM"), getRowCount("invalid_PSM"),
+			getRowCount("unimportable_PSM"), seconds));
 		success.append("\n\tPeptides: ");
 		success.append(formatRowCount(getElementCount("sequence"),
-			getRowCount("PEP"), getRowCount("invalid_PEP"), seconds));
+			getRowCount("PEP"), getRowCount("invalid_PEP"),
+			getRowCount("unimportable_PEP"), seconds));
 		success.append("\n\tVariants: ").append(getElementCount("variant"));
 		success.append("\n\tProteins: ");
 		success.append(formatRowCount(getElementCount("accession"),
-			getRowCount("PRT"), getRowCount("invalid_PRT"), seconds));
+			getRowCount("PRT"), getRowCount("invalid_PRT"),
+			getRowCount("unimportable_PRT"), seconds));
 		success.append("\n\tPTMs:     ")
 			.append(getElementCount("modification"));
 		success.append("\n----------");
@@ -1308,7 +1330,7 @@ public class PROXIProcessor implements MzTabProcessor
 	}
 	
 	private String formatRowCount(
-		int elements, int rows, int invalid, double seconds
+		int elements, int rows, int invalid, int unimported, double seconds
 	) {
 		StringBuilder count = new StringBuilder().append(elements);
 		if (rows > 0) {
@@ -1317,6 +1339,10 @@ public class PROXIProcessor implements MzTabProcessor
 			if (invalid > 0) {
 				count.append(", ").append(invalid).append(" invalid ");
 				count.append(CommonUtils.pluralize("row", invalid));
+			}
+			if (unimported > 0) {
+				count.append(", ").append(unimported).append(" unimported ");
+				count.append(CommonUtils.pluralize("row", unimported));
 			}
 			if (seconds > 0.0) {
 				count.append(", ");
