@@ -20,9 +20,16 @@ import edu.ucsd.util.FileIOUtils;
 public class TaskMzTabContext
 {
 	/*========================================================================
+	 * Constants
+	 *========================================================================*/
+	private static final String DEFAULT_PEAK_LIST_COLLECTION =
+		"peak_list_files";
+	
+	/*========================================================================
 	 * Properties
 	 *========================================================================*/
 	private Collection<MzTabFile> mzTabs;
+	private String                peakListCollection;
 	
 	/*========================================================================
 	 * Constructors
@@ -72,6 +79,10 @@ public class TaskMzTabContext
 					"Peak list files directory [%s] must be readable.",
 					peakListDirectory.getAbsolutePath()));
 		}
+		// determine peak list collection name (default "peak_list_files")
+		if (peakListCollection == null)
+			this.peakListCollection = DEFAULT_PEAK_LIST_COLLECTION;
+		else this.peakListCollection = peakListCollection;
 		// validate params.xml file
 		if (parametersFile == null)
 			throw new NullPointerException(
@@ -423,7 +434,7 @@ public class TaskMzTabContext
 		String uploadedPeakListMatch = msRun.getMappedPeakListPath();
 		// first try exact matches
 		for (UploadMapping mapping :
-			mappings.getUploadMappings("peak_list_files")) {
+			mappings.getUploadMappings(peakListCollection)) {
 			String mangledFilename = mapping.getMangledFilename();
 			String uploadedPeakListPath = mapping.getUploadFilePath();
 			// if an upload mapping exists for this ms_run,
@@ -443,7 +454,7 @@ public class TaskMzTabContext
 		// value with the first uploaded path that matches it
 		if (uploadedPeakListMatch != null) {
 			for (UploadMapping mapping :
-				mappings.getUploadMappings("peak_list_files")) {
+				mappings.getUploadMappings(peakListCollection)) {
 				String mangledFilename = mapping.getMangledFilename();
 				String uploadedPeakListPath = mapping.getUploadFilePath();
 				// if an upload mapping exists for this ms_run,
