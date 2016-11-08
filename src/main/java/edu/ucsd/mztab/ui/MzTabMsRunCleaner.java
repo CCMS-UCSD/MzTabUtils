@@ -15,11 +15,13 @@ public class MzTabMsRunCleaner
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabMsRunCleaner" +
-		"\n\t-mztab    <MzTabDirectory>" +
-		"\n\t-params   <ProteoSAFeParametersFile>" +
-		"\n\t-output   <CleanedMzTabDirectory>" +
-		"\n\t[-peak    <PeakListFilesDirectory>]" +
-		"\n\t[-dataset <DatasetID>|<DatasetIDFile>]";
+		"\n\t-mztab           <MzTabDirectory>" +
+		"\n\t-params          <ProteoSAFeParametersFile>" +
+		"\n\t-output          <CleanedMzTabDirectory>" +
+		"\n\t[-peak           <PeakListFilesDirectory>]" +
+		"\n\t[-peakCollection <PeakListCollectionName> " +
+			"(default \"peak_list_files\")]" +
+		"\n\t[-dataset        <DatasetID>|<DatasetIDFile>]";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -63,7 +65,8 @@ public class MzTabMsRunCleaner
 		 * Constructors
 		 *====================================================================*/
 		public MzTabMsRunCleanupOperation(
-			File mzTabDirectory, File peakListDirectory, File parameters,
+			File mzTabDirectory, File peakListDirectory,
+			String peakListCollection, File parameters,
 			File outputDirectory, String datasetID
 		) {
 			// validate mzTab directory
@@ -114,7 +117,7 @@ public class MzTabMsRunCleaner
 			// build mzTab file-mapping context
 			context = new TaskMzTabContext(
 				mzTabDirectory, null, peakListDirectory, null,
-				parameters, datasetID);
+				peakListCollection, parameters, datasetID);
 		}
 	}
 	
@@ -126,6 +129,7 @@ public class MzTabMsRunCleaner
 			return null;
 		File mzTabDirectory = null;
 		File peakListDirectory = null;
+		String peakListCollection = null;
 		File parameters = null;
 		File outputDirectory = null;
 		String datasetID = null;
@@ -142,6 +146,8 @@ public class MzTabMsRunCleaner
 					mzTabDirectory = new File(value);
 				else if (argument.equals("-peak"))
 					peakListDirectory = new File(value);
+				else if (argument.equals("-peakCollection"))
+					peakListCollection = value;
 				else if (argument.equals("-params"))
 					parameters = new File(value);
 				else if (argument.equals("-output"))
@@ -170,8 +176,8 @@ public class MzTabMsRunCleaner
 		}
 		try {
 			return new MzTabMsRunCleanupOperation(
-				mzTabDirectory, peakListDirectory, parameters,
-				outputDirectory, datasetID);
+				mzTabDirectory, peakListDirectory, peakListCollection,
+				parameters, outputDirectory, datasetID);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;

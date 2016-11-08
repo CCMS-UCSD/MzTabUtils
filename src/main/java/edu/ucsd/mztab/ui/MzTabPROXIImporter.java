@@ -22,14 +22,17 @@ public class MzTabPROXIImporter
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabPROXIImporter" +
-		"\n\t-mztab      <MzTabDirectory>" +
-		"\n\t[-mztabPath <MzTabRelativePath> (if not under MzTabDirectory)]" +
-		"\n\t[-peak      <PeakListFilesDirectory>]" +
-		"\n\t[-peakPath  <PeakListRelativePath> " +
+		"\n\t-mztab           <MzTabDirectory>" +
+		"\n\t[-mztabPath      <MzTabRelativePath> " +
+			"(if not under MzTabDirectory)]" +
+		"\n\t[-peak           <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath       <PeakListRelativePath> " +
 			"(if not under PeakListFilesDirectory)]" +
-		"\n\t-params     <ProteoSAFeParametersFile>" +
-		"\n\t-task       <ProteoSAFeTaskID>" +
-		"\n\t-dataset    <DatasetID>|<DatasetIDFile>";
+		"\n\t[-peakCollection <PeakListCollectionName> " +
+			"(default \"peak_list_files\")]" +
+		"\n\t-params          <ProteoSAFeParametersFile>" +
+		"\n\t-task            <ProteoSAFeTaskID>" +
+		"\n\t-dataset         <DatasetID>|<DatasetIDFile>";
 	private static final String DATASET_ID_PREFIX = "MSV";
 	
 	/*========================================================================
@@ -106,7 +109,8 @@ public class MzTabPROXIImporter
 		public MzTabImportOperation(
 			File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File parameters, String taskID, String datasetID
+			String peakListCollection, File parameters,
+			String taskID, String datasetID
 		) {
 			// validate mzTab directory
 			if (mzTabDirectory == null)
@@ -164,7 +168,7 @@ public class MzTabPROXIImporter
 			// build mzTab file-mapping context
 			context = new TaskMzTabContext(
 				mzTabDirectory, mzTabRelativePath,
-				peakListDirectory, peakListRelativePath,
+				peakListDirectory, peakListRelativePath, peakListCollection,
 				parameters, datasetID);
 			System.out.println(String.format(
 				"Parsed files in mzTab directory [%s] and parameters file " +
@@ -185,6 +189,7 @@ public class MzTabPROXIImporter
 		String mzTabRelativePath = null;
 		File peakListDirectory = null;
 		String peakListRelativePath = null;
+		String peakListCollection = null;
 		File parameters = null;
 		String taskID = null;
 		String datasetID = null;
@@ -205,6 +210,8 @@ public class MzTabPROXIImporter
 					peakListDirectory = new File(value);
 				else if (argument.equals("-peakPath"))
 					peakListRelativePath = value;
+				else if (argument.equals("-peakCollection"))
+					peakListCollection = value;
 				else if (argument.equals("-params"))
 					parameters = new File(value);
 				else if (argument.equals("-task"))
@@ -233,7 +240,7 @@ public class MzTabPROXIImporter
 		try {
 			return new MzTabImportOperation(
 				mzTabDirectory, mzTabRelativePath,
-				peakListDirectory, peakListRelativePath,
+				peakListDirectory, peakListRelativePath, peakListCollection,
 				parameters, taskID, datasetID);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());

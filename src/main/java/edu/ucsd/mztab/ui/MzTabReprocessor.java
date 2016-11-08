@@ -34,32 +34,34 @@ public class MzTabReprocessor
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabReprocessor" +
-		"\n\t-input          <ResultDirectory>" +
-		"\n\t[-mztabPath     <MzTabRelativePath>]" +
-		"\n\t[-peak          <PeakListFilesDirectory>]" +
-		"\n\t[-peakPath      <PeakListRelativePath>]" +
-		"\n\t[-scans         <ScansDirectory>]" +
-		"\n\t-params         <ProteoSAFeParametersFile>" +
-		"\n\t-output         <OutputDirectory>" +
-		"\n\t[-dataset       <DatasetID>|<DatasetIDFile>]" +
-		"\n\t[-threshold     <InvalidPSMPercentageToFail: 0-100> " +
+		"\n\t-input           <ResultDirectory>" +
+		"\n\t[-mztabPath      <MzTabRelativePath>]" +
+		"\n\t[-peak           <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath       <PeakListRelativePath>]" +
+		"\n\t[-peakCollection <PeakListCollectionName> " +
+			"(default \"peak_list_files\")]" +
+		"\n\t[-scans          <ScansDirectory>]" +
+		"\n\t-params          <ProteoSAFeParametersFile>" +
+		"\n\t-output          <OutputDirectory>" +
+		"\n\t[-dataset        <DatasetID>|<DatasetIDFile>]" +
+		"\n\t[-threshold      <InvalidPSMPercentageToFail: 0-100> " +
 			"(default 10)]" +
-		"\n\t[-psmQValue     <PSMQValueColumn>]" +
-		"\n\t[-peptideQValue <PSMQValueColumn>]" +
-		"\n\t[-proteinQValue <PSMQValueColumn>]" +
-		"\n\t[-psmFDR        <GlobalPSMLevelFDR> " +
+		"\n\t[-psmQValue      <PSMQValueColumn>]" +
+		"\n\t[-peptideQValue  <PSMQValueColumn>]" +
+		"\n\t[-proteinQValue  <PSMQValueColumn>]" +
+		"\n\t[-psmFDR         <GlobalPSMLevelFDR> " +
 			"(leave blank if decoy or PSM Q-value column are specified]" +
-		"\n\t[-peptideFDR    <GlobalPeptideLevelFDR> " +
+		"\n\t[-peptideFDR     <GlobalPeptideLevelFDR> " +
 			"(leave blank if decoy or peptide Q-value column are specified]" +
-		"\n\t[-proteinFDR    <GlobalProteinLevelFDR> " +
+		"\n\t[-proteinFDR     <GlobalProteinLevelFDR> " +
 			"(leave blank if decoy or protein Q-value column are specified]" +
-		"\n\t[-filter        true/false (default false; " +
+		"\n\t[-filter         true/false (default false; " +
 			"if specified, PSM rows not meeting the FDR " +
 			"threshold will be removed from the file)]" +
-		"\n\t[-filterType    psm/peptide/protein (default psm; " +
+		"\n\t[-filterType     psm/peptide/protein (default psm; " +
 			"determines which Q-Value column to use when filtering, " +
 			"if filter=true and filterFDR is specified)]" +
-		"\n\t[-filterFDR     0-1 (if not specified, and filter=true, then " +
+		"\n\t[-filterFDR      0-1 (if not specified, and filter=true, then " +
 			"only PSMs marked as decoy or passThreshold=false will be removed]";
 	
 	/*========================================================================
@@ -120,7 +122,8 @@ public class MzTabReprocessor
 		TaskMzTabContext context = new TaskMzTabContext(
 			convertedResult, reprocessing.mzTabRelativePath,
 			reprocessing.peakListDirectory, reprocessing.peakListRelativePath,
-			reprocessing.parameters, reprocessing.datasetID);
+			reprocessing.peakListCollection, reprocessing.parameters,
+			reprocessing.datasetID);
 		// set up validated output result directory
 		File validatedResult =
 			new File(reprocessing.outputDirectory, "validatedResult");
@@ -178,7 +181,8 @@ public class MzTabReprocessor
 		context = new TaskMzTabContext(
 			validatedResult, reprocessing.mzTabRelativePath,
 			reprocessing.peakListDirectory, reprocessing.peakListRelativePath,
-			reprocessing.parameters, reprocessing.datasetID);
+			reprocessing.peakListCollection, reprocessing.parameters,
+			reprocessing.datasetID);
 		// set up cleaned output result directory
 		File cleanedResult =
 			new File(reprocessing.outputDirectory, "cleanedResult");
@@ -222,7 +226,8 @@ public class MzTabReprocessor
 		context = new TaskMzTabContext(
 			cleanedResult, reprocessing.mzTabRelativePath,
 			reprocessing.peakListDirectory, reprocessing.peakListRelativePath,
-			reprocessing.parameters, reprocessing.datasetID);
+			reprocessing.peakListCollection, reprocessing.parameters,
+			reprocessing.datasetID);
 		// set up statistics directory
 		File statisticsDirectory =
 			new File(reprocessing.outputDirectory, "ccms_statistics");
@@ -316,6 +321,7 @@ public class MzTabReprocessor
 		private File    parameters;
 		private String  mzTabRelativePath;
 		private String  peakListRelativePath;
+		private String  peakListCollection;
 		private String  datasetID;
 		private String  passThresholdColumn;
 		private String  decoyColumn;
@@ -337,7 +343,7 @@ public class MzTabReprocessor
 		public MzTabReprocessingOperation(
 			File resultDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File scansDirectory, File parameters,
+			String peakListCollection, File scansDirectory, File parameters,
 			File outputDirectory, String datasetID, String failureThreshold,
 			String passThresholdColumn, String decoyColumn, String decoyPattern,
 			String psmQValueColumn, String peptideQValueColumn,
@@ -407,6 +413,7 @@ public class MzTabReprocessor
 			this.peakListDirectory = peakListDirectory;
 			this.mzTabRelativePath = mzTabRelativePath;
 			this.peakListRelativePath = peakListRelativePath;
+			this.peakListCollection = peakListCollection;
 			this.datasetID = datasetID;
 			// determine failure threshold for mzTab validation
 			if (failureThreshold != null) try {
@@ -489,6 +496,7 @@ public class MzTabReprocessor
 		String mzTabRelativePath = null;
 		File peakListDirectory = null;
 		String peakListRelativePath = null;
+		String peakListCollection = null;
 		File scansDirectory = null;
 		File parameters = null;
 		File outputDirectory = null;
@@ -523,6 +531,8 @@ public class MzTabReprocessor
 					peakListDirectory = new File(value);
 				else if (argument.equals("-peakPath"))
 					peakListRelativePath = value;
+				else if (argument.equals("-peakCollection"))
+					peakListCollection = value;
 				else if (argument.equals("-scans"))
 					scansDirectory = new File(value);
 				else if (argument.equals("-params"))
@@ -620,9 +630,10 @@ public class MzTabReprocessor
 		try {
 			return new MzTabReprocessingOperation(
 				resultDirectory, mzTabRelativePath,
-				peakListDirectory, peakListRelativePath, scansDirectory,
-				parameters, outputDirectory, datasetID, failureThreshold,
-				passThresholdColumn, decoyColumn, decoyPattern,
+				peakListDirectory, peakListRelativePath, peakListCollection,
+				scansDirectory, parameters, outputDirectory, datasetID,
+				failureThreshold, passThresholdColumn,
+				decoyColumn, decoyPattern,
 				psmQValueColumn, peptideQValueColumn, proteinQValueColumn,
 				filter, filterType, filterFDR, psmFDR, peptideFDR, proteinFDR);
 		} catch (Throwable error) {

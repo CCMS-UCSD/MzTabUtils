@@ -17,13 +17,15 @@ public class CopyReprocessedFiles
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.CopyReprocessedFiles" +
-		"\n\t-mztab      <MzTabDirectory>" +
-		"\n\t[-mztabPath <MzTabRelativePath>]" +
-		"\n\t[-peak      <PeakListFilesDirectory>]" +
-		"\n\t[-peakPath  <PeakListRelativePath>]" +
-		"\n\t-params     <ProteoSAFeParametersFile>" +
-		"\n\t-output     <OutputDirectory>" +
-		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]";
+		"\n\t-mztab           <MzTabDirectory>" +
+		"\n\t[-mztabPath      <MzTabRelativePath>]" +
+		"\n\t[-peak           <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath       <PeakListRelativePath>]" +
+		"\n\t[-peakCollection <PeakListCollectionName> " +
+			"(default \"peak_list_files\")]" +
+		"\n\t-params          <ProteoSAFeParametersFile>" +
+		"\n\t-output          <OutputDirectory>" +
+		"\n\t[-dataset        <DatasetID>|<DatasetIDFile>]";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -36,7 +38,7 @@ public class CopyReprocessedFiles
 		TaskMzTabContext context = new TaskMzTabContext(
 			copy.inputDirectory, copy.mzTabRelativePath,
 			copy.peakListDirectory, copy.peakListRelativePath,
-			copy.parameters, copy.datasetID);
+			copy.peakListCollection, copy.parameters, copy.datasetID);
 		// recursively search cleaned result directory for result files
 		Collection<File> resultFiles = findFiles(copy.inputDirectory);
 		if (resultFiles == null || resultFiles.isEmpty())
@@ -87,6 +89,7 @@ public class CopyReprocessedFiles
 		private File    parameters;
 		private String  mzTabRelativePath;
 		private String  peakListRelativePath;
+		private String  peakListCollection;
 		private String  datasetID;
 		
 		/*====================================================================
@@ -95,7 +98,8 @@ public class CopyReprocessedFiles
 		public ReprocessedFileCopyOperation(
 			File inputDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File parameters, File outputDirectory, String datasetID
+			String peakListCollection, File parameters,
+			File outputDirectory, String datasetID
 		) {
 			// validate input directory
 			if (inputDirectory == null)
@@ -147,6 +151,7 @@ public class CopyReprocessedFiles
 			// initialize file context properties (any or all may be null)
 			this.mzTabRelativePath = mzTabRelativePath;
 			this.peakListRelativePath = peakListRelativePath;
+			this.peakListCollection = peakListCollection;
 			this.datasetID = datasetID;
 		}
 	}
@@ -161,6 +166,7 @@ public class CopyReprocessedFiles
 		String mzTabRelativePath = null;
 		File peakListDirectory = null;
 		String peakListRelativePath = null;
+		String peakListCollection = null;
 		File parameters = null;
 		File outputDirectory = null;
 		String datasetID = null;
@@ -181,6 +187,8 @@ public class CopyReprocessedFiles
 					peakListDirectory = new File(value);
 				else if (argument.equals("-peakPath"))
 					peakListRelativePath = value;
+				else if (argument.equals("-peakCollection"))
+					peakListCollection = value;
 				else if (argument.equals("-params"))
 					parameters = new File(value);
 				else if (argument.equals("-output"))
@@ -213,7 +221,7 @@ public class CopyReprocessedFiles
 		try {
 			return new ReprocessedFileCopyOperation(
 				mzTabDirectory, mzTabRelativePath,
-				peakListDirectory, peakListRelativePath,
+				peakListDirectory, peakListRelativePath, peakListCollection,
 				parameters, outputDirectory, datasetID);
 		} catch (Throwable error) {
 			error.printStackTrace();

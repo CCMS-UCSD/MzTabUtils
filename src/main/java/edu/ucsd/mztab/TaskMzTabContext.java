@@ -30,22 +30,24 @@ public class TaskMzTabContext
 	public TaskMzTabContext(
 		File mzTabDirectory, String mzTabRelativePath, File parametersFile
 	) {
-		this(mzTabDirectory, mzTabRelativePath, null, null, parametersFile);
+		this(mzTabDirectory, mzTabRelativePath,
+			null, null, null, parametersFile);
 	}
 	
 	public TaskMzTabContext(
 		File mzTabDirectory, String mzTabRelativePath,
 		File peakListDirectory, String peakListRelativePath,
-		File parametersFile
+		String peakListCollection, File parametersFile
 	) {
 		this(mzTabDirectory, mzTabRelativePath,
-			peakListDirectory, peakListRelativePath, parametersFile, null);
+			peakListDirectory, peakListRelativePath, peakListCollection,
+			parametersFile, null);
 	}
 	
 	public TaskMzTabContext(
 		File mzTabDirectory, String mzTabRelativePath,
 		File peakListDirectory, String peakListRelativePath,
-		File parametersFile, String datasetID
+		String peakListCollection, File parametersFile, String datasetID
 	) {
 		// validate mzTab directory
 		if (mzTabDirectory == null)
@@ -213,14 +215,17 @@ public class TaskMzTabContext
 			String peakListRelativePath = null;
 			if (args[3].trim().isEmpty() == false)
 				peakListRelativePath = args[3];
-			File paramsFile = new File(args[4]);
+			String peakListCollection = null;
+			if (args[4].trim().isEmpty() == false)
+				peakListCollection = args[4];
+			File paramsFile = new File(args[5]);
 			String datasetID = null;
-			if (args.length >= 6)
-				datasetID = args[5];
+			if (args.length >= 7)
+				datasetID = args[6];
 			TaskMzTabContext context = new TaskMzTabContext(
 				mzTabDirectory, mzTabRelativePath,
 				peakListDirectory, peakListRelativePath,
-				paramsFile, datasetID);
+				peakListCollection, paramsFile, datasetID);
 			System.out.println(context.toString());
 		} catch (Throwable error) {
 			System.out.println(usage);

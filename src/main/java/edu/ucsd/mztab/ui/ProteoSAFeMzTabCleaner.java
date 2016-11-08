@@ -21,35 +21,37 @@ public class ProteoSAFeMzTabCleaner
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.ProteoSAFeMzTabCleaner" +
-		"\n\t[-mztab         <MzTabDirectory>" +
+		"\n\t[-mztab          <MzTabDirectory>" +
 			"(if not provided, then cleanup is skipped]" +
-		"\n\t[-mztabPath     <MzTabRelativePath> " +
+		"\n\t[-mztabPath      <MzTabRelativePath> " +
 			"(if not under MzTabDirectory)]" +
-		"\n\t[-peak          <PeakListFilesDirectory>]" +
-		"\n\t[-peakPath      <PeakListRelativePath> " +
+		"\n\t[-peak           <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath       <PeakListRelativePath> " +
 			"(if not under PeakListFilesDirectory)]" +
-		"\n\t-params         <ProteoSAFeParametersFile>" +
-		"\n\t-output         <CleanedMzTabDirectory>" +
-		"\n\t[-dataset       <DatasetID>|<DatasetIDFile>]" +
-		"\n\t[-passThreshold <PassThresholdColumn>]" +
-		"\n\t[-decoy         <IsDecoyColumn>]" +
-		"\n\t[-decoyPattern  <SubstringIndicatingDecoy>]" +
-		"\n\t[-psmQValue     <PSMQValueColumn>]" +
-		"\n\t[-peptideQValue <PSMQValueColumn>]" +
-		"\n\t[-proteinQValue <PSMQValueColumn>]" +
-		"\n\t[-psmFDR        <GlobalPSMLevelFDR> " +
+		"\n\t[-peakCollection <PeakListCollectionName> " +
+			"(default \"peak_list_files\")]" +
+		"\n\t-params          <ProteoSAFeParametersFile>" +
+		"\n\t-output          <CleanedMzTabDirectory>" +
+		"\n\t[-dataset        <DatasetID>|<DatasetIDFile>]" +
+		"\n\t[-passThreshold  <PassThresholdColumn>]" +
+		"\n\t[-decoy          <IsDecoyColumn>]" +
+		"\n\t[-decoyPattern   <SubstringIndicatingDecoy>]" +
+		"\n\t[-psmQValue      <PSMQValueColumn>]" +
+		"\n\t[-peptideQValue  <PSMQValueColumn>]" +
+		"\n\t[-proteinQValue  <PSMQValueColumn>]" +
+		"\n\t[-psmFDR         <GlobalPSMLevelFDR> " +
 			"(leave blank if decoy or PSM Q-value column are specified]" +
-		"\n\t[-peptideFDR   <GlobalPeptideLevelFDR> " +
+		"\n\t[-peptideFDR     <GlobalPeptideLevelFDR> " +
 			"(leave blank if decoy or peptide Q-value column are specified]" +
-		"\n\t[-proteinFDR   <GlobalProteinLevelFDR> " +
+		"\n\t[-proteinFDR     <GlobalProteinLevelFDR> " +
 			"(leave blank if decoy or protein Q-value column are specified]" +
-		"\n\t[-filter        true/false (default false; " +
+		"\n\t[-filter         true/false (default false; " +
 			"if specified, PSM rows not meeting the FDR " +
 			"threshold will be removed from the file)]" +
-		"\n\t[-filterType    psm/peptide/protein (default psm; " +
+		"\n\t[-filterType     psm/peptide/protein (default psm; " +
 			"determines which Q-Value column to use when filtering, " +
 			"if filter=true and filterFDR is specified)]" +
-		"\n\t[-filterFDR     0-1 (if not specified, and filter=true, then " +
+		"\n\t[-filterFDR      0-1 (if not specified, and filter=true, then " +
 			"only PSMs marked as decoy or passThreshold=false will be removed]";
 	
 	/*========================================================================
@@ -125,7 +127,8 @@ public class ProteoSAFeMzTabCleaner
 		public ProteoSAFeMzTabCleanupOperation(
 			File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File parameters, File outputDirectory, String datasetID,
+			String peakListCollection, File parameters,
+			File outputDirectory, String datasetID,
 			String passThresholdColumn, String decoyColumn, String decoyPattern,
 			String psmQValueColumn, String peptideQValueColumn,
 			String proteinQValueColumn,
@@ -182,7 +185,7 @@ public class ProteoSAFeMzTabCleaner
 				context = new TaskMzTabContext(
 					mzTabDirectory, mzTabRelativePath,
 					peakListDirectory, peakListRelativePath,
-					parameters, datasetID);
+					peakListCollection, parameters, datasetID);
 			else context = null;
 			// initialize FDR columns (any or all may be null)
 			this.passThresholdColumn = passThresholdColumn;
@@ -222,6 +225,7 @@ public class ProteoSAFeMzTabCleaner
 		String mzTabRelativePath = null;
 		File peakListDirectory = null;
 		String peakListRelativePath = null;
+		String peakListCollection = null;
 		File parameters = null;
 		File outputDirectory = null;
 		String datasetID = null;
@@ -254,6 +258,8 @@ public class ProteoSAFeMzTabCleaner
 					peakListDirectory = new File(value);
 				else if (argument.equals("-peakPath"))
 					peakListRelativePath = value;
+				else if (argument.equals("-peakCollection"))
+					peakListCollection = value;
 				else if (argument.equals("-params"))
 					parameters = new File(value);
 				else if (argument.equals("-output"))
@@ -343,7 +349,7 @@ public class ProteoSAFeMzTabCleaner
 		try {
 			return new ProteoSAFeMzTabCleanupOperation(
 				mzTabDirectory, mzTabRelativePath,
-				peakListDirectory, peakListRelativePath,
+				peakListDirectory, peakListRelativePath, peakListCollection,
 				parameters, outputDirectory, datasetID,
 				passThresholdColumn, decoyColumn, decoyPattern,
 				psmQValueColumn, peptideQValueColumn, proteinQValueColumn,

@@ -26,20 +26,24 @@ public class MzTabValidator
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabValidator" +
-		"\n\t-params     <ParameterFile>" +
-		"\n\t[-mztab     <MzTabDirectory> " +
+		"\n\t-params          <ParameterFile>" +
+		"\n\t[-mztab          <MzTabDirectory> " +
 			"(if not provided, then validation is skipped]" +
-		"\n\t[-mztabPath <MzTabRelativePath> (if not under MzTabDirectory)]" +
-		"\n\t[-peak      <PeakListFilesDirectory>]" +
-		"\n\t[-peakPath  <PeakListRelativePath> " +
+		"\n\t[-mztabPath      <MzTabRelativePath> " +
+			"(if not under MzTabDirectory)]" +
+		"\n\t[-peak           <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath       <PeakListRelativePath> " +
 			"(if not under PeakListFilesDirectory)]" +
-		"\n\t[-scans     <ScansDirectory>]" +
-		"\n\t[-result    <UploadedResultDirectory>]" +
-		"\n\t[-dataset   <DatasetID>|<DatasetIDFile>]" +
-		"\n\t-output     <ValidatedMzTabDirectory>" +
-		"\n\t[-log       <LogFile> " +
+		"\n\t[-peakCollection <PeakListCollectionName> " +
+			"(default \"peak_list_files\")]" +
+		"\n\t[-scans          <ScansDirectory>]" +
+		"\n\t[-result         <UploadedResultDirectory>]" +
+		"\n\t[-dataset        <DatasetID>|<DatasetIDFile>]" +
+		"\n\t-output          <ValidatedMzTabDirectory>" +
+		"\n\t[-log            <LogFile> " +
 			"(if not specified, log output will be printed to stdout)]" +
-		"\n\t[-threshold <InvalidPSMPercentageToFail: 0-100> (default 10)]";
+		"\n\t[-threshold      <InvalidPSMPercentageToFail: 0-100> " +
+			"(default 10)]";
 	public static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	public static final String MZTAB_VALIDATION_LOG_HEADER_LINE =
 		"MzTab_file\tUploaded_file\tFile_descriptor\t" +
@@ -270,8 +274,9 @@ public class MzTabValidator
 		public MzTabValidationOperation(
 			File parameters, File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			File scansDirectory, File resultDirectory, String datasetID,
-			File outputDirectory, File logFile, String failureThreshold
+			String peakListCollection, File scansDirectory,
+			File resultDirectory, String datasetID, File outputDirectory,
+			File logFile, String failureThreshold
 		) {
 			// validate parameters file
 			if (parameters == null)
@@ -315,7 +320,7 @@ public class MzTabValidator
 				context = new TaskMzTabContext(
 					mzTabDirectory, mzTabRelativePath,
 					peakListDirectory, peakListRelativePath,
-					parameters, datasetID);
+					peakListCollection, parameters, datasetID);
 			else context = null;
 			// validate scans directory (can be null)
 			if (scansDirectory != null) {
@@ -387,6 +392,7 @@ public class MzTabValidator
 		String mzTabRelativePath = null;
 		File peakListDirectory = null;
 		String peakListRelativePath = null;
+		String peakListCollection = null;
 		File scansDirectory = null;
 		File resultDirectory = null;
 		String datasetID = null;
@@ -412,6 +418,8 @@ public class MzTabValidator
 					peakListDirectory = new File(value);
 				else if (argument.equals("-peakPath"))
 					peakListRelativePath = value;
+				else if (argument.equals("-peakCollection"))
+					peakListCollection = value;
 				else if (argument.equals("-scans"))
 					scansDirectory = new File(value);
 				else if (argument.equals("-result"))
@@ -446,7 +454,7 @@ public class MzTabValidator
 		try {
 			return new MzTabValidationOperation(params, mzTabDirectory,
 				mzTabRelativePath, peakListDirectory, peakListRelativePath,
-				scansDirectory, resultDirectory, datasetID,
+				peakListCollection, scansDirectory, resultDirectory, datasetID,
 				outputDirectory, logFile, failureThreshold);
 		} catch (Throwable error) {
 			die("There was an error reading command line parameters " +
