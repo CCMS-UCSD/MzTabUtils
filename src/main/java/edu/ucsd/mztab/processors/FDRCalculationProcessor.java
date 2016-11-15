@@ -263,37 +263,37 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			// as either true or false, then try to determine the
 			// correct value and write it to the control column
 			if (isDecoy == null) {
+				Integer index = null;
 				// if the source column is present, read it
-				if (decoyColumn != null) {
-					Integer index = columns.get(decoyColumn);
-					if (index != null) {
-						String value = row[index];
-						// if a decoy column was specified and is present,
-						// and a decoy substring was provided, then the
-						// row is a decoy hit iff the given column value
-						// contains that substring
-						if (decoyPattern != null) {
-							if (value.contains(decoyPattern))
-								isDecoy = true;
-							else isDecoy = false;
-						}
-						// if a decoy column was specified and is present,
-						// but no decoy substring was provided, then try
-						// all known possible decoy substrings
-						else {
-							for (String knownDecoyPattern :
-								MzTabConstants.KNOWN_DECOY_PATTERNS) {
-								if (value.contains(knownDecoyPattern)) {
-									isDecoy = true;
-									break;
-								}
-							}
-							// if no decoy substrings were found in this value,
-							// interpret it as a standard boolean value
-							if (isDecoy == null)
-								isDecoy = CommonUtils.parseBooleanColumn(value);
+				if (decoyColumn != null)
+					index = columns.get(decoyColumn);
+				// otherwise look at the protein accession by default
+				else index = columns.get(MzTabConstants.PSH_PROTEIN_COLUMN);
+				// if any potential decoy-indicating
+				// column could be found, check it
+				if (index != null) {
+					String value = row[index];
+					// if a decoy substring was provided, then the
+					// row is a decoy hit iff the given column value
+					// contains that substring
+					if (decoyPattern != null) {
+						if (value.contains(decoyPattern))
+							isDecoy = true;
+						else isDecoy = false;
+					}
+					// if no decoy substring was provided, then try
+					// all known possible decoy substrings
+					else for (String knownDecoyPattern :
+						MzTabConstants.KNOWN_DECOY_PATTERNS) {
+						if (value.contains(knownDecoyPattern)) {
+							isDecoy = true;
+							break;
 						}
 					}
+					// if no decoy patterns were found in this column,
+					// then try interpreting it as a standard boolean value
+					if (isDecoy == null)
+						isDecoy = CommonUtils.parseBooleanColumn(value);
 				}
 				// write isDecoy as 0/1 by convention
 				row[decoyIndex] =
