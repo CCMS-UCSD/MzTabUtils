@@ -278,9 +278,21 @@ public class FDRCalculationProcessor implements MzTabProcessor
 							else isDecoy = false;
 						}
 						// if a decoy column was specified and is present,
-						// but no decoy substring was provided, then we
-						// can only interpret standard boolean values
-						else isDecoy = CommonUtils.parseBooleanColumn(value);
+						// but no decoy substring was provided, then try
+						// all known possible decoy substrings
+						else {
+							for (String knownDecoyPattern :
+								MzTabConstants.KNOWN_DECOY_PATTERNS) {
+								if (value.contains(knownDecoyPattern)) {
+									isDecoy = true;
+									break;
+								}
+							}
+							// if no decoy substrings were found in this value,
+							// interpret it as a standard boolean value
+							if (isDecoy == null)
+								isDecoy = CommonUtils.parseBooleanColumn(value);
+						}
 					}
 				}
 				// write isDecoy as 0/1 by convention

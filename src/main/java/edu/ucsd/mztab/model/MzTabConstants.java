@@ -86,6 +86,9 @@ public class MzTabConstants
 	public static final String[] KNOWN_QVALUE_COLUMNS = new String[]{
 		"QValue", "MS-GF:QValue"
 	};
+	public static final String[] KNOWN_DECOY_PATTERNS = new String[]{
+		"XXX_"
+	};
 	
 	// constants pertaining to ProteoSAFe params.xml result/peak file mapping
 	public static final String EXTRACTED_FILE_DELIMITER = "#";
