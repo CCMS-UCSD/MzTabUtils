@@ -444,10 +444,12 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			ImmutablePair<Boolean, Boolean> attributes =
 				statistics.getPeptide(sequence);
 			if (attributes != null) {
-				// increment the proper count for this peptide if it passes
-				// threshold and its "isDecoy" value is not null.
-				if (attributes.getLeft() && attributes.getRight() != null) {
-					if (attributes.getRight())
+				// increment the proper count for this
+				// peptide if it passes threshold
+				if (attributes.getLeft()) {
+					if (attributes.getRight() == null)
+						statistics.addElement("nullDecoyPeptide", sequence);
+					else if (attributes.getRight())
 						statistics.addElement("decoyPeptide", sequence);
 					else statistics.addElement("targetPeptide", sequence);
 				}
@@ -458,10 +460,12 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			ImmutablePair<Boolean, Boolean> attributes =
 				statistics.getProtein(accession);
 			if (attributes != null) {
-				// increment the proper count for this protein if it passes
-				// threshold and its "isDecoy" value is not null.
-				if (attributes.getLeft() && attributes.getRight() != null) {
-					if (attributes.getRight())
+				// increment the proper count for this
+				// protein if it passes threshold
+				if (attributes.getLeft()) {
+					if (attributes.getRight() == null)
+						statistics.addElement("nullDecoyProtein", accession);
+					else if (attributes.getRight())
 						statistics.addElement("decoyProtein", accession);
 					else statistics.addElement("targetProtein", accession);
 				}

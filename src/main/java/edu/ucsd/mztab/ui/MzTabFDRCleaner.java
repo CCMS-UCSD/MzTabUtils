@@ -136,14 +136,12 @@ public class MzTabFDRCleaner
 		// determine number of target PSMs; if any PSM is marked as target,
 		// then only count those, otherwise if any PSM is marked as decoy,
 		// then count all PSMs that were NOT marked as decoy
-		int decoys = statistics.getElementCount("decoyPSM");
 		int targets = statistics.getElementCount("targetPSM");
+		int decoys = statistics.getElementCount("decoyPSM");
 		if (targets == 0 && decoys > 0)
 			targets = statistics.getElementCount("nullDecoyPSM");
 		// calculate global FDR values from returned count maps
-		Double psmFDR = MzTabFDRCleaner.calculateFDR(
-			statistics.getElementCount("targetPSM"),
-			statistics.getElementCount("decoyPSM"));
+		Double psmFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
 		// if no FDR could be calculated, use highest found Q-Value, if any
 		if (psmFDR == null)
 			psmFDR = statistics.getMaxQValue(FDRType.PSM);
@@ -155,10 +153,14 @@ public class MzTabFDRCleaner
 		if (psmFDR == null &&
 			(filterType == null || filterType.equals(FDRType.PSM)))
 			psmFDR = filterFDR;
+		// use logic similar to that of PSMs to
+		// determine the number of target peptides
+		targets = statistics.getElementCount("targetPeptide");
+		decoys = statistics.getElementCount("decoyPeptide");
+		if (targets == 0 && decoys > 0)
+			targets = statistics.getElementCount("nullDecoyPeptide");
 		// peptide-level FDR
-		Double peptideFDR = MzTabFDRCleaner.calculateFDR(
-			statistics.getElementCount("targetPeptide"),
-			statistics.getElementCount("decoyPeptide"));
+		Double peptideFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
 		if (peptideFDR == null)
 			peptideFDR = statistics.getMaxQValue(FDRType.PEPTIDE);
 		if (peptideFDR == null)
@@ -166,10 +168,14 @@ public class MzTabFDRCleaner
 		if (peptideFDR == null &&
 			filterType != null && filterType.equals(FDRType.PEPTIDE))
 			peptideFDR = filterFDR;
+		// use logic similar to that of PSMs to
+		// determine the number of target proteins
+		targets = statistics.getElementCount("targetProtein");
+		decoys = statistics.getElementCount("decoyProtein");
+		if (targets == 0 && decoys > 0)
+			targets = statistics.getElementCount("nullDecoyProtein");
 		// protein-level FDR
-		Double proteinFDR = MzTabFDRCleaner.calculateFDR(
-			statistics.getElementCount("targetProtein"),
-			statistics.getElementCount("decoyProtein"));
+		Double proteinFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
 		if (proteinFDR == null)
 			proteinFDR = statistics.getMaxQValue(FDRType.PROTEIN);
 		if (proteinFDR == null)
