@@ -47,6 +47,7 @@ public class PROXIProcessor implements MzTabProcessor
 	private MzTabSectionHeader                prtHeader;
 	private MzTabSectionHeader                pepHeader;
 	private MzTabSectionHeader                psmHeader;
+	private boolean                           importByQValue;
 	private Integer                           qValueColumn;
 	private Long                              start;
 	
@@ -54,7 +55,8 @@ public class PROXIProcessor implements MzTabProcessor
 	 * Constructor
 	 *========================================================================*/
 	public PROXIProcessor(
-		String taskID, Integer datasetID, Connection connection
+		String taskID, Integer datasetID, boolean importByQValue,
+		Connection connection
 	) {
 		// validate database connection
 		if (connection == null)
@@ -78,6 +80,7 @@ public class PROXIProcessor implements MzTabProcessor
 		pepHeader = null;
 		psmHeader = null;
 		qValueColumn = null;
+		this.importByQValue = importByQValue;
 		// intialize start time
 		start = null;
 	}
@@ -227,9 +230,10 @@ public class PROXIProcessor implements MzTabProcessor
 			else psmHeader.validateMzTabRow(line);
 			// extract insertable elements from this PSM row
 			String[] columns = line.split("\\t");
-			// determine if this PSM has a Q-value at or below the threshold
+			// if flag is set to only import PSMs at or below the designated
+			// Q-value threshold, determine if this PSM makes the cut
 			boolean importable = true;
-			try {
+			if (importByQValue) try {
 				double qValue = Double.parseDouble(columns[qValueColumn]);
 				if (qValue > IMPORT_Q_VALUE_THRESHOLD)
 					importable = false;

@@ -32,7 +32,8 @@ public class MzTabPROXIImporter
 			"(default \"peak_list_files\")]" +
 		"\n\t-params          <ProteoSAFeParametersFile>" +
 		"\n\t-task            <ProteoSAFeTaskID>" +
-		"\n\t-dataset         <DatasetID>|<DatasetIDFile>";
+		"\n\t-dataset         <DatasetID>|<DatasetIDFile>" +
+		"\n\t[-importByQValue true|false (default true)]";
 	private static final String DATASET_ID_PREFIX = "MSV";
 	
 	/*========================================================================
@@ -66,7 +67,8 @@ public class MzTabPROXIImporter
 				MzTabReader reader =
 					new MzTabReader(importer.context.getMzTabFile(file));
 				PROXIProcessor processor = new PROXIProcessor(
-					importer.taskID, importer.datasetID, connection);
+					importer.taskID, importer.datasetID,
+					importer.importByQValue, connection);
 				reader.addProcessor(processor);
 				reader.read();
 				totalLines += processor.getRowCount("lines_in_file");
@@ -100,6 +102,7 @@ public class MzTabPROXIImporter
 		private File             mzTabDirectory;
 		private String           taskID;
 		private Integer          datasetID;
+		private Boolean          importByQValue;
 		private TaskMzTabContext context;
 		private long             start;
 		
@@ -110,7 +113,7 @@ public class MzTabPROXIImporter
 			File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
 			String peakListCollection, File parameters,
-			String taskID, String datasetID
+			String taskID, String datasetID, String importByQValue
 		) {
 			// validate mzTab directory
 			if (mzTabDirectory == null)
@@ -159,6 +162,17 @@ public class MzTabPROXIImporter
 					"Dataset ID string [%s] could not be parsed into " +
 					"a valid dataset ID.", datasetID), error);
 			}
+			// propagate importByQValue flag, if present (default true)
+			if (importByQValue == null)
+				this.importByQValue = true;
+			else {
+				this.importByQValue =
+					CommonUtils.parseBooleanColumn(importByQValue);
+				if (this.importByQValue == null)
+					throw new IllegalArgumentException(String.format(
+						"importByQValue argument [%s] could not be parsed " +
+						"as a boolean value.", importByQValue));
+			}
 			// timestamp the beginning of the procedure
 			start = System.currentTimeMillis();
 			System.out.println(String.format(
@@ -193,6 +207,7 @@ public class MzTabPROXIImporter
 		File parameters = null;
 		String taskID = null;
 		String datasetID = null;
+		String importByQValue = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -234,14 +249,16 @@ public class MzTabPROXIImporter
 					}
 					// otherwise treat the argument as the literal dataset ID
 					else datasetID = value;
-				} else return null;
+				} else if (argument.equals("-importByQValue"))
+					importByQValue = value;
+				else return null;
 			}
 		}
 		try {
 			return new MzTabImportOperation(
 				mzTabDirectory, mzTabRelativePath,
 				peakListDirectory, peakListRelativePath, peakListCollection,
-				parameters, taskID, datasetID);
+				parameters, taskID, datasetID, importByQValue);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;
