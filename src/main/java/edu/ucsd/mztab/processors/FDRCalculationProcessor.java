@@ -159,6 +159,9 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				else if (header.equalsIgnoreCase(
 					MzTabConstants.PSH_PSM_ID_COLUMN))
 					columns.put(MzTabConstants.PSH_PSM_ID_COLUMN, i);
+				else if (header.equalsIgnoreCase(
+					MzTabConstants.PSH_PROTEIN_COLUMN))
+					columns.put(MzTabConstants.PSH_PROTEIN_COLUMN, i);
 				else if (CommonUtils.headerCorrespondsToColumn(
 					header, passThresholdColumn, scoreColumns))
 					columns.put(passThresholdColumn, i);
@@ -341,17 +344,27 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				if (isDecoy != null) {
 					// a PSM is a target PSM if any of its rows
 					// have isDecoy=false; any target PSM should
-					// explicitly not be in the decoy set
+					// explicitly not be in the decoy or null sets
 					if (isDecoy == false) {
 						statistics.addElement("targetPSM", psmID);
 						statistics.removeElement("decoyPSM", psmID);
+						statistics.removeElement("nullDecoyPSM", psmID);
 					}
-					// a PSM should only be added to the deoy
+					// a PSM should only be added to the decoy
 					// set if it's not already in the target set
-					else if (
-						statistics.containsElement("targetPSM", psmID) == false)
+					else if (statistics.containsElement("targetPSM", psmID)
+						== false) {
 						statistics.addElement("decoyPSM", psmID);
+						statistics.removeElement("nullDecoyPSM", psmID);
+					}
 				}
+				// since this PSM row passed threshold, note it even if it has
+				// isDecoy=null, since it may need to be considered against
+				// any decoy PSMs that were found due to standard decoy patterns
+				else if (
+					statistics.containsElement("targetPSM", psmID) == false &&
+					statistics.containsElement("decoyPSM", psmID) == false)
+					statistics.addElement("nullDecoyPSM", psmID);
 			}
 			// add this PSM row's peptide sequence to the proper maps
 			Integer peptideIndex =

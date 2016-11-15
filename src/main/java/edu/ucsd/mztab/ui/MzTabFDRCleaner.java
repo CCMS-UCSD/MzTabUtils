@@ -133,6 +133,13 @@ public class MzTabFDRCleaner
 				reader.addProcessor(processor);
 		// clean file
 		reader.read();
+		// determine number of target PSMs; if any PSM is marked as target,
+		// then only count those, otherwise if any PSM is marked as decoy,
+		// then count all PSMs that were NOT marked as decoy
+		int decoys = statistics.getElementCount("decoyPSM");
+		int targets = statistics.getElementCount("targetPSM");
+		if (targets == 0 && decoys > 0)
+			targets = statistics.getElementCount("nullDecoyPSM");
 		// calculate global FDR values from returned count maps
 		Double psmFDR = MzTabFDRCleaner.calculateFDR(
 			statistics.getElementCount("targetPSM"),
