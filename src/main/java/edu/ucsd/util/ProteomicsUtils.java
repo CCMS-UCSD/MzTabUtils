@@ -1,12 +1,15 @@
 package edu.ucsd.util;
 
+import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import edu.ucsd.mztab.exceptions.InvalidMzTabColumnValueException;
 import edu.ucsd.mztab.model.Modification;
 import edu.ucsd.mztab.model.MzTabConstants;
 
@@ -159,5 +162,169 @@ public class ProteomicsUtils
 		if (modifications.isEmpty())
 			return null;
 		else return modifications;
+	}
+	
+	public static Map<Integer, Double> getModificationMasses(
+		String mods, String unmodifiedSequence
+	) {
+		if (unmodifiedSequence == null)
+			return null;
+		Collection<Modification> modifications = getModifications(mods);
+		if (modifications == null || modifications.isEmpty())
+			return null;
+		else {
+			Map<Integer, Double> masses =
+				new LinkedHashMap<Integer, Double>(modifications.size());
+			for (Modification modification : modifications) {
+				try {
+					parseModMass(
+						modification.toString(), unmodifiedSequence, masses);
+				} catch (InvalidMzTabColumnValueException error) {
+					//error.printStackTrace();
+					continue;
+				}
+			}
+			if (masses.isEmpty())
+				return null;
+			else return masses;
+		}
+	}
+	
+	public static String getModifiedSequence(
+		String unmodifiedSequence, String mods
+	) {
+		if (unmodifiedSequence == null)
+			return null;
+		String modifiedSequence = unmodifiedSequence;
+		Map<Integer, Double> modificationMasses =
+			getModificationMasses(mods, unmodifiedSequence);
+		if (modificationMasses == null)
+			return unmodifiedSequence;
+		else for (Integer position : modificationMasses.keySet())
+			modifiedSequence = addModToPeptide(
+				modifiedSequence, modificationMasses.get(position), position);
+		if (modifiedSequence == null)
+			return unmodifiedSequence;
+		else return modifiedSequence;
+	}
+	
+	/*========================================================================
+	 * Convenience methods
+	 *========================================================================*/
+	private static void parseModMass(
+		String modification, String unmodifiedSequence,
+		Map<Integer, Double> masses
+	) throws InvalidMzTabColumnValueException {
+		if (modification == null || unmodifiedSequence == null ||
+			masses == null)
+			return;
+		Matcher matcher =
+			MzTabConstants.MZTAB_MODIFICATION_PATTERN.matcher(modification);
+		if (matcher.find() == false)
+			throw new InvalidMzTabColumnValueException(String.format(
+				"Argument modification string [%s] is invalid: mzTab " +
+				"modification strings should be comma-delimited " +
+				"lists of strings each conforming to the following " +
+				"format:\n%s", modification,
+				MzTabConstants.MZTAB_MODIFICATION_STRING_FORMAT));
+		String position = matcher.group(1);
+		String identifier = matcher.group(2);
+		// if this is a neutral loss declaration (which we
+		// assume to be the case if it's a CV declaration
+		// enclosed by square brackets), then ignore it
+		if (identifier != null &&
+			MzTabConstants.CV_TERM_PATTERN.matcher(identifier).matches())
+			return;
+		// validate the mod's {position} element
+		else if (position == null || position.trim().equalsIgnoreCase("null")) {
+			throw new InvalidMzTabColumnValueException(String.format(
+				"A missing or \"null\" value was found in the \"{position}\" " +
+				"element of mzTab modification string [%s]. Therefore, this " +
+				"modification cannot be unambiguously written into the " +
+				"modified peptide string.", modification));
+		}
+		matcher = MzTabConstants.MZTAB_POSITION_PATTERN.matcher(position);
+		if (matcher.matches() == false)
+			throw new InvalidMzTabColumnValueException(String.format(
+				"The \"{position}\" element [%s] of mzTab modification " +
+				"string [%s] does not conform to the required string " +
+				"format, as defined in the mzTab format specification, " +
+				"section 5.8.", position, modification));
+		else if (position.indexOf('|') >= 0)
+			throw new InvalidMzTabColumnValueException(String.format(
+				"The \"{position}\" element [%s] of mzTab modification " +
+				"string [%s] contains one or more pipe (\"|\") " +
+				"characters, indicating that the modification's site " +
+				"is ambiguous. Therefore, this modification cannot be " +
+				"unambiguously written into the modified peptide string.",
+				position, modification));
+		// try to extract the integer site position of the referenced mod
+		int site;
+		try {
+			site = Integer.parseInt(matcher.group(1));
+		} catch (NumberFormatException error) {
+			throw new InvalidMzTabColumnValueException(String.format(
+				"The \"{position}\" element [%s] of mzTab modification " +
+				"string [%s] could not be parsed into a proper integer " +
+				"site index. Therefore, this modification cannot be " +
+				"unambiguously written into the modified peptide string.",
+				position, modification));
+		}
+		// make sure that the position is within the bounds
+		// of the original peptide sequence's length
+		if (site < 0 || site > unmodifiedSequence.length())
+			throw new InvalidMzTabColumnValueException(String.format(
+				"The \"{position}\" element [%s] of mzTab modification " +
+				"string [%s] was parsed into an integer of value %d. This " +
+				"position falls outside the bounds of the affected peptide " +
+				"[%s] (length %d). Therefore, this modification cannot be " +
+				"unambiguously written into the modified peptide string.",
+				position, modification, site, unmodifiedSequence,
+				unmodifiedSequence.length()));
+		// try to match the mod's {Modification or Substitution identifier}
+		// element against the set of recognized identifier formats, and
+		// use that to determine or extract the modification mass 
+		String mass = null;
+		matcher = MzTabConstants.CV_ACCESSION_PATTERN.matcher(identifier);
+		if (matcher.matches()) {
+			Double massValue =
+				OntologyUtils.getOntologyModificationMass(matcher.group(1));
+			if (massValue != null)
+				mass = Double.toString(massValue);
+		} else {
+			matcher = MzTabConstants.MZTAB_CHEMMOD_PATTERN.matcher(identifier);
+			if (matcher.matches())
+				mass = matcher.group(1);
+			else throw new InvalidMzTabColumnValueException(String.format(
+				"The \"{Modification or Substitution identifier}\" element " +
+				"[%s] of mzTab modification string [%s] was not recognized " +
+				"as a valid identifier format, as defined in the mzTab " +
+				"format specification, section 5.8. Therefore, this " +
+				"modification cannot be unambiguously written into the " +
+				"modified peptide string.", identifier, modification));
+		}
+		// if no mass could be extracted, then this mod can't be written
+		double massValue;
+		try {
+			massValue = Double.parseDouble(mass);
+		} catch (Throwable error) {
+			throw new InvalidMzTabColumnValueException(String.format(
+				"The \"{Modification or Substitution identifier}\" element " +
+				"[%s] of mzTab modification string [%s] could not be " +
+				"evaluated into a proper numerical mass value. Therefore, " +
+				"this modification cannot be unambiguously written into " +
+				"the modified peptide string.", identifier, modification));
+		}
+		// if the mass is 0, ignore this mod
+		if (massValue == 0.0)
+			return;
+		// add this mass offset to the map
+		Double current = masses.get(site);
+		if (current == null)
+			masses.put(site, massValue);
+		// be sure to use BigDecimal for the addition operation,
+		// since doubles alone result in lame precision issues
+		else masses.put(site, BigDecimal.valueOf(current).add(
+			BigDecimal.valueOf(massValue)).doubleValue());
 	}
 }
