@@ -33,7 +33,7 @@ public class MzTabCounter
 	public static final String MZTAB_SUMMARY_FILE_HEADER_LINE =
 		"MzTab_file\tUploaded_file\tDataset_mzTab\tFile_descriptor\t" +
 		"PSM_rows\tInvalid_PSM_rows\tFound_PSMs\tPSM_FDR\t" +
-		"Peptide_rows\tFound_Peptides\tPeptide_FDR\t" +
+		"Peptide_rows\tFound_Peptides\tFound_Variants\tPeptide_FDR\t" +
 		"Protein_rows\tFound_Proteins\tProtein_FDR\tFound_Mods";
 	
 	/*========================================================================
@@ -175,12 +175,13 @@ public class MzTabCounter
 		// extract global FDR values to print to output file
 		String[] fdr = extractGlobalFDRValues(inputFile.getFile());
 		writer.println(String.format(
-			"%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
+			"%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
 			inputFile.getFile().getName(), uploadedFilename,
 			inputFile.getMzTabPath(), inputFile.getDescriptor(),
 			counts.get("PSM"), counts.get("invalid_PSM"),
 			counts.get("PSM_ID"), fdr[0],
-			counts.get("PEP"), counts.get("sequence"), fdr[1],
+			counts.get("PEP"), counts.get("sequence"),
+			counts.get("variant"), fdr[1],
 			counts.get("PRT"), counts.get("accession"), fdr[2],
 			counts.get("modification")));
 	}

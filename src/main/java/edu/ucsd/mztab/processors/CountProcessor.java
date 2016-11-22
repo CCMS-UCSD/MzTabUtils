@@ -12,6 +12,7 @@ import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
+import edu.ucsd.util.ProteomicsUtils;
 
 public class CountProcessor implements MzTabProcessor
 {
@@ -24,7 +25,7 @@ public class CountProcessor implements MzTabProcessor
 		new String[]{ "sequence", "accession", "modifications" };
 	private static final String[] RELEVANT_PSM_COLUMNS =
 		new String[]{
-			"PSM_ID", "sequence", "accession", "modifications",
+			"PSM_ID", "sequence", "accession", "modifications", "charge",
 			"opt_global_valid"
 		};
 	
@@ -150,6 +151,16 @@ public class CountProcessor implements MzTabProcessor
 				} else addElement(
 					column, columns[psmHeader.getColumnIndex(column)]);
 			}
+			// build variant identifier and add that to the count map
+			String sequence = columns[psmHeader.getColumnIndex("sequence")];
+			String modifications =
+				columns[psmHeader.getColumnIndex("modifications")];
+			String modifiedSequence =
+				ProteomicsUtils.getModifiedSequence(sequence, modifications);
+			String charge = columns[psmHeader.getColumnIndex("charge")];
+			addElement("variant", String.format("%s_%s",
+				modifiedSequence != null ? modifiedSequence : "null",
+				charge != null ? charge : "null"));
 		}
 		return line;
 	}
@@ -172,6 +183,10 @@ public class CountProcessor implements MzTabProcessor
 		if (uniqueElements.containsKey("sequence"))
 			counts.put("sequence", uniqueElements.get("sequence").size());
 		else counts.put("sequence", 0);
+		// add count of found unique variants
+		if (uniqueElements.containsKey("variant"))
+			counts.put("variant", uniqueElements.get("variant").size());
+		else counts.put("variant", 0);
 		// add count of found unique proteins
 		if (uniqueElements.containsKey("accession"))
 			counts.put("accession", uniqueElements.get("accession").size());
