@@ -3,11 +3,11 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>ccms</groupId>
-	<artifactId>mztab-utils</artifactId>
+	<groupId>edu.ucsd.mztab</groupId>
+	<artifactId>MzTabUtils</artifactId>
 	<name>CCMS MzTab Utilities</name>
 	<packaging>jar</packaging>
-	<version>1.0</version>
+	<version>2016.0517</version>
 	<repositories>
 		<!-- EBI Maven repository -->
 		<repository>
