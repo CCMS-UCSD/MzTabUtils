@@ -38,6 +38,6 @@ deploy_source()
 	# add "pomFile=<filename>" to deploy plugin if you've got a pom 
 }
 
-mvn clean assembly:assembly
+mvn clean install
 deploy edu.ucsd.mztab MzTabUtils $1 target/MzTabUtils.jar 
 deploy_source edu.ucsd.mztab MzTabUtils $1 target/MzTabUtils-sources.jar
