@@ -43,12 +43,20 @@ public class CountProcessor implements MzTabProcessor
 	 * Constructor
 	 *========================================================================*/
 	public CountProcessor(Map<String, Integer> counts) {
+		this(counts, null);
+	}
+	
+	public CountProcessor(
+		Map<String, Integer> counts, Map<String, Set<String>> uniqueElements
+	) {
 		// validate counts map
 		if (counts == null)
 			throw new NullPointerException("Argument counts map is null.");
 		else this.counts = counts;
 		// initialize unique elements map
-		uniqueElements = new HashMap<String, Set<String>>();
+		if (uniqueElements == null)
+			this.uniqueElements = new HashMap<String, Set<String>>();
+		else this.uniqueElements = uniqueElements;
 		// initialize mzTab file parameters
 		mzTabFilename = null;
 		prtHeader = null;
