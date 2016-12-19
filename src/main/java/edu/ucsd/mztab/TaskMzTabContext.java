@@ -15,7 +15,7 @@ import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext.UploadMapping;
-import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class TaskMzTabContext
 {

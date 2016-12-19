@@ -13,7 +13,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import edu.ucsd.mztab.exceptions.UnverifiableNativeIDException;
-import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class MzIdentMLNativeIDMap
 {

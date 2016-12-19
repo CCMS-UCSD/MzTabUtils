@@ -19,7 +19,7 @@ import org.apache.commons.io.FilenameUtils;
 
 import edu.ucsd.mztab.model.ModificationParse;
 import edu.ucsd.mztab.model.MzTabConstants;
-import edu.ucsd.util.ProteomicsUtils;
+import edu.ucsd.mztab.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;

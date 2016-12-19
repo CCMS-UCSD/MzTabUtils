@@ -24,8 +24,8 @@ import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabConstants.FDRType;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
-import edu.ucsd.util.CommonUtils;
-import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class MzTabReprocessor
 {

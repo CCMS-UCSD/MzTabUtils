@@ -4,7 +4,7 @@ import java.io.File;
 
 import org.apache.commons.io.FilenameUtils;
 
-import edu.ucsd.util.CommonUtils;
+import edu.ucsd.mztab.util.CommonUtils;
 
 public class MzTabMsRun
 {

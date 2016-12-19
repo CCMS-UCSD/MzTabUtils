@@ -8,7 +8,7 @@ import java.util.Collection;
 
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabFile;
-import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class CopyReprocessedFiles
 {

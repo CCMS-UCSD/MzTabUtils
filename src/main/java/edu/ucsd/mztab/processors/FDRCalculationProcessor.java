@@ -16,7 +16,7 @@ import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
-import edu.ucsd.util.CommonUtils;
+import edu.ucsd.mztab.util.CommonUtils;
 
 public class FDRCalculationProcessor implements MzTabProcessor
 {

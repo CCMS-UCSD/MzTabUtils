@@ -4,8 +4,8 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.regex.Matcher;
 
-import edu.ucsd.util.OntologyUtils;
-import edu.ucsd.util.ProteomicsUtils;
+import edu.ucsd.mztab.util.OntologyUtils;
+import edu.ucsd.mztab.util.ProteomicsUtils;
 
 public class Modification
 {

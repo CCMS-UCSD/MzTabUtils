@@ -12,7 +12,7 @@ import org.w3c.dom.Document;
 
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext.UploadMapping;
-import edu.ucsd.util.FileIOUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class RemangleFiles
 {

@@ -12,8 +12,8 @@ import java.util.Date;
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.processors.PROXIProcessor;
-import edu.ucsd.util.CommonUtils;
-import edu.ucsd.util.DatabaseUtils;
+import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.DatabaseUtils;
 
 public class MzTabPROXIImporter
 {

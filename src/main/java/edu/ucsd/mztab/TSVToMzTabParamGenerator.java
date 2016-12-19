@@ -21,9 +21,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
 import edu.ucsd.mztab.model.MzTabConstants;
-import edu.ucsd.util.FileIOUtils;
-import edu.ucsd.util.OntologyUtils;
-import edu.ucsd.util.ProteomicsUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
+import edu.ucsd.mztab.util.OntologyUtils;
+import edu.ucsd.mztab.util.ProteomicsUtils;
 
 public class TSVToMzTabParamGenerator
 {

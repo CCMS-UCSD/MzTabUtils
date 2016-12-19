@@ -22,8 +22,8 @@ import org.w3c.dom.NodeList;
 
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import edu.ucsd.mztab.model.ModificationParse;
-import edu.ucsd.util.FileIOUtils;
-import edu.ucsd.util.ProteomicsUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
+import edu.ucsd.mztab.util.ProteomicsUtils;
 
 public class TSVToMzTabParameters
 {

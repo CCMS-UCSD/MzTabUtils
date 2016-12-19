@@ -12,7 +12,7 @@ import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
-import edu.ucsd.util.CommonUtils;
+import edu.ucsd.mztab.util.CommonUtils;
 
 public class ProteoSAFeMzTabCleaner
 {

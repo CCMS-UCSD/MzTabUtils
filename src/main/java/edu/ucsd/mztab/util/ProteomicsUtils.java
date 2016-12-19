@@ -1,4 +1,4 @@
-package edu.ucsd.util;
+package edu.ucsd.mztab.util;
 
 import java.math.BigDecimal;
 import java.util.Collection;

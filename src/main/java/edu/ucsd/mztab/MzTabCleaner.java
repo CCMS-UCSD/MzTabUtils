@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
-import edu.ucsd.util.CommonUtils;
+import edu.ucsd.mztab.util.CommonUtils;
 
 public class MzTabCleaner
 {

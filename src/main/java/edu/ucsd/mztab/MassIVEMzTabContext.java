@@ -15,9 +15,9 @@ import org.w3c.dom.NodeList;
 
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
-import edu.ucsd.util.CommonUtils;
-import edu.ucsd.util.FileIOUtils;
-import edu.ucsd.util.FilePathComparator;
+import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
+import edu.ucsd.mztab.util.FilePathComparator;
 
 public class MassIVEMzTabContext
 {

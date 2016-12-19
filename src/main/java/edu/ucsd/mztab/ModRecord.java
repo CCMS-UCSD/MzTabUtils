@@ -11,8 +11,8 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.mztab.model.ModificationParse;
 import edu.ucsd.mztab.model.MzTabConstants;
-import edu.ucsd.util.OntologyUtils;
-import edu.ucsd.util.ProteomicsUtils;
+import edu.ucsd.mztab.util.OntologyUtils;
+import edu.ucsd.mztab.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import uk.ac.ebi.pride.jmztab.model.Section;

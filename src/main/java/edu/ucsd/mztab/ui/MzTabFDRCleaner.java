@@ -24,7 +24,7 @@ import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.FDRType;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.processors.FDRCalculationProcessor;
-import edu.ucsd.util.CommonUtils;
+import edu.ucsd.mztab.util.CommonUtils;
 
 public class MzTabFDRCleaner
 {

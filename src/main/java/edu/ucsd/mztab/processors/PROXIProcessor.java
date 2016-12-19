@@ -19,8 +19,8 @@ import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.model.PSM;
 import edu.ucsd.mztab.model.MzTabMsRun;
-import edu.ucsd.util.CommonUtils;
-import edu.ucsd.util.ProteomicsUtils;
+import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.ProteomicsUtils;
 
 public class PROXIProcessor implements MzTabProcessor
 {
