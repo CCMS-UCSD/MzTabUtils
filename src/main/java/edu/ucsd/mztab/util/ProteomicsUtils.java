@@ -18,8 +18,13 @@ public class ProteomicsUtils
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
-	public static final Pattern PEPTIDE_STRING_PATTERN =
-		Pattern.compile("^\"?(.)\\.(.*)\\.(.)\"?$");
+	public static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
+		"^\"?" +		// optional opening quotation mark
+		"\\[?(.)\\]?" +	// "pre" amino acid (optionally bracketed)
+		"\\.(.*)\\." +	// actual peptide sequence
+		"\\[?(.)\\]?" +	// "post" amino acid (optionally bracketed)
+		"\"?$"			// optional closing quotation mark
+	);
 	public static final Map<Character, Double> AMINO_ACID_MASSES =
 		new TreeMap<Character, Double>();
 	static {
