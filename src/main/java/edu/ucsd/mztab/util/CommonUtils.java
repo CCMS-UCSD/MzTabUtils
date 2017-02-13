@@ -112,4 +112,13 @@ public class CommonUtils
 		}
 		return false;
 	}
+	
+	public static String stripQuotation(String value) {
+		if (value == null)
+			return null;
+		Matcher matcher = MzTabConstants.QUOTED_STRING_PATTERN.matcher(value);
+		if (matcher.matches())
+			return matcher.group(1);
+		else return value;
+	}
 }

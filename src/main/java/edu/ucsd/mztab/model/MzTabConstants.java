@@ -122,4 +122,6 @@ public class MzTabConstants
 		"((?:\\+?-?\\d+\\.?\\d*)|(?:\\+?-?\\d*\\.?\\d+))";
 	public static final Pattern SIMPLE_FLOAT_PATTERN = Pattern.compile(
 		SIMPLE_FLOAT_PATTERN_STRING);
+	public static final Pattern QUOTED_STRING_PATTERN =
+		Pattern.compile("^\"(.*)\"$");
 }
