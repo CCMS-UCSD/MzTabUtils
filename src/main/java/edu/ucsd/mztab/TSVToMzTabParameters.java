@@ -22,6 +22,7 @@ import org.w3c.dom.NodeList;
 
 import uk.ac.ebi.pride.jmztab.model.Modification;
 import edu.ucsd.mztab.model.ModificationParse;
+import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.FileIOUtils;
 import edu.ucsd.mztab.util.ProteomicsUtils;
 
@@ -222,6 +223,13 @@ public class TSVToMzTabParameters
 					String.format("Could not parse the tab-delimited " +
 						"elements of the first line from input TSV file [%s].",
 						filename));
+			// remove any enclosing quotation marks from column names,
+			// e.g. ProteomeDiscoverer output
+			for (int i=0; i<elements.length; i++) {
+				String cleaned = CommonUtils.stripQuotation(elements[i]);
+				if (cleaned != null && cleaned.equals(elements[i]) == false)
+					elements[i] = cleaned;
+			}
 			// validate all columns extracted from the parameters file
 			columnIndices = new LinkedHashMap<String, Integer>(columns.size());
 			for (String column : columns.keySet()) {
@@ -290,6 +298,13 @@ public class TSVToMzTabParameters
 						String.format("Could not parse the tab-delimited " +
 							"elements of line %d from input TSV file [%s].",
 							lineNumber, filename));
+				// remove any enclosing quotation marks from column values,
+				// e.g. ProteomeDiscoverer output
+				for (int i=0; i<elements.length; i++) {
+					String cleaned = CommonUtils.stripQuotation(elements[i]);
+					if (cleaned != null && cleaned.equals(elements[i]) == false)
+						elements[i] = cleaned;
+				}
 				// validate this line against the registered column
 				// indices and determine its "ms_run" index
 				Integer msRun = null;
@@ -607,10 +622,16 @@ public class TSVToMzTabParameters
 					"was given as [%s], but the converter parameters did " +
 					"not indicate that the file contains a header line.",
 					tsvFilename, columnName, columnID));
+			// clean column ID by removing any enclosing quotation marks
+			// from column names, e.g. ProteomeDiscoverer output
+			String cleanedColumnID = CommonUtils.stripQuotation(columnID);
 			// otherwise, try to find the index of the specified column header
-			for (int i=0; i<headers.length; i++)
-				if (columnID.equals(headers[i]))
+			for (int i=0; i<headers.length; i++) {
+				if (columnID.equals(headers[i]) ||
+					(cleanedColumnID != null &&
+					cleanedColumnID.equals(headers[i])))
 					return i;
+			}
 			// if no matching column header was found, then throw an exception
 			throw new IllegalArgumentException(String.format(
 				"Error parsing input TSV file [%s]: the %s " +

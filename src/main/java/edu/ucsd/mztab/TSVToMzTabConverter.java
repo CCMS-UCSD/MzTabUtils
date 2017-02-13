@@ -19,6 +19,7 @@ import org.apache.commons.io.FilenameUtils;
 
 import edu.ucsd.mztab.model.ModificationParse;
 import edu.ucsd.mztab.model.MzTabConstants;
+import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
@@ -234,8 +235,16 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				if (params.hasHeader())
 					id = lineNumber - 1;
 				else id = lineNumber;
-				// extract the modified peptide string
+				// parse out the elements of the line
 				String[] elements = line.split("\t");
+				// remove any enclosing quotation marks from column values,
+				// e.g. ProteomeDiscoverer output
+				for (int i=0; i<elements.length; i++) {
+					String cleaned = CommonUtils.stripQuotation(elements[i]);
+					if (cleaned != null && cleaned.equals(elements[i]) == false)
+						elements[i] = cleaned;
+				}
+				// extract the modified peptide string
 				String modifiedPeptide =
 					elements[params.getColumnIndex("modified_sequence")];
 				// if this row represents a mixture spectrum, then generate
