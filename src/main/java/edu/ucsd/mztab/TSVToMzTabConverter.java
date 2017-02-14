@@ -365,7 +365,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			}
 			// otherwise, only mark this row as "INVALID" if any
 			// mods were left unparsed from the peptide string
-			else if (isPeptideClean(cleaned) == false) {
+			else if (ProteomicsUtils.isCleanPeptide(cleaned) == false) {
 				psm.setOptionColumnValue("valid", "INVALID");
 				psm.setOptionColumnValue("invalid_reason", String.format(
 					"The parsed peptide string [%s] for this row was still " +
@@ -467,7 +467,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = MzTabConstants.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return matcher.group(2);
 		else return psm;
@@ -478,7 +478,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = MzTabConstants.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return cleanEnclosingAminoAcids(matcher.group(1));
 		else return null;
@@ -489,7 +489,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return null;
 		// TODO: the user should specify if this syntax is present, and
 		// therefore whether or not this processing should even be done
-		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
+		Matcher matcher = MzTabConstants.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
 			return cleanEnclosingAminoAcids(matcher.group(3));
 		else return null;
@@ -501,24 +501,13 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		StringBuilder cleaned = new StringBuilder();
 		for (int i=0; i<peptide.length(); i++) {
 			char residue = Character.toUpperCase(peptide.charAt(i));
-			if (residue == '-' ||
-				ProteomicsUtils.AMINO_ACID_MASSES.containsKey(residue))
+			if (residue == '-' || ProteomicsUtils.isAminoAcid(residue))
 				cleaned.append(residue);
 			// sometimes, underscores ("_") are used to indicate terminal residues
 			else if (residue == '_')
 				cleaned.append("-");
 		}
 		return cleaned.toString();
-	}
-	
-	private boolean isPeptideClean(String peptide) {
-		if (peptide == null)
-			return false;
-		else for (int i=0; i<peptide.length(); i++)
-			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(
-				peptide.charAt(i)) == false)
-				return false;
-		return true;
 	}
 	
 	/*========================================================================
