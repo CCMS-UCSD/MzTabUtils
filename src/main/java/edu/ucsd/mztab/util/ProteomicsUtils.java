@@ -19,11 +19,11 @@ public class ProteomicsUtils
 	 * Constants
 	 *========================================================================*/
 	public static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
-		"^\"?" +		// optional opening quotation mark
-		"\\[?(.)\\]?" +	// "pre" amino acid (optionally bracketed)
-		"\\.(.*)\\." +	// actual peptide sequence
-		"\\[?(.)\\]?" +	// "post" amino acid (optionally bracketed)
-		"\"?$"			// optional closing quotation mark
+		"^\"?" +			// optional opening quotation mark
+		"\\[?(.+?)\\]?" +	// "pre" amino acid (optionally bracketed)
+		"\\.(.*)\\." +		// actual peptide sequence
+		"\\[?(.+?)\\]?" +	// "post" amino acid (optionally bracketed)
+		"\"?$"				// optional closing quotation mark
 	);
 	public static final Map<Character, Double> AMINO_ACID_MASSES =
 		new TreeMap<Character, Double>();
@@ -59,7 +59,7 @@ public class ProteomicsUtils
 		// check every character of the string value
 		// to ensure that they are all amino acids
 		else for (int i=0; i<value.length(); i++) {
-			char current = value.charAt(i);
+			char current = Character.toUpperCase(value.charAt(i));
 			if (AMINO_ACID_MASSES.containsKey(current) == false)
 				return false;
 		}
@@ -78,7 +78,12 @@ public class ProteomicsUtils
 		// then remove all non-amino acid characters from the sequence
 		StringBuffer clean = new StringBuffer();
 		for (int i=0; i<psm.length(); i++) {
-			char current = psm.charAt(i);
+			// explicitly cast this character to upper case, since
+			// some TSV formats use lower-case amino acid characters
+			// to represent modified sites; presumably lower-case
+			// amino acid characters will not be used to encode anything
+			// other than valid members of the peptide sequence
+			char current = Character.toUpperCase(psm.charAt(i));
 			if (AMINO_ACID_MASSES.containsKey(current))
 				clean.append(current);
 		}
