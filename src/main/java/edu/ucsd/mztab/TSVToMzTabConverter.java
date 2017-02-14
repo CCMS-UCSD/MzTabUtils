@@ -516,7 +516,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			return false;
 		else for (int i=0; i<peptide.length(); i++)
 			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(
-				Character.toUpperCase(peptide.charAt(i))) == false)
+				peptide.charAt(i)) == false)
 				return false;
 		return true;
 	}
