@@ -133,7 +133,7 @@ public class ModRecord
 			// if the captured region contains no mod-indicating
 			// characters, then break to avoid an infinite loop
 			if (captured == null || captured.trim().isEmpty() ||
-				captured.matches("^[ARDNCEQGHILKMFPSTWYV]+$"))
+				MzTabConstants.AMINO_ACID_PATTERN.matcher(captured).matches())
 				break;
 			// if this is a generic mod, then try to extract the mass
 			if (isGeneric()) try {
@@ -368,8 +368,13 @@ public class ModRecord
 							"references had already been found in the same " +
 							"string.", i, modID));
 					for (char aminoAcid :
-						ProteomicsUtils.AMINO_ACID_MASSES.keySet())
+						ProteomicsUtils.AMINO_ACID_MASSES.keySet()) {
 						foundAminoAcids.add(aminoAcid);
+						// also add the lower-case version of this amino acid,
+						// to account for TSV formats that user lower-case
+						// amino acid characters to report modified sites
+						foundAminoAcids.add(Character.toLowerCase(aminoAcid));
+					}
 					continue;
 				}
 				// if the current character is a hash ("#"), then add a
@@ -388,7 +393,8 @@ public class ModRecord
 				}
 				// if the current character is a standalone amino acid,
 				// then add it to the regular expression for this region
-				else if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(current)) {
+				else if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(
+					Character.toUpperCase(current))) {
 					// redundant amino acids are not allowed
 					if (foundAminoAcids.contains(current))
 						throw new IllegalArgumentException(String.format(
@@ -509,7 +515,8 @@ public class ModRecord
 		// to generate the correct index within the unmodified peptide string
 		int index = 0;
 		for (int i=0; i<end; i++) {
-			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(psm.charAt(i))) {
+			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(
+				Character.toUpperCase(psm.charAt(i)))) {
 				index++;
 				// if we've already reached the mod region, then the
 				// first amino acid we find is the affected site
@@ -520,7 +527,7 @@ public class ModRecord
 		// clean the substring by removing all non-amino acid characters
 		StringBuffer cleaned = new StringBuffer();
 		for (int i=0; i<mod.length(); i++) {
-			char current = mod.charAt(i);
+			char current = Character.toUpperCase(mod.charAt(i));
 			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(current))
 				cleaned.append(current);
 		}

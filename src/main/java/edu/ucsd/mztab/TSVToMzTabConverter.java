@@ -480,7 +480,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// therefore whether or not this processing should even be done
 		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
-			return getAminoAcid(matcher.group(1));
+			return cleanEnclosingAminoAcids(matcher.group(1));
 		else return null;
 	}
 	
@@ -491,29 +491,32 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// therefore whether or not this processing should even be done
 		Matcher matcher = ProteomicsUtils.PEPTIDE_STRING_PATTERN.matcher(psm);
 		if (matcher.matches())
-			return getAminoAcid(matcher.group(3));
+			return cleanEnclosingAminoAcids(matcher.group(3));
 		else return null;
 	}
 	
-	private String getAminoAcid(String peptide) {
-		if (peptide == null || peptide.length() != 1)
+	private String cleanEnclosingAminoAcids(String peptide) {
+		if (peptide == null || peptide.length() < 1)
 			return null;
-		char residue = peptide.charAt(0);
-		if (residue == '-' ||
-			ProteomicsUtils.AMINO_ACID_MASSES.containsKey(residue))
-			return peptide;
-		// sometimes, underscores ("_") are used to indicate terminal residues
-		else if (residue == '_')
-			return "-";
-		else return null;
+		StringBuilder cleaned = new StringBuilder();
+		for (int i=0; i<peptide.length(); i++) {
+			char residue = Character.toUpperCase(peptide.charAt(i));
+			if (residue == '-' ||
+				ProteomicsUtils.AMINO_ACID_MASSES.containsKey(residue))
+				cleaned.append(residue);
+			// sometimes, underscores ("_") are used to indicate terminal residues
+			else if (residue == '_')
+				cleaned.append("-");
+		}
+		return cleaned.toString();
 	}
 	
 	private boolean isPeptideClean(String peptide) {
 		if (peptide == null)
 			return false;
 		else for (int i=0; i<peptide.length(); i++)
-			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(peptide.charAt(i))
-				== false)
+			if (ProteomicsUtils.AMINO_ACID_MASSES.containsKey(
+				Character.toUpperCase(peptide.charAt(i))) == false)
 				return false;
 		return true;
 	}
