@@ -1,6 +1,12 @@
 package edu.ucsd.mztab.model;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.ArrayUtils;
 
 public class MzTabConstants
 {
@@ -95,12 +101,49 @@ public class MzTabConstants
 	public static final Pattern EXTRACTED_FILE_DELIMITER_PATTERN =
 		Pattern.compile("((?i)mztab|mzid)" + EXTRACTED_FILE_DELIMITER);
 	
-	// constants pertaining to peptide strings
-	public static final String AMINO_ACID_CHARSET = "ARDNCEQGHILKMFPSTWYV";
+	// constants pertaining to peptides
+	public static final Map<Character, Double> AMINO_ACID_MASSES =
+		new TreeMap<Character, Double>();
+	static {
+		AMINO_ACID_MASSES.put('A', 71.037113787);
+		AMINO_ACID_MASSES.put('C', 103.009184477);
+		AMINO_ACID_MASSES.put('D', 115.026943031);
+		AMINO_ACID_MASSES.put('E', 129.042593095);
+		AMINO_ACID_MASSES.put('F', 147.068413915);
+		AMINO_ACID_MASSES.put('G', 57.021463723);
+		AMINO_ACID_MASSES.put('H', 137.058911861);
+		AMINO_ACID_MASSES.put('I', 113.084063979);
+		AMINO_ACID_MASSES.put('K', 128.094963016);
+		AMINO_ACID_MASSES.put('L', 113.084063979);
+		AMINO_ACID_MASSES.put('M', 131.040484605);
+		AMINO_ACID_MASSES.put('N', 114.042927446);
+		AMINO_ACID_MASSES.put('P', 97.052763851);
+		AMINO_ACID_MASSES.put('Q', 128.058577510);
+		AMINO_ACID_MASSES.put('R', 156.101111026);
+		AMINO_ACID_MASSES.put('S', 87.032028409);
+		AMINO_ACID_MASSES.put('T', 101.047678473);
+		AMINO_ACID_MASSES.put('V', 99.068413915);
+		AMINO_ACID_MASSES.put('W', 186.079312952);
+		AMINO_ACID_MASSES.put('Y', 163.063328537);
+	}
+	public static final Set<Character> KNOWN_AMINO_ACIDS =
+		new HashSet<Character>(AMINO_ACID_MASSES.keySet());
+	static { KNOWN_AMINO_ACIDS.add('X'); }
+	public static final String AMINO_ACID_CHARSET =
+		new String(ArrayUtils.toPrimitive(KNOWN_AMINO_ACIDS.toArray(
+			new Character[KNOWN_AMINO_ACIDS.size()])));
 	public static final Pattern AMINO_ACID_PATTERN = Pattern.compile(
 		String.format("^[%s]$", AMINO_ACID_CHARSET));
 	public static final Pattern PEPTIDE_STRING_PATTERN = Pattern.compile(
-		String.format("^[%s]+$", AMINO_ACID_CHARSET));
+		String.format(
+			"^\"?" +					// optional opening quotation mark
+			"\\[?([\\-_%s]+?)\\]?" +	// "pre" amino acid (optional brackets)
+			"\\.(.*)\\." +				// actual peptide sequence
+			"\\[?([\\-_%s]+?)\\]?" +	// "post" amino acid (optional brackets)
+			"\"?$",						// optional closing quotation mark
+			AMINO_ACID_CHARSET, AMINO_ACID_CHARSET
+		)
+	);
 	
 	// constants pertaining to general CV term syntax
 	public static final Pattern CV_TERM_PATTERN = Pattern.compile(
