@@ -116,7 +116,7 @@ public class MzTabSectionHeader
 			throw new NullPointerException(
 				"Argument mzTab row line is null.");
 		// split line into tab-delimited columns and compare against header
-		String[] columns = line.split("\\t");
+		String[] columns = line.split("\\t", -1);
 		if (columns == null || columns.length < 1)
 			throw new IllegalArgumentException(String.format(
 				"Argument mzTab row line is invalid:" +
@@ -125,11 +125,12 @@ public class MzTabSectionHeader
 		int expectedColumnCount = getColumnCount();
 		if (columns.length != expectedColumnCount)
 			throw new IllegalArgumentException(String.format(
-				"Argument mzTab row line is invalid:" +
-				"\n----------\n%s\n----------\n" +
+				"Argument mzTab row line is invalid:\n" +
 				"The number of columns (%d) does not match the number " +
-				"previously parsed from the header row (%d).",
-				line, columns.length, expectedColumnCount));
+				"previously parsed from the header row (%d)." +
+				"\n----------\n%s",
+				columns.length, expectedColumnCount,
+				dumpHeaderVsRowComparison(columns)));
 		// ensure that this row is of the same type as the header
 		MzTabSection rowType = MzTabSection.valueOf(columns[0]);
 		if (rowType == null || rowType.equals(section) == false)
@@ -139,5 +140,40 @@ public class MzTabSectionHeader
 				"The first token [%s] does not correspond to the expected " +
 				"mzTab file section as implied by the header row [%s].",
 				line, columns[0], section.name()));
+	}
+	
+	/*========================================================================
+	 * Convenience methods
+	 *========================================================================*/
+	private String dumpHeaderVsRowComparison(String[] row) {
+		if (row == null)
+			row = new String[]{};
+		StringBuilder comparison =
+			new StringBuilder("Header -> Row\n-------------");
+		// print the row values aligning with each recorded column header
+		for (int i=0; i<tokens.length; i++) {
+			String header = tokens[i];
+			if (header == null)
+				header = "null";
+			String value = null;
+			if (row.length > i) {
+				value = row[i];
+				if (value == null)
+					value = "null";
+			} else value = "--";
+			comparison.append("\n[").append(header).append("] -> ");
+			comparison.append("[").append(value).append("]");
+		}
+		// print any row values beyond the boundaries of the recorded header
+		if ((row.length - tokens.length) > 0) {
+			for (int i=tokens.length; i<row.length; i++) {
+				String value = row[i];
+				if (value == null)
+					value = "null";
+				comparison.append("\n[--] -> ");
+				comparison.append("[").append(value).append("]");
+			}
+		}
+		return comparison.toString();
 	}
 }

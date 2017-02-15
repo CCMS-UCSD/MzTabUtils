@@ -106,7 +106,9 @@ public class MzTabValidator
 			logPeakListStats(
 				validation.scansDirectory, validation.context, writer);
 		} catch (Throwable error) {
-			die(error.getMessage(), error);
+			die(String.format(
+				"There was an error validating mzTab directory [%s].",
+				validation.mzTabDirectory.getAbsolutePath()), error);
 		} finally {
 			try { writer.close(); }
 			catch (Throwable error) {}
