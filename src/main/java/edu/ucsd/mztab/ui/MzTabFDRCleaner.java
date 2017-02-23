@@ -142,9 +142,11 @@ public class MzTabFDRCleaner
 			targets = statistics.getElementCount("nullDecoyPSM");
 		// calculate global FDR values from returned count maps
 		Double psmFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
-		// if no FDR could be calculated, use highest found Q-Value, if any
-		if (psmFDR == null)
-			psmFDR = statistics.getMaxQValue(FDRType.PSM);
+		// determine highest found PSM Q-Value
+		Double psmQValue = statistics.getMaxQValue(FDRType.PSM);
+		// compare FDR to Q-Value, take highest
+		if (psmQValue != null && (psmFDR == null || psmQValue > psmFDR))
+			psmFDR = psmQValue;
 		// if FDR could still not be determined, use user-specified FDR
 		if (psmFDR == null)
 			psmFDR = statedPSMFDR;
@@ -161,8 +163,10 @@ public class MzTabFDRCleaner
 			targets = statistics.getElementCount("nullDecoyPeptide");
 		// peptide-level FDR
 		Double peptideFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
-		if (peptideFDR == null)
-			peptideFDR = statistics.getMaxQValue(FDRType.PEPTIDE);
+		Double peptideQValue = statistics.getMaxQValue(FDRType.PEPTIDE);
+		if (peptideQValue != null &&
+			(peptideFDR == null || peptideQValue > peptideFDR))
+			peptideFDR = peptideQValue;
 		if (peptideFDR == null)
 			peptideFDR = statedPeptideFDR;
 		if (peptideFDR == null &&
@@ -176,8 +180,10 @@ public class MzTabFDRCleaner
 			targets = statistics.getElementCount("nullDecoyProtein");
 		// protein-level FDR
 		Double proteinFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
-		if (proteinFDR == null)
-			proteinFDR = statistics.getMaxQValue(FDRType.PROTEIN);
+		Double proteinQValue = statistics.getMaxQValue(FDRType.PROTEIN);
+		if (proteinQValue != null &&
+			(proteinFDR == null || proteinQValue > proteinFDR))
+			proteinFDR = proteinQValue;
 		if (proteinFDR == null)
 			proteinFDR = statedProteinFDR;
 		if (proteinFDR == null &&
