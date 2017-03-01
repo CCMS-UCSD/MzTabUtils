@@ -112,7 +112,7 @@ public class MzTabCounter
 					if (fdrList == null)
 						return fdr;
 					fdrList = fdrList.trim();
-					if (fdrList.equals("") || fdrList.equalsIgnoreCase("null"))
+					if (fdrList.isEmpty() || fdrList.equalsIgnoreCase("null"))
 						return fdr;
 					String[] fdrCVTerms = fdrList.split("\\|");
 					if (fdrCVTerms == null || fdrCVTerms.length < 1)
