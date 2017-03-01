@@ -92,8 +92,9 @@ public class MzTabPROXIImporter
 				"into the MassIVE search database...\n----------",
 				files.size(), CommonUtils.pluralize("file", files.size())));
 			for (File file : files) {
-				// TODO: determine if this mzTab file has any importable PSMs;
-				// if not, skip
+				// only import this mzTab file if it contains importable PSMs
+				if (isImportable(file, importByQValue) == false)
+					continue;
 				MzTabReader reader =
 					new MzTabReader(context.getMzTabFile(file));
 				PROXIProcessor processor = new PROXIProcessor(
