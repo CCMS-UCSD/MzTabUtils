@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
-import java.util.regex.Matcher;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
@@ -93,7 +92,7 @@ public class MzTabPROXIImporter
 				files.size(), CommonUtils.pluralize("file", files.size())));
 			for (File file : files) {
 				// only import this mzTab file if it contains importable PSMs
-				if (isImportable(file, importByQValue) == false)
+				if (importByQValue && isImportable(file) == false)
 					continue;
 				MzTabReader reader =
 					new MzTabReader(context.getMzTabFile(file));
@@ -126,9 +125,7 @@ public class MzTabPROXIImporter
 		}
 	}
 	
-	public static boolean isImportable(
-		File mzTabFile, boolean importByQValue
-	) {
+	public static boolean isImportable(File mzTabFile) {
 		if (mzTabFile == null || mzTabFile.isFile() == false ||
 			mzTabFile.canRead() == false)
 			return false;
@@ -146,60 +143,8 @@ public class MzTabPROXIImporter
 				if (line == null)
 					break;
 				lineNumber++;
-				// if not importing by Q-Value, check the global PSM-level FDR
-				if (line.startsWith("MTD") && importByQValue == false) {
-					// look for the global FDR line
-					Matcher matcher =
-						MzTabConstants.FDR_LINE_PATTERN.matcher(line);
-					if (matcher.matches()) {
-						// parse out FDR values from the
-						// FDR line and validate them
-						String fdrList = matcher.group(1);
-						if (fdrList == null)
-							return false;
-						fdrList = fdrList.trim();
-						if (fdrList.isEmpty() ||
-							fdrList.equalsIgnoreCase("null"))
-							return false;
-						String[] fdrCVTerms = fdrList.split("\\|");
-						if (fdrCVTerms == null || fdrCVTerms.length < 1)
-							return false;
-						for (String fdrCVTerm : fdrCVTerms) {
-							matcher = MzTabConstants.CV_TERM_PATTERN.matcher(
-								fdrCVTerm);
-							if (matcher.matches()) {
-								// parse out the CV term and match it up to the
-								// correct FDR index in the returned array
-								String accession = matcher.group(2);
-								if (accession == null)
-									continue;
-								accession = accession.trim();
-								// PSM-level FDR
-								if (accession.equals("MS:1002350")) {
-									// ensure CV term value parses to double
-									String value = matcher.group(4);
-									double fdr;
-									try {
-										fdr = Double.parseDouble(value);
-									} catch (Throwable error) {
-										return false;
-									}
-									// if FDR is at or below the threshold,
-									// this file is importable
-									if (fdr <= MzTabConstants
-											.DEFAULT_IMPORT_Q_VALUE_THRESHOLD)
-										return true;
-									else return false;
-								}
-							}
-						}
-						// if no valid FDR value could be found and checked,
-						// then this file is not importable
-						return false;
-					}
-				}
-				// PSM section header
-				else if (line.startsWith("PSH") && importByQValue) {
+				// parse PSM section header to determine Q-Value column index
+				if (line.startsWith("PSH")) {
 					if (psmHeader != null)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:" +
@@ -212,7 +157,7 @@ public class MzTabPROXIImporter
 						psmHeader.getColumnIndex(MzTabConstants.Q_VALUE_COLUMN);
 				}
 				// if importing by Q-Value, check each PSM row's Q-Value
-				else if (line.startsWith("PSM") && importByQValue) {
+				else if (line.startsWith("PSM")) {
 					if (psmHeader == null)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of mzTab file [%s] is invalid:" +
@@ -232,7 +177,7 @@ public class MzTabPROXIImporter
 					}
 				}
 			}
-			// if no passing FDR or Q-Value was found anywhere
+			// if no passing Q-Value was found anywhere
 			// in the file, then it's not importable
 			return false;
 		} catch (RuntimeException error) {
