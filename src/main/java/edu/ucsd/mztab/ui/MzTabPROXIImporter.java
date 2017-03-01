@@ -43,47 +43,72 @@ public class MzTabPROXIImporter
 		MzTabImportOperation importer = extractArguments(args);
 		if (importer == null)
 			die(USAGE);
+		importDataset(importer.mzTabDirectory, importer.context,
+			importer.taskID, importer.datasetID, importer.importByQValue,
+			importer.start);
+	}
+	
+	public static boolean importDataset(
+		File mzTabDirectory, TaskMzTabContext context, String taskID,
+		Integer datasetID, Boolean importByQValue, Long start
+	) {
+		if (mzTabDirectory == null || context == null || taskID == null)
+			return false;
+		// importByQValue defaults to true
+		if (importByQValue == null)
+			importByQValue = true;
+		// start defaults to current time
+		if (start == null)
+			start = System.currentTimeMillis();
 		// set up database connection
 		Connection connection = DatabaseUtils.getConnection();
 		if (connection == null)
-			die("Could not connect to the PROXI database server");
+			die("Could not connect to the MassIVE search database server");
 		// read through all mzTab files, import content to database
 		try {
+			int filesImported = 0;
 			long totalLines = 0;
 			long totalPSMRows = 0;
 			// recursively find mzTab files under the argument directory
-			Collection<File> files = findFiles(importer.mzTabDirectory);
+			Collection<File> files = findFiles(mzTabDirectory);
 			if (files == null || files.isEmpty()) {
 				System.out.println(String.format("Could not find " +
 					"any mzTab files to import under directory [%s].",
-					importer.mzTabDirectory.getAbsolutePath()));
-				return;
+					mzTabDirectory.getAbsolutePath()));
+				return false;
 			}
 			// import all found files
-			System.out.println(String.format(
-				"Importing %d mzTab %s into the PROXI database...\n----------",
+			System.out.println(String.format("Importing %d mzTab %s " +
+				"into the MassIVE search database...\n----------",
 				files.size(), CommonUtils.pluralize("file", files.size())));
 			for (File file : files) {
+				// TODO: determine if this mzTab file has any importable PSMs;
+				// if not, skip
 				MzTabReader reader =
-					new MzTabReader(importer.context.getMzTabFile(file));
+					new MzTabReader(context.getMzTabFile(file));
 				PROXIProcessor processor = new PROXIProcessor(
-					importer.taskID, importer.datasetID,
-					importer.importByQValue, connection);
+					taskID, datasetID, importByQValue, connection);
 				reader.addProcessor(processor);
 				reader.read();
+				filesImported++;
 				totalLines += processor.getRowCount("lines_in_file");
 				totalPSMRows += processor.getRowCount("PSM");
 			}
-			long elapsed = System.currentTimeMillis() - importer.start;
+			long elapsed = System.currentTimeMillis() - start;
 			double seconds = elapsed / 1000.0;
+			int notImported = files.size() - filesImported;
 			System.out.println(String.format(
-				"Imported %d mzTab %s into the PROXI database in %s " +
+				"Imported %d mzTab %s%s into the MassIVE search database in %s " +
 				"(%.2f lines/second, %.2f PSM rows/second).",
-				files.size(), CommonUtils.pluralize("file", files.size()),
+				filesImported, CommonUtils.pluralize("file", filesImported),
+				notImported < 1 ? "" : String.format(
+					" (%d skipped for having no importable PSMs)", notImported),
 				CommonUtils.formatMilliseconds(elapsed),
 				(totalLines / seconds), (totalPSMRows / seconds)));
+			return true;
 		} catch (Throwable error) {
 			die("Error importing mzTab content to the PROXI database", error);
+			return false;
 		} finally {
 			try { connection.close(); } catch (Throwable error) {}
 		}
