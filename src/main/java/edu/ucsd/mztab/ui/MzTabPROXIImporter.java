@@ -43,9 +43,13 @@ public class MzTabPROXIImporter
 		MzTabImportOperation importer = extractArguments(args);
 		if (importer == null)
 			die(USAGE);
-		importDataset(importer.mzTabDirectory, importer.context,
-			importer.taskID, importer.datasetID, importer.importByQValue,
-			importer.start);
+		try {
+			importDataset(importer.mzTabDirectory, importer.context,
+				importer.taskID, importer.datasetID, importer.importByQValue,
+				importer.start);
+		} catch (Throwable error) {
+			die(null, error);
+		}
 	}
 	
 	public static boolean importDataset(
@@ -63,7 +67,8 @@ public class MzTabPROXIImporter
 		// set up database connection
 		Connection connection = DatabaseUtils.getConnection();
 		if (connection == null)
-			die("Could not connect to the MassIVE search database server");
+			throw new NullPointerException(
+				"Could not connect to the MassIVE search database server.");
 		// read through all mzTab files, import content to database
 		try {
 			int filesImported = 0;
@@ -107,8 +112,9 @@ public class MzTabPROXIImporter
 				(totalLines / seconds), (totalPSMRows / seconds)));
 			return true;
 		} catch (Throwable error) {
-			die("Error importing mzTab content to the PROXI database", error);
-			return false;
+			throw new RuntimeException(
+				"Error importing mzTab content to the MassIVE search database.",
+				error);
 		} finally {
 			try { connection.close(); } catch (Throwable error) {}
 		}
