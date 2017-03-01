@@ -88,6 +88,9 @@ public class MzTabConstants
 	public static final String GLOBAL_PROTEIN_FDR_TERM =
 		"[MS, MS:1001214, protein-level global FDR, %s]";
 	
+	// constants pertaining to FDR-based MassIVE search import
+	public static final double DEFAULT_IMPORT_Q_VALUE_THRESHOLD = 0.01;
+	
 	// constants pertaining to known optional column values
 	public static final String[] KNOWN_QVALUE_COLUMNS = new String[]{
 		"QValue", "MS-GF:QValue"

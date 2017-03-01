@@ -35,7 +35,6 @@ public class PROXIProcessor implements MzTabProcessor
 		"PSM_ID", "sequence", "accession", "modifications", "spectra_ref",
 		"charge", "exp_mass_to_charge"
 	};
-	private static final double IMPORT_Q_VALUE_THRESHOLD = 0.01;
 	
 	/*========================================================================
 	 * Properties
@@ -235,7 +234,7 @@ public class PROXIProcessor implements MzTabProcessor
 			boolean importable = true;
 			if (importByQValue) try {
 				double qValue = Double.parseDouble(columns[qValueColumn]);
-				if (qValue > IMPORT_Q_VALUE_THRESHOLD)
+				if (qValue > MzTabConstants.DEFAULT_IMPORT_Q_VALUE_THRESHOLD)
 					importable = false;
 			} catch (Throwable error) {
 				importable = false;
