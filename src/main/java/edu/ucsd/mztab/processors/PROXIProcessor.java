@@ -47,6 +47,7 @@ public class PROXIProcessor implements MzTabProcessor
 	private MzTabSectionHeader                pepHeader;
 	private MzTabSectionHeader                psmHeader;
 	private boolean                           importByQValue;
+	private Integer                           validColumn;
 	private Integer                           qValueColumn;
 	private Long                              start;
 	
@@ -215,6 +216,9 @@ public class PROXIProcessor implements MzTabProcessor
 			psmHeader = new MzTabSectionHeader(line);
 			psmHeader.validateHeaderExpectations(
 				MzTabSection.PSM, Arrays.asList(RELEVANT_PSM_COLUMNS));
+			// determine index of controlled validity flag column, if present
+			validColumn =
+				psmHeader.getColumnIndex(MzTabConstants.VALID_COLUMN);
 			// determine index of controlled Q-value column, if present
 			qValueColumn =
 				psmHeader.getColumnIndex(MzTabConstants.Q_VALUE_COLUMN);
@@ -229,9 +233,18 @@ public class PROXIProcessor implements MzTabProcessor
 			else psmHeader.validateMzTabRow(line);
 			// extract insertable elements from this PSM row
 			String[] columns = line.split("\\t");
+			// if this PSM is not explicitly marked as valid, do not import
+			boolean importable = true;
+			try {
+				String valid = columns[validColumn];
+				if (valid == null ||
+					valid.trim().equalsIgnoreCase("VALID") == false)
+					importable = false;
+			} catch (Throwable error) {
+				importable = false;
+			}
 			// if flag is set to only import PSMs at or below the designated
 			// Q-value threshold, determine if this PSM makes the cut
-			boolean importable = true;
 			if (importByQValue) try {
 				double qValue = Double.parseDouble(columns[qValueColumn]);
 				if (qValue > MzTabConstants.DEFAULT_IMPORT_Q_VALUE_THRESHOLD)
