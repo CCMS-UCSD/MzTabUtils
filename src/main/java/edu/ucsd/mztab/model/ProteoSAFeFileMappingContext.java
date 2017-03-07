@@ -1,5 +1,6 @@
 package edu.ucsd.mztab.model;
 
+import java.security.InvalidParameterException;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -54,6 +55,10 @@ public class ProteoSAFeFileMappingContext
 				}
 			}
 			// populate upload mappings
+			// NOTE: the logic implemented here assumes that upload_file_mapping
+			// parameters are written in the same order in params.xml as the
+			// declarations of their associated collections in the same file;
+			// otherwise, a more rigorous association procedure must be used
 			NodeList mappings = XPathAPI.selectNodeList(
 				parameters, "//parameter[@name='upload_file_mapping']");
 			if (mappings != null && mappings.getLength() > 0) {
@@ -62,9 +67,15 @@ public class ProteoSAFeFileMappingContext
 						mappings.item(i).getFirstChild().getNodeValue();
 					// find proper collection to which to add this mapping
 					for (UploadCollection collection : uploadCollections) {
-						if (collection.isFromCollection(value)) {
+						if (collection.isFromCollection(value)) try {
 							collection.addUploadMapping(value);
 							break;
+						}
+						// sometimes the same file is added to multiple
+						// collections; this is acceptable, and is properly
+						// handled simply by moving on to the next collection
+						catch (InvalidParameterException error) {
+							continue;
 						}
 					}
 				}
@@ -388,7 +399,7 @@ public class ProteoSAFeFileMappingContext
 			else if (mangledPrefix == null)
 				mangledPrefix = mangledTokens[0];
 			else if (mangledPrefix.equals(mangledTokens[0]) == false)
-				throw new IllegalArgumentException(String.format(
+				throw new InvalidParameterException(String.format(
 					"\"upload_file_mapping\" parameter [%s] is being " +
 					"associated with upload collection [%s], even though " +
 					"this collection has already been associated with " +
