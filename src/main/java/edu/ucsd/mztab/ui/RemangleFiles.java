@@ -175,8 +175,8 @@ public class RemangleFiles
 				// if the collection directory is a CCMS collection (i.e. its
 				// name starts with a "ccms_" prefix), remove that, since the
 				// params.xml mapping will use the original upload collection
-				if (mangledPrefix.startsWith("CCMS_"))
-					mangledPrefix = mangledPrefix.substring(5);
+//				if (mangledPrefix.startsWith("CCMS_"))
+//					mangledPrefix = mangledPrefix.substring(5);
 				// get this collection file's relative path
 				// under the input collection files directory
 				String fileRelativePath =
