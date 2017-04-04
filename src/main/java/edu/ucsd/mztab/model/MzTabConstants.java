@@ -13,6 +13,26 @@ public class MzTabConstants
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
+	// constants pertaining to general CV term syntax
+	public static final String NON_MATCHING_CV_TERM =
+		"\\[" +									// opening bracket
+		"(?:[^,]*),\\s*" +						// ontology identifier
+		"(?:[^,]*),\\s*" +						// CV term accession
+		"(?:(?:\"[^\"]*\")|(?:[^,]*)),\\s*" +		// CV term name
+		"(?:(?:\"[^\"]*\")|(?:[^,]*))" +			// CV term "value"
+		"\\]";									// closing bracket
+	public static final String MATCHING_CV_TERM =
+		"\\[" +									// opening bracket
+		"([^,]*),\\s*" +						// ontology identifier
+		"([^,]*),\\s*" +						// CV term accession
+		"((?:\"[^\"]*\")|(?:[^,]*)),\\s*" +	// CV term name
+		"((?:\"[^\"]*\")|(?:[^,]*))" +		// CV term "value"
+		"\\]";							
+	public static final Pattern CV_TERM_PATTERN = Pattern.compile(
+		String.format("^%s$", MATCHING_CV_TERM));
+	public static final Pattern CV_ACCESSION_PATTERN = Pattern.compile(
+		"^(.*?:\\d*)$");
+	
 	// constants pertaining to mzTab file structure
 	public static enum MzTabSection { MTD, PRT, PEP, PSM, SML }
 	
@@ -51,12 +71,22 @@ public class MzTabConstants
 	
 	// constants pertaining to mzTab "modifications" column values,
 	// as seen in PRT, PEP and PSM rows
-	public static final Pattern MZTAB_MODIFICATION_PATTERN = Pattern.compile(
-		"\\s*(?:(\\d+.*?(?:\\|\\d+.*?)*)-)?" +						// position
-		"((?:\\[[^,]*,\\s*[^,]*,\\s*\"?[^\"]*\"?,\\s*[^,]*\\])|" +	// CV tuple
-		"(?:[^,]+))\\s*");											// mod ID
+	public static final String MZTAB_POSITION = 
+		"(?:null)|(?:\\d+)" +						// position
+		"(?:" + NON_MATCHING_CV_TERM + ")?";		// CV parameter
 	public static final Pattern MZTAB_POSITION_PATTERN = Pattern.compile(
-		"(\\d+)([^\\|]*)?\\|?");
+		String.format("^(%s)$", MZTAB_POSITION));
+	public static final String MZTAB_POSITION_TUPLE = 
+		"(?:" + MZTAB_POSITION + ")" +				// initial position
+		"(?:\\|(?:" + MZTAB_POSITION + "))*";		// ambiguous positions
+	public static final Pattern MZTAB_POSITION_TUPLE_PATTERN = Pattern.compile(
+		String.format("^(%s)$", MZTAB_POSITION_TUPLE));
+	public static final Pattern MZTAB_MODIFICATION_PATTERN = Pattern.compile(
+		"(" + MZTAB_POSITION_TUPLE + ")-" +			// position(s)
+		"((?:" + NON_MATCHING_CV_TERM + ")|" +		// CV parameter OR
+		"(?:[^,]+))");								// mod ID
+//	public static final Pattern MZTAB_POSITION_PATTERN = Pattern.compile(
+//		"(\\d+)([^\\|]*)?\\|?");
 //	public static final Pattern MZTAB_POSITION_PATTERN = Pattern.compile(
 //		"^(?:(\\d+)" +
 //		"(\\[[^,]*,\\s*[^,]*,\\s*\"?[^\"]*\"?,\\s*[^,]*\\])?" +		// CV tuple
@@ -147,17 +177,6 @@ public class MzTabConstants
 			AMINO_ACID_CHARSET, AMINO_ACID_CHARSET
 		)
 	);
-	
-	// constants pertaining to general CV term syntax
-	public static final Pattern CV_TERM_PATTERN = Pattern.compile(
-		"^\\[" +
-		"([^,]*),\\s*" +						// ontology identifier
-		"([^,]*),\\s*" +						// CV term accession
-		"((?:\"[^\"]*\")|(?:[^,]*)),\\s*" +		// CV term name
-		"((?:\"[^\"]*\")|(?:[^,]*))" +			// CV term "value"
-		"\\]$");
-	public static final Pattern CV_ACCESSION_PATTERN = Pattern.compile(
-		"^(.*?:\\d*)$");
 	
 	// general constants
 	public static final Pattern FILE_URI_PROTOCOL_PATTERN =
