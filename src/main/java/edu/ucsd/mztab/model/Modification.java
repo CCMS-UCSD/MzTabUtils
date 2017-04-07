@@ -96,15 +96,33 @@ public class Modification
 	private Double getMass(String identifier) {
 		if (identifier == null)
 			return null;
+		else identifier = identifier.trim();
 		// if this is a CHEMMOD, get the mass from the mod itself
 		Matcher matcher =
 			MzTabConstants.MZTAB_CHEMMOD_PATTERN.matcher(identifier);
 		if (matcher.matches()) try {
 			return Double.parseDouble(matcher.group(1));
-		} catch (NumberFormatException error) {}
-		// otherwise, treat the name as a CV accession
-		// and try to get it from the PTM ontology
-		Double mass = OntologyUtils.getOntologyModificationMass(identifier);
+		} catch (NumberFormatException error) {
+			return null;
+		}
+		// if this is a CV parameter, get the name and value from the tuple
+		String name = identifier;
+		String value = null;
+		matcher = MzTabConstants.CV_TERM_PATTERN.matcher(identifier);
+		if (matcher.matches()) {
+			name = matcher.group(2);
+			value = matcher.group(4);
+		}
+		// treat the name as a CV accession and
+		// try to get it from the PTM ontology
+		Double mass = OntologyUtils.getOntologyModificationMass(name);
+		// if the term cannot be found in the PTM ontology, try the parsed
+		// CV parameter value (if present) as a last-ditch effort
+		if (mass == null && value != null) try {
+			return Double.parseDouble(value);
+		} catch (NumberFormatException error) {
+			return null;
+		}
 		// masses of 0 correspond to unknown mods
 		if (mass == null || mass == 0.0)
 			return null;
