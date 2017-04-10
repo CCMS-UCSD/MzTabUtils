@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 
+import org.apache.commons.io.FilenameUtils;
+
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabConstants.FDRType;
 import edu.ucsd.mztab.model.MzTabFile;
@@ -71,6 +73,11 @@ public class ProteoSAFeMzTabCleaner
 		// sort files alphabetically
 		Arrays.sort(files);
 		for (File file : files) {
+			// only process this file if it's an mzTab file
+			String extension = FilenameUtils.getExtension(file.getName());
+			if (extension == null ||
+				extension.trim().equalsIgnoreCase("mztab") == false)
+				continue;
 			// get this input mzTab file
 			MzTabFile inputFile = cleanup.context.getMzTabFile(file);
 			// get final output file
