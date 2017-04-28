@@ -279,6 +279,10 @@ public class PROXIProcessor implements MzTabProcessor
 						try { connection.rollback(); }
 						catch (Throwable innerError) {}
 						importError = error;
+						// wait a random amount of time (up to one second)
+						// before trying to import this PSM row again
+						try { Thread.sleep((long)(Math.random() * 1000)); }
+						catch (Throwable innerError) {}
 					}
 				}
 				// if after all retries the PSM import still
