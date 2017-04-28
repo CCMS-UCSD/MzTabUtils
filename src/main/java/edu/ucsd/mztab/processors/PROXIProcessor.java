@@ -255,6 +255,11 @@ public class PROXIProcessor implements MzTabProcessor
 			}
 			// only record this PSM if it passes the threshold
 			if (importable) {
+				// get clean protein accession
+				String cleanedAccession =
+					ProteomicsUtils.cleanProteinAccession(
+						columns[psmHeader.getColumnIndex("accession")]);
+				// get modifications
 				Collection<Modification> modifications =
 					ProteomicsUtils.getModifications(
 						columns[psmHeader.getColumnIndex("modifications")]);
@@ -268,17 +273,18 @@ public class PROXIProcessor implements MzTabProcessor
 							columns[psmHeader.getColumnIndex("PSM_ID")],
 							columns[psmHeader.getColumnIndex("spectra_ref")],
 							columns[psmHeader.getColumnIndex("sequence")],
-							columns[psmHeader.getColumnIndex("accession")],
+							cleanedAccession,
 							columns[psmHeader.getColumnIndex("charge")],
-							columns[psmHeader.getColumnIndex("exp_mass_to_charge")],
+							columns[
+								psmHeader.getColumnIndex("exp_mass_to_charge")],
 							modifications);
 						connection.commit();
 						importError = null;
 						break;
 					} catch (Throwable error) {
+						importError = error;
 						try { connection.rollback(); }
 						catch (Throwable innerError) {}
-						importError = error;
 						// wait a random amount of time (up to one second)
 						// before trying to import this PSM row again
 						try { Thread.sleep((long)(Math.random() * 1000)); }
