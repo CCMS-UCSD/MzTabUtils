@@ -35,6 +35,7 @@ public class PROXIProcessor implements MzTabProcessor
 		"PSM_ID", "sequence", "accession", "modifications", "spectra_ref",
 		"charge", "exp_mass_to_charge"
 	};
+	private static final int IMPORT_ATTEMPTS_PER_PSM = 8;
 	
 	/*========================================================================
 	 * Properties
@@ -257,19 +258,32 @@ public class PROXIProcessor implements MzTabProcessor
 				Collection<Modification> modifications =
 					ProteomicsUtils.getModifications(
 						columns[psmHeader.getColumnIndex("modifications")]);
-				try {
-					cascadePSM(
-						columns[psmHeader.getColumnIndex("PSM_ID")],
-						columns[psmHeader.getColumnIndex("spectra_ref")],
-						columns[psmHeader.getColumnIndex("sequence")],
-						columns[psmHeader.getColumnIndex("accession")],
-						columns[psmHeader.getColumnIndex("charge")],
-						columns[psmHeader.getColumnIndex("exp_mass_to_charge")],
-						modifications);
-					connection.commit();
-				} catch (Throwable error) {
-					try { connection.rollback(); }
-					catch (Throwable innerError) {}
+				// retry this PSM import the specified number of times,
+				// ignoring early errors since they are assumed to be
+				// caused by parallel import race conditions
+				Throwable importError = null;
+				for (int tries=1; tries<=IMPORT_ATTEMPTS_PER_PSM; tries++) {
+					try {
+						cascadePSM(
+							columns[psmHeader.getColumnIndex("PSM_ID")],
+							columns[psmHeader.getColumnIndex("spectra_ref")],
+							columns[psmHeader.getColumnIndex("sequence")],
+							columns[psmHeader.getColumnIndex("accession")],
+							columns[psmHeader.getColumnIndex("charge")],
+							columns[psmHeader.getColumnIndex("exp_mass_to_charge")],
+							modifications);
+						connection.commit();
+						importError = null;
+						break;
+					} catch (Throwable error) {
+						try { connection.rollback(); }
+						catch (Throwable innerError) {}
+						importError = error;
+					}
+				}
+				// if after all retries the PSM import still
+				// failed, report the error and move on
+				if (importError != null) {
 					// log this insertion failure
 					incrementRowCount("invalid_PSM");
 					// print warning and continue
@@ -277,8 +291,8 @@ public class PROXIProcessor implements MzTabProcessor
 						"Line %d of mzTab file [%s] is invalid:" +
 						"\n----------\n%s\n----------\n%s",
 						lineNumber, mzTabFilename, line,
-						getRootCause(error).getMessage()));
-					error.printStackTrace();
+						getRootCause(importError).getMessage()));
+					importError.printStackTrace();
 				}
 			} else incrementRowCount("unimportable_PSM");
 		}
