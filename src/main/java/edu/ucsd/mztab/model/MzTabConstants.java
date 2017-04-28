@@ -178,6 +178,10 @@ public class MzTabConstants
 		)
 	);
 	
+	// constants pertaining to protein accession strings
+	public static final Pattern PRE_POST_PROTEIN_ACCESSION_PATTERN =
+		Pattern.compile("^(.*?)\\|?\\(?pre=.{1},post=.{1}\\)?$");
+	
 	// general constants
 	public static final Pattern FILE_URI_PROTOCOL_PATTERN =
 		Pattern.compile("file:(?:[/]{2})?(.*)");

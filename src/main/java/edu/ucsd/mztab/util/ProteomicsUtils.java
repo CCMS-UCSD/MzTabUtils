@@ -200,6 +200,18 @@ public class ProteomicsUtils
 		else return modifiedSequence;
 	}
 	
+	public static String cleanProteinAccession(String accession) {
+		if (accession == null)
+			return null;
+		// strip off any pre/post suffix, if present
+		Matcher matcher =
+			MzTabConstants.PRE_POST_PROTEIN_ACCESSION_PATTERN.matcher(
+				accession);
+		if (matcher.matches())
+			return matcher.group(1);
+		else return accession;
+	}
+	
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
