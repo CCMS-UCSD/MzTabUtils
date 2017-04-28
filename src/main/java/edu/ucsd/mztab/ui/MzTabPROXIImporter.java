@@ -11,6 +11,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabConstants;
@@ -91,18 +93,16 @@ public class MzTabPROXIImporter
 				"into the MassIVE search database...\n----------",
 				files.size(), CommonUtils.pluralize("file", files.size())));
 			for (File file : files) {
-				// only import this mzTab file if it contains importable PSMs
-				if (importByQValue && isImportable(file) == false)
+				// try to import this file; null means it was not imported
+				// for benign reasons, errors should throw an exception
+				ImmutablePair<Integer, Integer> importCounts =
+					importMzTabFile(file, context, taskID, datasetID,
+						importByQValue, connection);
+				if (importCounts == null)
 					continue;
-				MzTabReader reader =
-					new MzTabReader(context.getMzTabFile(file));
-				PROXIProcessor processor = new PROXIProcessor(
-					taskID, datasetID, importByQValue, connection);
-				reader.addProcessor(processor);
-				reader.read();
 				filesImported++;
-				totalLines += processor.getRowCount("lines_in_file");
-				totalPSMRows += processor.getRowCount("PSM");
+				totalLines += importCounts.getLeft();
+				totalPSMRows += importCounts.getRight();
 			}
 			long elapsed = System.currentTimeMillis() - start;
 			double seconds = elapsed / 1000.0;
@@ -123,6 +123,55 @@ public class MzTabPROXIImporter
 		} finally {
 			try { connection.close(); } catch (Throwable error) {}
 		}
+	}
+	
+	public static ImmutablePair<Integer, Integer> importMzTabFile(
+		File mzTabFile, TaskMzTabContext context, String taskID,
+		Integer datasetID, Boolean importByQValue
+	) {
+		if (mzTabFile == null || context == null || taskID == null)
+			return null;
+		// set up database connection
+		Connection connection = DatabaseUtils.getConnection();
+		if (connection == null)
+			throw new NullPointerException(
+				"Could not connect to the MassIVE search database server.");
+		try {
+			return importMzTabFile(mzTabFile, context, taskID, datasetID,
+				importByQValue, connection);
+		} catch (Throwable error) {
+			throw new RuntimeException(String.format(
+				"Error importing mzTab file [%s] to the MassIVE search " +
+				"database.", mzTabFile.getAbsolutePath()), error);
+		} finally {
+			try { connection.close(); } catch (Throwable error) {}
+		}
+	}
+	
+	public static ImmutablePair<Integer, Integer> importMzTabFile(
+		File mzTabFile, TaskMzTabContext context, String taskID,
+		Integer datasetID, Boolean importByQValue, Connection connection
+	) {
+		if (mzTabFile == null || context == null || taskID == null ||
+			connection == null)
+			return null;
+		// importByQValue defaults to true
+		if (importByQValue == null)
+			importByQValue = true;
+		// only import this mzTab file if it contains importable PSMs
+		if (importByQValue && isImportable(mzTabFile) == false)
+			return null;
+		MzTabReader reader = new MzTabReader(context.getMzTabFile(mzTabFile));
+		PROXIProcessor processor =
+			new PROXIProcessor(taskID, datasetID, importByQValue, connection);
+		reader.addProcessor(processor);
+		reader.read();
+		// return import counts:
+		// left: total lines read in the mzTab file
+		// right: total unique PSMs imported to search from the mzTab file
+		return new ImmutablePair<Integer, Integer>(
+			processor.getRowCount("lines_in_file"),
+			processor.getRowCount("PSM"));
 	}
 	
 	public static boolean isImportable(File mzTabFile) {
