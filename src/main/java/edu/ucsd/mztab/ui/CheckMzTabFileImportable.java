@@ -19,7 +19,7 @@ public class CheckMzTabFileImportable
 			die(USAGE);
 		File mzTabFile = new File(args[0]);
 		try {
-			if (MzTabPROXIImporter.isImportable(mzTabFile))
+			if (MzTabPROXIImporter.isImportable(mzTabFile, true))
 				System.out.println(String.format(
 					"MzTab file [%s] is importable to MassIVE search.",
 					mzTabFile.getName()));

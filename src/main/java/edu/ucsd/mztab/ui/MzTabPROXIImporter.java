@@ -17,9 +17,11 @@ import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
+import edu.ucsd.mztab.model.PSM;
 import edu.ucsd.mztab.processors.PROXIProcessor;
 import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.DatabaseUtils;
+import edu.ucsd.mztab.util.ProteomicsUtils;
 
 public class MzTabPROXIImporter
 {
@@ -159,7 +161,7 @@ public class MzTabPROXIImporter
 		if (importByQValue == null)
 			importByQValue = true;
 		// only import this mzTab file if it contains importable PSMs
-		if (importByQValue && isImportable(mzTabFile) == false)
+		if (isImportable(mzTabFile, importByQValue) == false)
 			return null;
 		MzTabReader reader = new MzTabReader(context.getMzTabFile(mzTabFile));
 		PROXIProcessor processor =
@@ -174,7 +176,7 @@ public class MzTabPROXIImporter
 			processor.getRowCount("PSM"));
 	}
 	
-	public static boolean isImportable(File mzTabFile) {
+	public static boolean isImportable(File mzTabFile, boolean importByQValue) {
 		if (mzTabFile == null || mzTabFile.isFile() == false ||
 			mzTabFile.canRead() == false)
 			return false;
@@ -186,6 +188,7 @@ public class MzTabPROXIImporter
 			String line = null;
 			int lineNumber = 0;
 			MzTabSectionHeader psmHeader = null;
+			Integer validColumn = null;
 			Integer qValueColumn = null;
 			while (true) {
 				line = reader.readLine();
@@ -201,11 +204,21 @@ public class MzTabPROXIImporter
 							"A \"PSH\" row was already seen previously in this file.",
 							lineNumber, mzTabFile.getAbsolutePath(), line));
 					psmHeader = new MzTabSectionHeader(line);
-					// determine index of controlled Q-value column, if present
+					// determine index of controlled validity column
+					// (required for the file to be importable)
+					validColumn =
+						psmHeader.getColumnIndex(MzTabConstants.VALID_COLUMN);
+					if (validColumn == null)
+						return false;
+					// determine index of controlled Q-value column
+					// (required if importing by Q-Value)
 					qValueColumn =
 						psmHeader.getColumnIndex(MzTabConstants.Q_VALUE_COLUMN);
+					if (importByQValue && qValueColumn == null)
+						return false;
 				}
-				// if importing by Q-Value, check each PSM row's Q-Value
+				// check each PSM row to see if it's importable; as soon as
+				// a fully validated importable row is found, return true
 				else if (line.startsWith("PSM")) {
 					if (psmHeader == null)
 						throw new IllegalArgumentException(String.format(
@@ -214,19 +227,47 @@ public class MzTabPROXIImporter
 							"A \"PSM\" row was found before any \"PSH\" row.",
 							lineNumber, mzTabFile.getAbsolutePath(), line));
 					else psmHeader.validateMzTabRow(line);
-					// determine if this PSM makes the cut
-					try {
+					// check all the required elements of this PSM row
+					String[] columns = line.split("\\t");
+					// all importable PSMs must be marked as "VALID"
+					String valid = columns[validColumn];
+					if (valid == null ||
+						valid.trim().equalsIgnoreCase("VALID") == false)
+						continue;
+					// if importing by Q-Value, determine
+					// if this PSM makes the cut
+					if (importByQValue) try {
 						double qValue =
-							Double.parseDouble(line.split("\\t")[qValueColumn]);
-						if (qValue <=
+							Double.parseDouble(columns[qValueColumn]);
+						if (qValue >
 							MzTabConstants.DEFAULT_IMPORT_Q_VALUE_THRESHOLD)
-							return true;
+							continue;
 					} catch (Throwable error) {
 						continue;
 					}
+					// try instantiating this row as a PSM object,
+					// just as the importer would; if it builds
+					// with no errors, then the row is good
+					try {
+						new PSM(columns[psmHeader.getColumnIndex("PSM_ID")],
+							columns[psmHeader.getColumnIndex("spectra_ref")],
+							columns[psmHeader.getColumnIndex("sequence")],
+							columns[psmHeader.getColumnIndex("charge")],
+							columns[psmHeader.getColumnIndex(
+								"exp_mass_to_charge")],
+							ProteomicsUtils.getModifications(
+								columns[psmHeader.getColumnIndex(
+									"modifications")])
+						);
+					} catch (Throwable error) {
+						continue;
+					}
+					// if after all tests this PSM row was still found
+					// to be importable, then the file is good
+					return true;
 				}
 			}
-			// if no passing Q-Value was found anywhere
+			// if no importable PSM row was found anywhere
 			// in the file, then it's not importable
 			return false;
 		} catch (RuntimeException error) {
