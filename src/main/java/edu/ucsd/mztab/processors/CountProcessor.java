@@ -156,7 +156,13 @@ public class CountProcessor implements MzTabProcessor
 					if (value != null &&
 						value.trim().equalsIgnoreCase("INVALID"))
 						incrementCount("invalid_PSM");
-				} else addElement(
+				}
+				// clean protein accessions as a special case
+				else if (column.equals("accession"))
+					addElement(column, ProteomicsUtils.cleanProteinAccession(
+						columns[psmHeader.getColumnIndex(column)]));
+				// just dump everything else as-is into the counter map
+				else addElement(
 					column, columns[psmHeader.getColumnIndex(column)]);
 			}
 			// build variant identifier and add that to the count map
