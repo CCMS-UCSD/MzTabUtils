@@ -255,54 +255,66 @@ public class PROXIProcessor implements MzTabProcessor
 			}
 			// only record this PSM if it passes the threshold
 			if (importable) {
-				// get clean protein accession
-				String cleanedAccession =
-					ProteomicsUtils.cleanProteinAccession(
-						columns[psmHeader.getColumnIndex("accession")]);
-				// get modifications
-				Collection<Modification> modifications =
-					ProteomicsUtils.getModifications(
-						columns[psmHeader.getColumnIndex("modifications")]);
-				// retry this PSM import the specified number of times,
-				// ignoring early errors since they are assumed to be
-				// caused by parallel import race conditions
-				Throwable importError = null;
-				for (int tries=1; tries<=IMPORT_ATTEMPTS_PER_PSM; tries++) {
-					try {
-						cascadePSM(
-							columns[psmHeader.getColumnIndex("PSM_ID")],
-							columns[psmHeader.getColumnIndex("spectra_ref")],
-							columns[psmHeader.getColumnIndex("sequence")],
-							cleanedAccession,
-							columns[psmHeader.getColumnIndex("charge")],
-							columns[
-								psmHeader.getColumnIndex("exp_mass_to_charge")],
-							modifications);
-						connection.commit();
-						importError = null;
-						break;
-					} catch (Throwable error) {
-						importError = error;
-						try { connection.rollback(); }
-						catch (Throwable innerError) {}
-						// wait a random amount of time (up to one second)
-						// before trying to import this PSM row again
-						try { Thread.sleep((long)(Math.random() * 1000)); }
-						catch (Throwable innerError) {}
+				// split protein list, if aggregated (should only be one per
+				// PSM row, but mzTab producers sometimes don't follow rules)
+				String[] proteins = null;
+				String accession =
+					columns[psmHeader.getColumnIndex("accession")];
+				if (accession != null)
+					proteins = accession.split(";");
+				if (proteins == null)
+					proteins = new String[]{null};
+				// import PSM separately for each matched protein
+				for (String protein : proteins) {
+					// get clean protein accession
+					String cleanedAccession =
+						ProteomicsUtils.cleanProteinAccession(protein);
+					// get modifications
+					Collection<Modification> modifications =
+						ProteomicsUtils.getModifications(
+							columns[psmHeader.getColumnIndex("modifications")]);
+					// retry this PSM import the specified number of times,
+					// ignoring early errors since they are assumed to be
+					// caused by parallel import race conditions
+					Throwable importError = null;
+					for (int tries=1; tries<=IMPORT_ATTEMPTS_PER_PSM; tries++) {
+						try {
+							cascadePSM(
+								columns[psmHeader.getColumnIndex("PSM_ID")],
+								columns[psmHeader.getColumnIndex(
+									"spectra_ref")],
+								columns[psmHeader.getColumnIndex("sequence")],
+								cleanedAccession,
+								columns[psmHeader.getColumnIndex("charge")],
+								columns[psmHeader.getColumnIndex(
+									"exp_mass_to_charge")],
+								modifications);
+							connection.commit();
+							importError = null;
+							break;
+						} catch (Throwable error) {
+							importError = error;
+							try { connection.rollback(); }
+							catch (Throwable innerError) {}
+							// wait a random amount of time (up to one second)
+							// before trying to import this PSM row again
+							try { Thread.sleep((long)(Math.random() * 1000)); }
+							catch (Throwable innerError) {}
+						}
 					}
-				}
-				// if after all retries the PSM import still
-				// failed, report the error and move on
-				if (importError != null) {
-					// log this insertion failure
-					incrementRowCount("invalid_PSM");
-					// print warning and continue
-					System.err.println(String.format(
-						"Line %d of mzTab file [%s] is invalid:" +
-						"\n----------\n%s\n----------\n%s",
-						lineNumber, mzTabFilename, line,
-						getRootCause(importError).getMessage()));
-					importError.printStackTrace();
+					// if after all retries the PSM import still
+					// failed, report the error and move on
+					if (importError != null) {
+						// log this insertion failure
+						incrementRowCount("invalid_PSM");
+						// print warning and continue
+						System.err.println(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n%s",
+							lineNumber, mzTabFilename, line,
+							getRootCause(importError).getMessage()));
+						importError.printStackTrace();
+					}
 				}
 			} else incrementRowCount("unimportable_PSM");
 		}
