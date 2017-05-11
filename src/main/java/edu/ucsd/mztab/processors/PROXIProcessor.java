@@ -314,6 +314,7 @@ public class PROXIProcessor implements MzTabProcessor
 							lineNumber, mzTabFilename, line,
 							getRootCause(importError).getMessage()));
 						importError.printStackTrace();
+						break;
 					}
 				}
 			} else incrementRowCount("unimportable_PSM");
