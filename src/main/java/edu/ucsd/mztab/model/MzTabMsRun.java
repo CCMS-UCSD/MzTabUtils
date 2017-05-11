@@ -1,6 +1,7 @@
 package edu.ucsd.mztab.model;
 
 import java.io.File;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -8,6 +9,12 @@ import edu.ucsd.mztab.util.CommonUtils;
 
 public class MzTabMsRun
 {
+	/*========================================================================
+	 * Constants
+	 *========================================================================*/
+	private static final String DATASET_ID_PATTERN = "^MSV[0-9]{9}/.*$";
+	private static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
+	
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
@@ -71,7 +78,7 @@ public class MzTabMsRun
 	public void setDescriptor(String peakListPath) {
 		if (peakListPath == null)
 			return;
-		else if (peakListPath.matches("^.{1}\\..*$"))
+		else if (peakListPath.matches(FILE_DESCRIPTOR_PATTERN))
 			descriptor = peakListPath;
 		else descriptor = FilenameUtils.separatorsToUnix(
 			String.format("f.%s", peakListPath));
@@ -85,25 +92,51 @@ public class MzTabMsRun
 			this.descriptor = null;
 			return;
 		}
-		// build descriptor appropriately based on parameters
-		StringBuilder descriptor = new StringBuilder("f.").append(datasetID);
-		// dataset files are never directly under the dataset directory; if no
-		// peak list relative path is provided, then it defaults to "peak"
-		if (peakListRelativePath == null ||
-			peakListRelativePath.trim().isEmpty())
-			peakListRelativePath = "peak";
-		// append the relative path of the peak list directory
-		descriptor.append(File.separator).append(peakListRelativePath);
-		// append the final file path under the mzTab directory
-		descriptor.append(File.separator);
 		// if this is a dataset file, then it should have a mapped file path
 		String filePath = getMappedPeakListPath();
 		if (filePath == null)
 			filePath = getCleanedMsRunLocation();
+		filePath = FilenameUtils.separatorsToUnix(filePath);
 		// trim off leading slash, if present
-		if (filePath.startsWith(File.separator))
+		if (filePath.startsWith("/"))
 			filePath = filePath.substring(1);
-		descriptor.append(filePath);
+		// build descriptor appropriately based on parameters
+		StringBuilder descriptor = new StringBuilder("f.");
+		// get first directory in mapped path
+		String root = filePath.split(Pattern.quote("/"))[0];
+		// if the mapped path is already a dataset path, then just append it
+		if (root.matches(DATASET_ID_PATTERN))
+			descriptor.append(filePath);
+		// otherwise, the file must be present under this dataset
+		else {
+			descriptor.append(datasetID).append("/");
+			// if the mapped path starts with a known peak list collection
+			// name, then it may refer to a file already in the dataset;
+			// in which case, check to see if it's there
+			boolean found = false;
+			if (root.equals("peak") || root.equals("ccms_peak")) {
+				StringBuilder testDescriptor = new StringBuilder(descriptor);
+				testDescriptor.append(filePath);
+				if (testFileDescriptor(testDescriptor.toString())) {
+					descriptor = testDescriptor;
+					found = true;
+				}
+			}
+			// if the file is not already in the dataset,
+			// prepend the argument relative path
+			if (found == false) {
+				// if no peak list relative path is provided,
+				// then it defaults to "peak"
+				if (peakListRelativePath == null ||
+					peakListRelativePath.trim().isEmpty())
+					peakListRelativePath = "peak";
+				// append the relative path of the peak list directory
+				descriptor.append(peakListRelativePath);
+				// append the final file path under the peak list directory
+				descriptor.append("/");
+				descriptor.append(filePath);
+			}
+		}
 		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
 	}
 	
@@ -117,20 +150,21 @@ public class MzTabMsRun
 		}
 		// build descriptor appropriately based on parameters
 		StringBuilder descriptor = new StringBuilder("u.");
-		descriptor.append(username).append(File.separator).append(taskID);
+		descriptor.append(username).append("/").append(taskID);
 		// append the relative path of the peak list directory, if specified
 		if (peakListRelativePath != null &&
 			peakListRelativePath.trim().isEmpty() == false)
-			descriptor.append(File.separator).append(peakListRelativePath);
+			descriptor.append("/").append(peakListRelativePath);
 		// append the final file path under the mzTab directory
-		descriptor.append(File.separator);
+		descriptor.append("/");
 		// if this is a task file, then it should either have a mangled filename
 		// or the file itself should be present in the task peak list directory
 		String filePath = getMangledPeakListFilename();
 		if (filePath == null)
 			filePath = getCleanedMsRunLocation();
+		filePath = FilenameUtils.separatorsToUnix(filePath);
 		// trim off leading slash, if present
-		if (filePath.startsWith(File.separator))
+		if (filePath.startsWith("/"))
 			filePath = filePath.substring(1);
 		descriptor.append(filePath);
 		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
@@ -206,5 +240,22 @@ public class MzTabMsRun
 		else msRun.append("\"").append(mappedPeakListPath).append("\"");
 		msRun.append("}");
 		return msRun.toString();
+	}
+	
+	/*========================================================================
+	 * Convenience methods
+	 *========================================================================*/
+	// TODO: this functionality should be factored out into an
+	// application that should have knowledge of ProteoSAFe/MassIVE
+	// files - NOT a generic mzTab utility package like this!
+	private static final String DATASET_FILES_ROOT = "/data/ccms-data/uploads";
+	private boolean testFileDescriptor(String fileDescriptor) {
+		if (fileDescriptor == null)
+			return false;
+		// strip off file descriptor prefix
+		if (fileDescriptor.matches(FILE_DESCRIPTOR_PATTERN))
+			fileDescriptor = fileDescriptor.substring(2);
+		// get file from descriptor
+		return new File(DATASET_FILES_ROOT, fileDescriptor).exists();
 	}
 }

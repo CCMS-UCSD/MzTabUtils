@@ -166,21 +166,26 @@ public class TaskMzTabContext
 				// fill out this ms_run's file mappings
 				mapMsRun(msRun, mzTab.getMappedResultPath(), mappings);
 				if (datasetID != null) {
-					// if the cleaned ms_run-location string is already a
-					// dataset relative path, just use that as the descriptor
-					String msRunLocation = msRun.getCleanedMsRunLocation();
-					if (msRunLocation != null &&
-						msRunLocation.matches("^MSV[0-9]{9}/.*$"))
-						msRun.setDescriptor(msRunLocation);
-					// otherwise, only set the dataset descriptor with the given
-					// relative path if this is not already a dataset file
-					else {
-						String uploaded = msRun.getUploadedPeakListPath();
-						if (uploaded == null ||
-							uploaded.matches("^MSV[0-9]{9}/.*$") == false)
-							msRun.setDatasetDescriptor(
-								datasetID, peakListRelativePath);
-					}
+					// if this is an ms_run for a dataset mzTab file, then
+					// the peak list file had better be in the same dataset
+					msRun.setDatasetDescriptor(datasetID, peakListRelativePath);
+					// TODO: check to see if this file is actually in the
+					// same dataset; if not, try other available options 
+//					// if the cleaned ms_run-location string is already a
+//					// dataset relative path, just use that as the descriptor
+//					String msRunLocation = msRun.getCleanedMsRunLocation();
+//					if (msRunLocation != null &&
+//						msRunLocation.matches("^MSV[0-9]{9}/.*$"))
+//						msRun.setDescriptor(msRunLocation);
+//					// otherwise, only set the dataset descriptor with the given
+//					// relative path if this is not already a dataset file
+//					else {
+//						String uploaded = msRun.getUploadedPeakListPath();
+//						if (uploaded == null ||
+//							uploaded.matches("^MSV[0-9]{9}/.*$") == false)
+//							msRun.setDatasetDescriptor(
+//								datasetID, peakListRelativePath);
+//					}
 				}
 				// only try to use a task descriptor if there's no upload
 				// mapping; peak list files should always have such a mapping
