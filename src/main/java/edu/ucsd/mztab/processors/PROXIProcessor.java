@@ -775,8 +775,8 @@ public class PROXIProcessor implements MzTabProcessor
 				"No valid row ID could be obtained for PSM %d " +
 				"of result file %d.", psm.getID(), mzTabRecord.id));
 		// add this psm to the set of recorded psms
-		else addElement("psm", psm.getID().toString(), psmID);
-		return peptideID;
+		addElement("psm", psm.getID().toString(), psmID);
+		return psmID;
 	}
 	
 	private void recordPSMProtein(int psmID, int proteinID) {
