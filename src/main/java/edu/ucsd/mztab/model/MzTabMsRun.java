@@ -12,7 +12,7 @@ public class MzTabMsRun
 	/*========================================================================
 	 * Constants
 	 *========================================================================*/
-	private static final String DATASET_ID_PATTERN = "^MSV[0-9]{9}/.*$";
+	private static final String DATASET_ID_PATTERN = "^MSV[0-9]{9}$";
 	private static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
 	
 	/*========================================================================
