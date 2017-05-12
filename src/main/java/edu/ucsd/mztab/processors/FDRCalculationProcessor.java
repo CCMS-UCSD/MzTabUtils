@@ -41,7 +41,9 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	private String               passThresholdColumn;
 	private String               decoyColumn;
 	private String               decoyPattern;
-	private String               qValueColumn;
+	private String               psmQValueColumn;
+	private String               peptideQValueColumn;
+	private String               proteinQValueColumn;
 	// FDR filter threshold
 	private FDRType              filterType;
 	private Double               filterFDR;
@@ -51,7 +53,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 	 *========================================================================*/
 	public FDRCalculationProcessor(
 		MzTabFDRStatistics statistics, String passThresholdColumn,
-		String decoyColumn, String decoyPattern, String qValueColumn,
+		String decoyColumn, String decoyPattern, String psmQValueColumn,
+		String peptideQValueColumn, String proteinQValueColumn,
 		FDRType filterType, Double filterFDR
 	) {
 		// initialize FDR statistics data structure
@@ -70,7 +73,9 @@ public class FDRCalculationProcessor implements MzTabProcessor
 		this.passThresholdColumn = passThresholdColumn;
 		this.decoyColumn = decoyColumn;
 		this.decoyPattern = decoyPattern;
-		this.qValueColumn = qValueColumn;
+		this.psmQValueColumn = psmQValueColumn;
+		this.peptideQValueColumn = peptideQValueColumn;
+		this.proteinQValueColumn = proteinQValueColumn;
 		// initialize FDR filter settings
 		this.filterType = filterType;
 		this.filterFDR = filterFDR;
@@ -133,21 +138,40 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				MzTabSection.PSM, Arrays.asList(RELEVANT_PSM_COLUMNS));
 			// get PSM section column headers
 			List<String> headers = psmHeader.getColumns();
-			// if the user did not specify a Q-value column, then
-			// look for one that we know corresponds to Q-value
-			if (qValueColumn == null) {
-				for (String column : MzTabConstants.KNOWN_QVALUE_COLUMNS) {
+			// if the user did not specify a PSM-level Q-value column,
+			// then look for one that we know corresponds to this
+			if (psmQValueColumn == null) {
+				for (String column : MzTabConstants.KNOWN_PSM_QVALUE_COLUMNS) {
 					for (int i=0; i<headers.size(); i++) {
 						String header = headers.get(i);
 						if (header == null)
 							continue;
 						else if (CommonUtils.headerCorrespondsToColumn(
 							header, column, scoreColumns)) {
-							qValueColumn = header;
+							psmQValueColumn = header;
 							break;
 						}
 					}
-					if (qValueColumn != null)
+					if (psmQValueColumn != null)
+						break;
+				}
+			}
+			// if the user did not specify a peptide-level Q-value column,
+			// then look for one that we know corresponds to this
+			if (peptideQValueColumn == null) {
+				for (String column :
+					MzTabConstants.KNOWN_PEPTIDE_QVALUE_COLUMNS) {
+					for (int i=0; i<headers.size(); i++) {
+						String header = headers.get(i);
+						if (header == null)
+							continue;
+						else if (CommonUtils.headerCorrespondsToColumn(
+							header, column, scoreColumns)) {
+							peptideQValueColumn = header;
+							break;
+						}
+					}
+					if (peptideQValueColumn != null)
 						break;
 				}
 			}
@@ -169,8 +193,14 @@ public class FDRCalculationProcessor implements MzTabProcessor
 					header, decoyColumn, scoreColumns))
 					columns.put(decoyColumn, i);
 				else if (CommonUtils.headerCorrespondsToColumn(
-					header, qValueColumn, scoreColumns))
-					columns.put(qValueColumn, i);
+					header, psmQValueColumn, scoreColumns))
+					columns.put(psmQValueColumn, i);
+				else if (CommonUtils.headerCorrespondsToColumn(
+					header, peptideQValueColumn, scoreColumns))
+					columns.put(peptideQValueColumn, i);
+				else if (CommonUtils.headerCorrespondsToColumn(
+					header, proteinQValueColumn, scoreColumns))
+					columns.put(proteinQValueColumn, i);
 				else if (header.equalsIgnoreCase(
 					MzTabConstants.PASS_THRESHOLD_COLUMN))
 					columns.put(MzTabConstants.PASS_THRESHOLD_COLUMN, i);
@@ -303,7 +333,7 @@ public class FDRCalculationProcessor implements MzTabProcessor
 					isDecoy == null ? "null" : isDecoy ? "1" : "0";
 				line = getLine(row);
 			}
-			// Q-value; default null
+			// PSM-level Q-value; default null
 			String qValue = "null";
 			Integer qValueIndex = columns.get(MzTabConstants.Q_VALUE_COLUMN);
 			// if the control column is already present, just read its value
@@ -322,8 +352,8 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			// correct value and write it to the control column
 			if (qValue == null || qValue.trim().equalsIgnoreCase("null")) {
 				// if the source column is present, read it
-				if (qValueColumn != null) {
-					Integer index = columns.get(qValueColumn);
+				if (psmQValueColumn != null) {
+					Integer index = columns.get(psmQValueColumn);
 					if (index != null)
 						qValue = row[index];
 				}
@@ -333,12 +363,33 @@ public class FDRCalculationProcessor implements MzTabProcessor
 			// keep track of this PSM for FDR statistical
 			// purposes only if it passes threshold
 			if (passThreshold) {
-				// if this PSM row is not a decoy, then note its Q-Value
-				if (isDecoy == null || isDecoy == false) try {
-					statistics.recordQValue(
-						FDRType.PSM, Double.parseDouble(qValue),
-						filterType, filterFDR);
-				} catch (NumberFormatException error) {}
+				// if this PSM row is not a decoy, then note its Q-Values
+				if (isDecoy == null || isDecoy == false) {
+					// record found PSM-level Q-Value
+					try {
+						statistics.recordQValue(
+							FDRType.PSM, Double.parseDouble(qValue),
+							filterType, filterFDR);
+					} catch (NumberFormatException error) {}
+					// get peptide-level Q-Value, if present
+					if (peptideQValueColumn != null) {
+						Integer index = columns.get(peptideQValueColumn);
+						if (index != null) try {
+							statistics.recordQValue(
+								FDRType.PEPTIDE, Double.parseDouble(row[index]),
+								filterType, filterFDR);
+						} catch (NumberFormatException error) {}
+					}
+					// get protein-level Q-Value, if present
+					if (proteinQValueColumn != null) {
+						Integer index = columns.get(proteinQValueColumn);
+						if (index != null) try {
+							statistics.recordQValue(
+								FDRType.PROTEIN, Double.parseDouble(row[index]),
+								filterType, filterFDR);
+						} catch (NumberFormatException error) {}
+					}
+				}
 				// increment the proper count for this PSM if it passes
 				// threshold and its "isDecoy" value is not null.
 				if (isDecoy != null) {

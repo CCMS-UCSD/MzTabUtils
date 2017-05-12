@@ -122,8 +122,11 @@ public class MzTabConstants
 	public static final double DEFAULT_IMPORT_Q_VALUE_THRESHOLD = 0.01;
 	
 	// constants pertaining to known optional column values
-	public static final String[] KNOWN_QVALUE_COLUMNS = new String[]{
+	public static final String[] KNOWN_PSM_QVALUE_COLUMNS = new String[]{
 		"QValue", "MS-GF:QValue"
+	};
+	public static final String[] KNOWN_PEPTIDE_QVALUE_COLUMNS = new String[]{
+		"PepQValue", "MS-GF:PepQValue"
 	};
 	public static final String[] KNOWN_DECOY_PATTERNS = new String[]{
 		"XXX_"

@@ -126,7 +126,8 @@ public class MzTabFDRCleaner
 		MzTabFDRStatistics statistics = new MzTabFDRStatistics();
 		reader.addProcessor(new FDRCalculationProcessor(
 			statistics, passThresholdColumn, decoyColumn, decoyPattern,
-			psmQValueColumn, filterType, filterFDR));
+			psmQValueColumn, peptideQValueColumn, proteinQValueColumn,
+			filterType, filterFDR));
 		// add additional processors specified by the client, if any
 		if (additionalProcessors != null)
 			for (MzTabProcessor processor : additionalProcessors)
