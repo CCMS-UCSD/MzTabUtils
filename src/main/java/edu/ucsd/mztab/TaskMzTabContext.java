@@ -11,6 +11,7 @@ import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
@@ -148,6 +149,9 @@ public class TaskMzTabContext
 		mzTabs = findMzTabFiles(mzTabDirectory);
 		if (mzTabs == null)
 			mzTabs = new ArrayList<MzTabFile>();
+		// cache all dataset files to speed up descriptor lookups
+		Collection<File> datasetFiles = FileIOUtils.findFiles(
+			new File(MzTabConstants.DATASET_FILES_ROOT, datasetID));
 		// extract file mapping context from params.xml
 		ProteoSAFeFileMappingContext mappings =
 			new ProteoSAFeFileMappingContext(parameters);
@@ -168,7 +172,8 @@ public class TaskMzTabContext
 				if (datasetID != null) {
 					// if this is an ms_run for a dataset mzTab file, then
 					// the peak list file had better be in the same dataset
-					msRun.setDatasetDescriptor(datasetID, peakListRelativePath);
+					msRun.setDatasetDescriptor(
+						datasetID, peakListRelativePath, datasetFiles);
 					// TODO: check to see if this file is actually in the
 					// same dataset; if not, try other available options 
 //					// if the cleaned ms_run-location string is already a

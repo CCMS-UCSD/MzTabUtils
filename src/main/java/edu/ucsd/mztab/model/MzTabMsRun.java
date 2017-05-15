@@ -90,6 +90,13 @@ public class MzTabMsRun
 	public void setDatasetDescriptor(
 		String datasetID, String peakListRelativePath
 	) {
+		setDatasetDescriptor(datasetID, peakListRelativePath, null);
+	}
+	
+	public void setDatasetDescriptor(
+		String datasetID, String peakListRelativePath,
+		Collection<File> datasetFiles
+	) {
 		// dataset ID is required for dataset file descriptors
 		if (datasetID == null) {
 			this.descriptor = null;
@@ -124,8 +131,9 @@ public class MzTabMsRun
 		// dataset (e.g. this is an attachment of a reanalysis of
 		// peak list files from the parent dataset)
 		File foundFile = null;
-		try { foundFile = findFileInDataset(filePath, datasetID); }
-		catch (IllegalStateException error) {
+		try {
+			foundFile = findFileInDataset(filePath, datasetID, datasetFiles);
+		} catch (IllegalStateException error) {
 			throw error;
 		}
 		
@@ -255,25 +263,26 @@ public class MzTabMsRun
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	// TODO: this functionality should be factored out into an
-	// application that should have knowledge of ProteoSAFe/MassIVE
-	// files - NOT a generic mzTab utility package like this!
-	private static final String DATASET_FILES_ROOT = "/data/ccms-data/uploads";
-	
-	private File findFileInDataset(String filePath, String datasetID) {
+	private File findFileInDataset(
+		String filePath, String datasetID, Collection<File> datasetFiles
+	) {
 		if (filePath == null || datasetID == null)
-			return null;
-		// get dataset directory
-		File datasetDirectory = new File(DATASET_FILES_ROOT, datasetID);
-		// if dataset directory does not yet exist, then this is an original
-		// submission and obviously it doesn't contain any files yet
-		if (datasetDirectory.isDirectory() == false)
 			return null;
 		// otherwise, look through all the dataset's
 		// files to find find the best match
-		Collection<File> files = FileIOUtils.findFiles(datasetDirectory);
+		if (datasetFiles == null) {
+			// get dataset directory
+			File datasetDirectory =
+				new File(MzTabConstants.DATASET_FILES_ROOT, datasetID);
+			// if dataset directory does not yet exist, then this is an original
+			// submission and obviously it doesn't contain any files yet
+			if (datasetDirectory.isDirectory() == false)
+				return null;
+			// get all of this dataset's files
+			datasetFiles = FileIOUtils.findFiles(datasetDirectory);
+		}
 		// if the dataset has no files, then obviously this one isn't there
-		if (files == null || files.isEmpty())
+		if (datasetFiles == null || datasetFiles.isEmpty())
 			return null;
 		// find both exact path matches and leaf (filename) matches
 		Collection<File> exactMatches = new HashSet<File>();
@@ -285,11 +294,11 @@ public class MzTabMsRun
 		// get leaf filename of argument path
 		String filename = FilenameUtils.getName(filePath);
 		// look through all files to find matches
-		for (File file : files) {
-			if (file.getAbsolutePath().endsWith(filePath))
-				exactMatches.add(file);
-			else if (file.getName().equals(filename))
-				leafMatches.add(file);
+		for (File datasetFile : datasetFiles) {
+			if (datasetFile.getAbsolutePath().endsWith(filePath))
+				exactMatches.add(datasetFile);
+			else if (datasetFile.getName().equals(filename))
+				leafMatches.add(datasetFile);
 		}
 		// if there one exact match, return that
 		if (exactMatches.size() == 1)
