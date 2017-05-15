@@ -1,7 +1,6 @@
 package edu.ucsd.mztab.ui;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -143,7 +142,8 @@ public class RemangleFiles
 			// recursively search input directories for all collection files
 			Collection<File> collectionFiles = new LinkedHashSet<File>();
 			for (File collectionDirectory : collectionDirectories) {
-				Collection<File> theseFiles = findFiles(collectionDirectory);
+				Collection<File> theseFiles =
+					FileIOUtils.findFiles(collectionDirectory);
 				if (theseFiles != null && theseFiles.isEmpty() == false)
 					collectionFiles.addAll(theseFiles);
 			}
@@ -258,29 +258,6 @@ public class RemangleFiles
 			error.printStackTrace();
 			return null;
 		}
-	}
-	
-	private static Collection<File> findFiles(File directory) {
-		if (directory == null || directory.canRead() == false ||
-			directory.isDirectory() == false)
-			return null;
-		File[] files = directory.listFiles();
-		if (files == null || files.length < 1)
-			return null;
-		// sort files alphabetically
-		Arrays.sort(files);
-		// add all found files to collection
-		Collection<File> foundFiles = new LinkedHashSet<File>();
-		for (File file : files) {
-			// recurse into subdirectories
-			if (file.isDirectory()) {
-				Collection<File> descendantFiles = findFiles(file);
-				if (descendantFiles != null &&
-					descendantFiles.isEmpty() == false)
-					foundFiles.addAll(descendantFiles);
-			} else foundFiles.add(file);
-		}
-		return foundFiles;
 	}
 	
 	private static void die(String message) {

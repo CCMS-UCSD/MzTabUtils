@@ -2,7 +2,6 @@ package edu.ucsd.mztab.ui;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -40,7 +39,7 @@ public class CopyReprocessedFiles
 			copy.peakListDirectory, copy.peakListRelativePath,
 			copy.peakListCollection, copy.parameters, copy.datasetID);
 		// recursively search cleaned result directory for result files
-		Collection<File> resultFiles = findFiles(copy.inputDirectory);
+		Collection<File> resultFiles = FileIOUtils.findFiles(copy.inputDirectory);
 		if (resultFiles == null || resultFiles.isEmpty())
 			die(String.format("No result files could be " +
 				"found in cleaned result directory [%s].",
@@ -227,29 +226,6 @@ public class CopyReprocessedFiles
 			error.printStackTrace();
 			return null;
 		}
-	}
-	
-	private static Collection<File> findFiles(File directory) {
-		if (directory == null || directory.canRead() == false ||
-			directory.isDirectory() == false)
-			return null;
-		File[] files = directory.listFiles();
-		if (files == null || files.length < 1)
-			return null;
-		// sort files alphabetically
-		Arrays.sort(files);
-		// add all found files to collection
-		Collection<File> foundFiles = new ArrayList<File>();
-		for (File file : files) {
-			// recurse into subdirectories
-			if (file.isDirectory()) {
-				Collection<File> descendantFiles = findFiles(file);
-				if (descendantFiles != null &&
-					descendantFiles.isEmpty() == false)
-					foundFiles.addAll(descendantFiles);
-			} else foundFiles.add(file);
-		}
-		return foundFiles;
 	}
 	
 	private static void die(String message) {

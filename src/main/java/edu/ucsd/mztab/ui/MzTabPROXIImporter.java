@@ -6,8 +6,6 @@ import java.io.FileReader;
 import java.io.RandomAccessFile;
 import java.sql.Connection;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 
@@ -21,6 +19,7 @@ import edu.ucsd.mztab.model.PSM;
 import edu.ucsd.mztab.processors.PROXIProcessor;
 import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.DatabaseUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 import edu.ucsd.mztab.util.ProteomicsUtils;
 
 public class MzTabPROXIImporter
@@ -83,7 +82,7 @@ public class MzTabPROXIImporter
 			long totalLines = 0;
 			long totalPSMRows = 0;
 			// recursively find mzTab files under the argument directory
-			Collection<File> files = findFiles(mzTabDirectory);
+			Collection<File> files = FileIOUtils.findFiles(mzTabDirectory);
 			if (files == null || files.isEmpty()) {
 				System.out.println(String.format("Could not find " +
 					"any mzTab files to import under directory [%s].",
@@ -453,29 +452,6 @@ public class MzTabPROXIImporter
 			System.err.println(error.getMessage());
 			return null;
 		}
-	}
-	
-	private static Collection<File> findFiles(File directory) {
-		if (directory == null || directory.canRead() == false ||
-			directory.isDirectory() == false)
-			return null;
-		File[] files = directory.listFiles();
-		if (files == null || files.length < 1)
-			return null;
-		// sort files alphabetically
-		Arrays.sort(files);
-		// add all found files to collection
-		Collection<File> allFiles = new ArrayList<File>();
-		for (File file : files) {
-			// recurse into subdirectories
-			if (file.isDirectory()) {
-				Collection<File> descendantFiles = findFiles(file);
-				if (descendantFiles != null &&
-					descendantFiles.isEmpty() == false)
-					allFiles.addAll(descendantFiles);
-			} else allFiles.add(file);
-		}
-		return allFiles;
 	}
 	
 	private static int parseDatasetIDString(String datasetID) {

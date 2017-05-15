@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -72,7 +71,8 @@ public class MzTabReprocessor
 		if (reprocessing == null)
 			die(USAGE);
 		// recursively search input directory for result files
-		Collection<File> resultFiles = findFiles(reprocessing.resultDirectory);
+		Collection<File> resultFiles =
+			FileIOUtils.findFiles(reprocessing.resultDirectory);
 		if (resultFiles == null || resultFiles.isEmpty())
 			die(String.format(
 				"No result files could be found in input directory [%s].",
@@ -133,7 +133,7 @@ public class MzTabReprocessor
 			new File(reprocessing.outputDirectory, "validationLog");
 		validationLogDirectory.mkdirs();
 		// recursively search converted result directory for result files
-		resultFiles = findFiles(convertedResult);
+		resultFiles = FileIOUtils.findFiles(convertedResult);
 		if (resultFiles == null || resultFiles.isEmpty())
 			die(String.format("No result files could be " +
 				"found in converted result directory [%s].",
@@ -188,7 +188,7 @@ public class MzTabReprocessor
 			new File(reprocessing.outputDirectory, "cleanedResult");
 		cleanedResult.mkdirs();
 		// recursively search validated result directory for result files
-		resultFiles = findFiles(validatedResult);
+		resultFiles = FileIOUtils.findFiles(validatedResult);
 		if (resultFiles == null || resultFiles.isEmpty())
 			die(String.format("No result files could be " +
 				"found in validated result directory [%s].",
@@ -233,7 +233,7 @@ public class MzTabReprocessor
 			new File(reprocessing.outputDirectory, "ccms_statistics");
 		statisticsDirectory.mkdirs();
 		// recursively search cleaned result directory for result files
-		resultFiles = findFiles(cleanedResult);
+		resultFiles = FileIOUtils.findFiles(cleanedResult);
 		if (resultFiles == null || resultFiles.isEmpty())
 			die(String.format("No result files could be " +
 				"found in final cleaned result directory [%s].",
@@ -640,29 +640,6 @@ public class MzTabReprocessor
 			error.printStackTrace();
 			return null;
 		}
-	}
-	
-	private static Collection<File> findFiles(File directory) {
-		if (directory == null || directory.canRead() == false ||
-			directory.isDirectory() == false)
-			return null;
-		File[] files = directory.listFiles();
-		if (files == null || files.length < 1)
-			return null;
-		// sort files alphabetically
-		Arrays.sort(files);
-		// add all found files to collection
-		Collection<File> foundFiles = new ArrayList<File>();
-		for (File file : files) {
-			// recurse into subdirectories
-			if (file.isDirectory()) {
-				Collection<File> descendantFiles = findFiles(file);
-				if (descendantFiles != null &&
-					descendantFiles.isEmpty() == false)
-					foundFiles.addAll(descendantFiles);
-			} else foundFiles.add(file);
-		}
-		return foundFiles;
 	}
 	
 	private static File getDestinationFile(

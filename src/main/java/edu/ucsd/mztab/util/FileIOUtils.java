@@ -8,6 +8,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -234,6 +237,29 @@ public class FileIOUtils
 			try { process.getErrorStream().close(); } catch (Throwable error) {}
 			try { process.destroy(); } catch (Throwable error) {}
 		}
+	}
+	
+	public static Collection<File> findFiles(File directory) {
+		if (directory == null || directory.canRead() == false ||
+			directory.isDirectory() == false)
+			return null;
+		File[] files = directory.listFiles();
+		if (files == null || files.length < 1)
+			return null;
+		// sort files alphabetically
+		Arrays.sort(files);
+		// add all found files to collection
+		Collection<File> foundFiles = new ArrayList<File>();
+		for (File file : files) {
+			// recurse into subdirectories
+			if (file.isDirectory()) {
+				Collection<File> descendantFiles = findFiles(file);
+				if (descendantFiles != null &&
+					descendantFiles.isEmpty() == false)
+					foundFiles.addAll(descendantFiles);
+			} else foundFiles.add(file);
+		}
+		return foundFiles;
 	}
 	
 	/*========================================================================
