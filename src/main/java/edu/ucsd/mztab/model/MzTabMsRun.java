@@ -1,11 +1,14 @@
 package edu.ucsd.mztab.model;
 
 import java.io.File;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 
 import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class MzTabMsRun
 {
@@ -92,6 +95,12 @@ public class MzTabMsRun
 			this.descriptor = null;
 			return;
 		}
+		// if no peak list relative path is provided,
+		// then it defaults to "peak"
+		else if (peakListRelativePath == null ||
+			peakListRelativePath.trim().isEmpty())
+			peakListRelativePath = "peak";
+		
 		// if this is a dataset file, then it should have a mapped file path
 		String filePath = getMappedPeakListPath();
 		if (filePath == null)
@@ -100,44 +109,45 @@ public class MzTabMsRun
 		// trim off leading slash, if present
 		if (filePath.startsWith("/"))
 			filePath = filePath.substring(1);
-		// build descriptor appropriately based on parameters
-		StringBuilder descriptor = new StringBuilder("f.");
-		// get first directory in mapped path
-		String root = filePath.split(Pattern.quote("/"))[0];
-		// if the mapped path is already a dataset path, then just append it
-		if (root.matches(DATASET_ID_PATTERN))
-			descriptor.append(filePath);
-		// otherwise, the file must be present under this dataset
-		else {
-			descriptor.append(datasetID).append("/");
-			// if the mapped path starts with a known peak list collection
-			// name, then it may refer to a file already in the dataset;
-			// in which case, check to see if it's there
-			boolean found = false;
-			if (root.equals("peak") || root.equals("ccms_peak")) {
-				StringBuilder testDescriptor = new StringBuilder(descriptor);
-				testDescriptor.append(filePath);
-				if (testFileDescriptor(testDescriptor.toString())) {
-					descriptor = testDescriptor;
-					found = true;
-				}
-			}
-			// if the file is not already in the dataset,
-			// prepend the argument relative path
-			if (found == false) {
-				// if no peak list relative path is provided,
-				// then it defaults to "peak"
-				if (peakListRelativePath == null ||
-					peakListRelativePath.trim().isEmpty())
-					peakListRelativePath = "peak";
-				// append the relative path of the peak list directory
-				descriptor.append(peakListRelativePath);
-				// append the final file path under the peak list directory
-				descriptor.append("/");
-				descriptor.append(filePath);
-			}
+		
+		// first build the default descriptor; this is what we
+		// will use if this file does not already exist in this
+		// dataset (e.g. this is an original submission)
+		StringBuilder defaultDescriptor = new StringBuilder("f.");
+		// append the relative path of the peak list directory
+		defaultDescriptor.append(peakListRelativePath);
+		// append the final file path under the peak list directory
+		defaultDescriptor.append("/");
+		defaultDescriptor.append(filePath);
+		
+		// determine if this file is already present in the parent
+		// dataset (e.g. this is an attachment of a reanalysis of
+		// peak list files from the parent dataset)
+		File foundFile = null;
+		try { foundFile = findFileInDataset(filePath, datasetID); }
+		catch (IllegalStateException error) {
+			throw error;
 		}
-		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
+		
+		// if the file is not already present, then build
+		// descriptor appropriately based on parameters
+		if (foundFile == null) {
+			// get first directory in mapped path
+			String root = filePath.split(Pattern.quote("/"))[0];
+			// if the mapped path is already a dataset path, then assume
+			// the file is present in that dataset and just use it as-is
+			if (root.matches(DATASET_ID_PATTERN))
+				descriptor = FilenameUtils.separatorsToUnix(
+					String.format("f.%s", filePath));
+			// otherwise, use the default descriptor
+			else descriptor = FilenameUtils.separatorsToUnix(
+				defaultDescriptor.toString());
+		// otherwise use the file that was found
+		} else {
+			String path = foundFile.getAbsolutePath();
+			descriptor = FilenameUtils.separatorsToUnix(String.format("f.%s",
+				path.substring(path.indexOf(datasetID))));
+		}
 	}
 	
 	public void setTaskDescriptor(
@@ -249,13 +259,57 @@ public class MzTabMsRun
 	// application that should have knowledge of ProteoSAFe/MassIVE
 	// files - NOT a generic mzTab utility package like this!
 	private static final String DATASET_FILES_ROOT = "/data/ccms-data/uploads";
-	private boolean testFileDescriptor(String fileDescriptor) {
-		if (fileDescriptor == null)
-			return false;
-		// strip off file descriptor prefix
-		if (fileDescriptor.matches(FILE_DESCRIPTOR_PATTERN))
-			fileDescriptor = fileDescriptor.substring(2);
-		// get file from descriptor
-		return new File(DATASET_FILES_ROOT, fileDescriptor).exists();
+	
+	private File findFileInDataset(String filePath, String datasetID) {
+		if (filePath == null || datasetID == null)
+			return null;
+		// get dataset directory
+		File datasetDirectory = new File(DATASET_FILES_ROOT, datasetID);
+		// if dataset directory does not yet exist, then this is an original
+		// submission and obviously it doesn't contain any files yet
+		if (datasetDirectory.isDirectory() == false)
+			return null;
+		// otherwise, look through all the dataset's
+		// files to find find the best match
+		Collection<File> files = FileIOUtils.findFiles(datasetDirectory);
+		// if the dataset has no files, then obviously this one isn't there
+		if (files == null || files.isEmpty())
+			return null;
+		// find both exact path matches and leaf (filename) matches
+		Collection<File> exactMatches = new HashSet<File>();
+		Collection<File> leafMatches = new HashSet<File>();
+		// be sure relative path starts with a slash so
+		// we aren't matching directory name substrings
+		if (filePath.startsWith("/") == false)
+			filePath = String.format("/%s", filePath);
+		// get leaf filename of argument path
+		String filename = FilenameUtils.getName(filePath);
+		// look through all files to find matches
+		for (File file : files) {
+			if (file.getAbsolutePath().endsWith(filePath))
+				exactMatches.add(file);
+			else if (file.getName().equals(filename))
+				leafMatches.add(file);
+		}
+		// if there one exact match, return that
+		if (exactMatches.size() == 1)
+			return exactMatches.iterator().next();
+		// if there is more than one exact match,
+		// then we don't know which one to pick
+		else if (exactMatches.size() > 1)
+			throw new IllegalStateException(String.format(
+				"Dataset [%s] contains %d distinct files with identical " +
+				"relative path [%s].", datasetID, filePath));
+		// if there are no exact matches but one leaf match, return that
+		else if (leafMatches.size() == 1)
+			return leafMatches.iterator().next();
+		// if there is more than one remaining match,
+		// then we don't know which one to pick
+		else if (leafMatches.size() > 1)
+			throw new IllegalStateException(String.format(
+				"Dataset [%s] contains %d distinct files with identical " +
+				"filename [%s].", datasetID, filename));
+		// if there are no matches at all, then it's just not there
+		else return null;
 	}
 }
