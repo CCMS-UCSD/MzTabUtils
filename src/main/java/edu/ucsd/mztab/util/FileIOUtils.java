@@ -382,14 +382,14 @@ public class FileIOUtils
 		pruned = pruneMatches(files, pruneExpression);
 		if (pruned != null && pruned.size() == 1)
 			return pruned;
-		// then look in "ccms_peak" for updates
-		pruneExpression =
-			String.format("^.*%s/updates/[^/]+/ccms_peak/.*$", datasetID);
+		// then look in top-level "peak"
+		pruneExpression = String.format("^.*%s/peak/.*$", datasetID);
 		pruned = pruneMatches(files, pruneExpression);
 		if (pruned != null && pruned.size() == 1)
 			return pruned;
-		// then look in top-level "peak"
-		pruneExpression = String.format("^.*%s/peak/.*$", datasetID);
+		// then look in "ccms_peak" for updates
+		pruneExpression =
+			String.format("^.*%s/updates/[^/]+/ccms_peak/.*$", datasetID);
 		pruned = pruneMatches(files, pruneExpression);
 		if (pruned != null && pruned.size() == 1)
 			return pruned;
