@@ -2,7 +2,6 @@ package edu.ucsd.mztab.model;
 
 import java.io.File;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
@@ -12,12 +11,6 @@ import edu.ucsd.mztab.util.FileIOUtils;
 
 public class MzTabMsRun
 {
-	/*========================================================================
-	 * Constants
-	 *========================================================================*/
-	private static final String DATASET_ID_PATTERN = "^MSV[0-9]{9}$";
-	private static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
-	
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
@@ -81,7 +74,7 @@ public class MzTabMsRun
 	public void setDescriptor(String peakListPath) {
 		if (peakListPath == null)
 			return;
-		else if (peakListPath.matches(FILE_DESCRIPTOR_PATTERN))
+		else if (peakListPath.matches(MzTabConstants.FILE_DESCRIPTOR_PATTERN))
 			descriptor = peakListPath;
 		else descriptor = FilenameUtils.separatorsToUnix(
 			String.format("f.%s", peakListPath));
@@ -120,7 +113,8 @@ public class MzTabMsRun
 		// first build the default descriptor; this is what we
 		// will use if this file does not already exist in this
 		// dataset (e.g. this is an original submission)
-		StringBuilder defaultDescriptor = new StringBuilder("f.");
+		StringBuilder defaultDescriptor =
+			new StringBuilder("f.").append(datasetID);
 		// append the relative path of the peak list directory
 		defaultDescriptor.append(peakListRelativePath);
 		// append the final file path under the peak list directory
@@ -132,7 +126,8 @@ public class MzTabMsRun
 		// peak list files from the parent dataset)
 		File foundFile = null;
 		try {
-			foundFile = findFileInDataset(filePath, datasetID, datasetFiles);
+			foundFile = FileIOUtils.findFileInDataset(
+				filePath, datasetID, datasetFiles);
 		} catch (IllegalStateException error) {
 			throw error;
 		}
@@ -144,7 +139,7 @@ public class MzTabMsRun
 			String root = filePath.split(Pattern.quote("/"))[0];
 			// if the mapped path is already a dataset path, then assume
 			// the file is present in that dataset and just use it as-is
-			if (root.matches(DATASET_ID_PATTERN))
+			if (root.matches(MzTabConstants.DATASET_ID_PATTERN))
 				descriptor = FilenameUtils.separatorsToUnix(
 					String.format("f.%s", filePath));
 			// otherwise, use the default descriptor
@@ -258,67 +253,5 @@ public class MzTabMsRun
 		else msRun.append("\"").append(mappedPeakListPath).append("\"");
 		msRun.append("}");
 		return msRun.toString();
-	}
-	
-	/*========================================================================
-	 * Convenience methods
-	 *========================================================================*/
-	private File findFileInDataset(
-		String filePath, String datasetID, Collection<File> datasetFiles
-	) {
-		if (filePath == null || datasetID == null)
-			return null;
-		// otherwise, look through all the dataset's
-		// files to find find the best match
-		if (datasetFiles == null) {
-			// get dataset directory
-			File datasetDirectory =
-				new File(MzTabConstants.DATASET_FILES_ROOT, datasetID);
-			// if dataset directory does not yet exist, then this is an original
-			// submission and obviously it doesn't contain any files yet
-			if (datasetDirectory.isDirectory() == false)
-				return null;
-			// get all of this dataset's files
-			datasetFiles = FileIOUtils.findFiles(datasetDirectory);
-		}
-		// if the dataset has no files, then obviously this one isn't there
-		if (datasetFiles == null || datasetFiles.isEmpty())
-			return null;
-		// find both exact path matches and leaf (filename) matches
-		Collection<File> exactMatches = new HashSet<File>();
-		Collection<File> leafMatches = new HashSet<File>();
-		// be sure relative path starts with a slash so
-		// we aren't matching directory name substrings
-		if (filePath.startsWith("/") == false)
-			filePath = String.format("/%s", filePath);
-		// get leaf filename of argument path
-		String filename = FilenameUtils.getName(filePath);
-		// look through all files to find matches
-		for (File datasetFile : datasetFiles) {
-			if (datasetFile.getAbsolutePath().endsWith(filePath))
-				exactMatches.add(datasetFile);
-			else if (datasetFile.getName().equals(filename))
-				leafMatches.add(datasetFile);
-		}
-		// if there one exact match, return that
-		if (exactMatches.size() == 1)
-			return exactMatches.iterator().next();
-		// if there is more than one exact match,
-		// then we don't know which one to pick
-		else if (exactMatches.size() > 1)
-			throw new IllegalStateException(String.format(
-				"Dataset [%s] contains %d distinct files with identical " +
-				"relative path [%s].", datasetID, filePath));
-		// if there are no exact matches but one leaf match, return that
-		else if (leafMatches.size() == 1)
-			return leafMatches.iterator().next();
-		// if there is more than one remaining match,
-		// then we don't know which one to pick
-		else if (leafMatches.size() > 1)
-			throw new IllegalStateException(String.format(
-				"Dataset [%s] contains %d distinct files with identical " +
-				"filename [%s].", datasetID, filename));
-		// if there are no matches at all, then it's just not there
-		else return null;
 	}
 }

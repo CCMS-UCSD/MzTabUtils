@@ -162,7 +162,8 @@ public class TaskMzTabContext
 			mapMzTab(mzTab, mappings);
 			// set descriptor appropriately based on parameters
 			if (datasetID != null)
-				mzTab.setDatasetDescriptor(datasetID, mzTabRelativePath);
+				mzTab.setDatasetDescriptor(
+					datasetID, mzTabRelativePath, datasetFiles);
 			else mzTab.setTaskDescriptor(username, taskID, mzTabRelativePath);
 			Map<Integer, MzTabMsRun> msRuns = mzTab.getMsRuns();
 			for (Integer msRunIndex : msRuns.keySet()) {

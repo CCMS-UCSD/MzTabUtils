@@ -11,6 +11,7 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -24,8 +25,11 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
+
+import edu.ucsd.mztab.model.MzTabConstants;
 
 public class FileIOUtils
 {
@@ -260,6 +264,65 @@ public class FileIOUtils
 			} else foundFiles.add(file);
 		}
 		return foundFiles;
+	}
+	
+	public static File findFileInDataset(
+		String filePath, String datasetID, Collection<File> datasetFiles
+	) {
+		if (filePath == null || datasetID == null)
+			return null;
+		// otherwise, look through all the dataset's
+		// files to find find the best match
+		if (datasetFiles == null) {
+			// get dataset directory
+			File datasetDirectory =
+				new File(MzTabConstants.DATASET_FILES_ROOT, datasetID);
+			// if dataset directory does not yet exist, then this is an original
+			// submission and obviously it doesn't contain any files yet
+			if (datasetDirectory.isDirectory() == false)
+				return null;
+			// get all of this dataset's files
+			datasetFiles = FileIOUtils.findFiles(datasetDirectory);
+		}
+		// if the dataset has no files, then obviously this one isn't there
+		if (datasetFiles == null || datasetFiles.isEmpty())
+			return null;
+		// find both exact path matches and leaf (filename) matches
+		Collection<File> exactMatches = new HashSet<File>();
+		Collection<File> leafMatches = new HashSet<File>();
+		// be sure relative path starts with a slash so
+		// we aren't matching directory name substrings
+		if (filePath.startsWith("/") == false)
+			filePath = String.format("/%s", filePath);
+		// get leaf filename of argument path
+		String filename = FilenameUtils.getName(filePath);
+		// look through all files to find matches
+		for (File datasetFile : datasetFiles) {
+			if (datasetFile.getAbsolutePath().endsWith(filePath))
+				exactMatches.add(datasetFile);
+			else if (datasetFile.getName().equals(filename))
+				leafMatches.add(datasetFile);
+		}
+		// if there one exact match, return that
+		if (exactMatches.size() == 1)
+			return exactMatches.iterator().next();
+		// if there is more than one exact match,
+		// then we don't know which one to pick
+		else if (exactMatches.size() > 1)
+			throw new IllegalStateException(String.format(
+				"Dataset [%s] contains %d distinct files with identical " +
+				"relative path [%s].", datasetID, filePath));
+		// if there are no exact matches but one leaf match, return that
+		else if (leafMatches.size() == 1)
+			return leafMatches.iterator().next();
+		// if there is more than one remaining match,
+		// then we don't know which one to pick
+		else if (leafMatches.size() > 1)
+			throw new IllegalStateException(String.format(
+				"Dataset [%s] contains %d distinct files with identical " +
+				"filename [%s].", datasetID, filename));
+		// if there are no matches at all, then it's just not there
+		else return null;
 	}
 	
 	/*========================================================================

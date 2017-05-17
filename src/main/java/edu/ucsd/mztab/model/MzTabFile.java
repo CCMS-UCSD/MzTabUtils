@@ -3,11 +3,15 @@ package edu.ucsd.mztab.model;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
+
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class MzTabFile
 {
@@ -63,37 +67,75 @@ public class MzTabFile
 	}
 	
 	public void setDatasetDescriptor(
-		String datasetID, String mzTabRelativePath
+		String datasetID, String mzTabRelativePath,
+		Collection<File> datasetFiles
 	) {
-		// dataset files are never directly under the dataset directory; if no
-		// mzTab relative path is provided, then it defaults to "ccms_result"
-		if (mzTabRelativePath == null || mzTabRelativePath.trim().isEmpty())
-			mzTabRelativePath = "ccms_result";
-		// build relative path of this mzTab file under its dataset
-		StringBuilder relativePath = new StringBuilder(mzTabRelativePath);
-		// append the final file path under the mzTab directory
-		relativePath.append(File.separator);
-		// if this is a dataset file, then it should have a mapped file path
-		String filePath = getMappedMzTabPath();
-		if (filePath == null)
-			filePath = file.getName();
-		// trim off leading slash, if present
-		if (filePath.startsWith(File.separator))
-			filePath = filePath.substring(1);
-		relativePath.append(filePath);
-		// save built relative path
-		setRelativePath(
-			FilenameUtils.separatorsToUnix(relativePath.toString()));
 		// dataset ID is required for dataset file descriptors
 		if (datasetID == null) {
 			this.descriptor = null;
 			return;
 		}
-		// build descriptor appropriately based on parameters
-		StringBuilder descriptor = new StringBuilder("f.").append(datasetID);
-		// append the built relative path of the mzTab file
-		descriptor.append(File.separator).append(this.relativePath);
-		this.descriptor = FilenameUtils.separatorsToUnix(descriptor.toString());
+		// dataset files are never directly under the dataset directory; if no
+		// mzTab relative path is provided, then it defaults to "ccms_result"
+		else if (mzTabRelativePath == null ||
+			mzTabRelativePath.trim().isEmpty())
+			mzTabRelativePath = "ccms_result";
+		
+		// if this is a dataset file, then it should have a mapped file path
+		String filePath = getMappedMzTabPath();
+		if (filePath == null)
+			filePath = file.getName();
+		filePath = FilenameUtils.separatorsToUnix(filePath);
+		// trim off leading slash, if present
+		if (filePath.startsWith("/"))
+			filePath = filePath.substring(1);
+		
+		// first build the default descriptor; this is what we
+		// will use if this file does not already exist in this
+		// dataset (e.g. this is an original submission)
+		StringBuilder defaultDescriptor =
+			new StringBuilder("f.").append(datasetID);
+		// append the relative path of the mzTab directory
+		defaultDescriptor.append(mzTabRelativePath);
+		// append the final file path under the mzTab directory
+		defaultDescriptor.append("/");
+		defaultDescriptor.append(filePath);
+		
+		// determine if this file is already present in the parent
+		// dataset (e.g. this is an attachment of a reanalysis of
+		// peak list files from the parent dataset)
+		File foundFile = null;
+		try {
+			foundFile = FileIOUtils.findFileInDataset(
+				filePath, datasetID, datasetFiles);
+		} catch (IllegalStateException error) {
+			throw error;
+		}
+		
+		// if the file is not already present, then build
+		// descriptor appropriately based on parameters
+		if (foundFile == null) {
+			// get first directory in mapped path
+			String root = filePath.split(Pattern.quote("/"))[0];
+			// if the mapped path is already a dataset path, then assume
+			// the file is present in that dataset and just use it as-is
+			if (root.matches(MzTabConstants.DATASET_ID_PATTERN))
+				descriptor = FilenameUtils.separatorsToUnix(
+					String.format("f.%s", filePath));
+			// otherwise, use the default descriptor
+			else descriptor = FilenameUtils.separatorsToUnix(
+				defaultDescriptor.toString());
+		// otherwise use the file that was found
+		} else {
+			String path = foundFile.getAbsolutePath();
+			descriptor = FilenameUtils.separatorsToUnix(String.format("f.%s",
+				path.substring(path.indexOf(datasetID))));
+		}
+		
+		// save this mzTab file's relative path
+		String relativePath = descriptor.substring(2);
+		relativePath = relativePath.substring(relativePath.indexOf("/") + 1);
+		setRelativePath(relativePath);
 	}
 	
 	public void setTaskDescriptor(
