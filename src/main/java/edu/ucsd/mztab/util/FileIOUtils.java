@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -303,28 +304,52 @@ public class FileIOUtils
 			else if (datasetFile.getName().equals(filename))
 				leafMatches.add(datasetFile);
 		}
+		// set up preferred file regular expressions to
+		// prune by if more than one match was found
+		String preferredResultPath = String.format(
+			"^.*%s/((reanalyses|updates)/[^/]+/)?ccms_result/.*$", datasetID);
+		String preferredPeakListPath = String.format(
+			"^.*%s/((reanalyses|updates)/[^/]+/)?ccms_peak/.*$", datasetID);
 		// if there one exact match, return that
 		if (exactMatches.size() == 1)
 			return exactMatches.iterator().next();
-		// if there is more than one exact match,
-		// then we don't know which one to pick
-		else if (exactMatches.size() > 1)
-			throw new IllegalStateException(String.format(
-				"Dataset [%s] contains %d distinct files " +
-				"with identical relative path [%s].",
-				datasetID, exactMatches.size(), filePath));
+		// if there is more than one exact match, try to
+		// prune by considering known processed collections
+		else if (exactMatches.size() > 1) {
+			Collection<File> prunedMatches =
+				pruneMatches(exactMatches, preferredResultPath);
+			if (prunedMatches.size() != 1)
+				prunedMatches =
+					pruneMatches(exactMatches, preferredPeakListPath);
+			// if there is still more than one exact match,
+			// then we don't know which one to pick
+			if (prunedMatches.size() != 1) {
+				throw new IllegalStateException(String.format(
+					"Dataset [%s] contains %d distinct files " +
+					"with identical relative path [%s].",
+					datasetID, exactMatches.size(), filePath));
+			} else return prunedMatches.iterator().next();
 		// if there are no exact matches but one leaf match, return that
-		else if (leafMatches.size() == 1)
+		} else if (leafMatches.size() == 1)
 			return leafMatches.iterator().next();
-		// if there is more than one remaining match,
-		// then we don't know which one to pick
-		else if (leafMatches.size() > 1)
-			throw new IllegalStateException(String.format(
-				"Dataset [%s] contains %d distinct files " +
-				"with identical filename [%s].",
-				datasetID, leafMatches.size(), filename));
+		// if there is more than one remaining match, try to
+		// prune by considering known processed collections
+		else if (leafMatches.size() > 1) {
+			Collection<File> prunedMatches =
+				pruneMatches(leafMatches, preferredResultPath);
+			if (prunedMatches.size() != 1)
+				prunedMatches =
+					pruneMatches(leafMatches, preferredPeakListPath);
+			// if there is still more than one remaining match,
+			// then we don't know which one to pick
+			if (prunedMatches.size() != 1) {
+				throw new IllegalStateException(String.format(
+					"Dataset [%s] contains %d distinct files " +
+					"with identical filename [%s].",
+					datasetID, leafMatches.size(), filename));
+			} else return prunedMatches.iterator().next();
 		// if there are no matches at all, then it's just not there
-		else return null;
+		} else return null;
 	}
 	
 	/*========================================================================
@@ -339,5 +364,20 @@ public class FileIOUtils
 			new String[]{"CMD", "/C", "mklink",
 				source.isDirectory() ? "/J" : "/H", dstPath, srcPath} :
 			new String[]{"ln", "-s", srcPath, dstPath};
+	}
+	
+	private static Collection<File> pruneMatches(
+		Collection<File> files, String preferredPathExpression
+	) {
+		if (files == null || files.isEmpty() || preferredPathExpression == null)
+			return files;
+		// remove all files from the argument collection that
+		// do not contain the argument directory in their path
+		Collection<File> pruned = new LinkedHashSet<File>(files);
+		for (File file : files)
+			if (FilenameUtils.separatorsToUnix(file.getAbsolutePath())
+				.matches(preferredPathExpression) == false)
+				pruned.remove(file);
+		return pruned;
 	}
 }
