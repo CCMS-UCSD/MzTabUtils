@@ -310,8 +310,9 @@ public class FileIOUtils
 		// then we don't know which one to pick
 		else if (exactMatches.size() > 1)
 			throw new IllegalStateException(String.format(
-				"Dataset [%s] contains %d distinct files with identical " +
-				"relative path [%s].", datasetID, filePath));
+				"Dataset [%s] contains %d distinct files " +
+				"with identical relative path [%s].",
+				datasetID, exactMatches.size(), filePath));
 		// if there are no exact matches but one leaf match, return that
 		else if (leafMatches.size() == 1)
 			return leafMatches.iterator().next();
@@ -319,8 +320,9 @@ public class FileIOUtils
 		// then we don't know which one to pick
 		else if (leafMatches.size() > 1)
 			throw new IllegalStateException(String.format(
-				"Dataset [%s] contains %d distinct files with identical " +
-				"filename [%s].", datasetID, filename));
+				"Dataset [%s] contains %d distinct files " +
+				"with identical filename [%s].",
+				datasetID, leafMatches.size(), filename));
 		// if there are no matches at all, then it's just not there
 		else return null;
 	}
