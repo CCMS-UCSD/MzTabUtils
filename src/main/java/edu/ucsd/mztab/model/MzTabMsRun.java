@@ -100,6 +100,8 @@ public class MzTabMsRun
 		else if (peakListRelativePath == null ||
 			peakListRelativePath.trim().isEmpty())
 			peakListRelativePath = "peak";
+		peakListRelativePath =
+			FilenameUtils.separatorsToUnix(peakListRelativePath);
 		
 		// if this is a dataset file, then it should have a mapped file path
 		String filePath = getMappedPeakListPath();
@@ -116,10 +118,9 @@ public class MzTabMsRun
 		StringBuilder defaultDescriptor =
 			new StringBuilder("f.").append(datasetID);
 		// append the relative path of the peak list directory
-		defaultDescriptor.append(peakListRelativePath);
+		defaultDescriptor.append("/").append(peakListRelativePath);
 		// append the final file path under the peak list directory
-		defaultDescriptor.append("/");
-		defaultDescriptor.append(filePath);
+		defaultDescriptor.append("/").append(filePath);
 		
 		// determine if this file is already present in the parent
 		// dataset (e.g. this is an attachment of a reanalysis of
