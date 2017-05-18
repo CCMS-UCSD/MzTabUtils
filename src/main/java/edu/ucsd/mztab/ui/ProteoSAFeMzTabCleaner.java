@@ -2,8 +2,9 @@ package edu.ucsd.mztab.ui;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 
 import org.apache.commons.io.FilenameUtils;
@@ -15,6 +16,7 @@ import edu.ucsd.mztab.model.MzTabProcessor;
 import edu.ucsd.mztab.processors.MsRunCleanProcessor;
 import edu.ucsd.mztab.processors.ValidityProcessor;
 import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class ProteoSAFeMzTabCleaner
 {
@@ -69,9 +71,9 @@ public class ProteoSAFeMzTabCleaner
 			return;
 		// otherwise, read through all mzTab files, and run
 		// all relevant MassIVE cleanup operations on each
-		File[] files = cleanup.mzTabDirectory.listFiles();
+		Collection<File> files = FileIOUtils.findFiles(cleanup.mzTabDirectory);
 		// sort files alphabetically
-		Arrays.sort(files);
+		Collections.sort(new ArrayList<File>(files));
 		for (File file : files) {
 			// only process this file if it's an mzTab file
 			String extension = FilenameUtils.getExtension(file.getName());

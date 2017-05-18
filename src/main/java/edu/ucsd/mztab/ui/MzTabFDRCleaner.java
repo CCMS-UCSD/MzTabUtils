@@ -6,8 +6,10 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +27,7 @@ import edu.ucsd.mztab.model.MzTabConstants.FDRType;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.processors.FDRCalculationProcessor;
 import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class MzTabFDRCleaner
 {
@@ -73,9 +76,9 @@ public class MzTabFDRCleaner
 			die(USAGE);
 		// read through all mzTab files, ensure that expected FDR
 		// fields are present, and calculate whatever we can
-		File[] files = cleanup.mzTabDirectory.listFiles();
+		Collection<File> files = FileIOUtils.findFiles(cleanup.mzTabDirectory);
 		// sort files alphabetically
-		Arrays.sort(files);
+		Collections.sort(new ArrayList<File>(files));
 		for (File file : files) {
 			// get this input mzTab file
 			MzTabFile inputFile = new MzTabFile(file);
@@ -116,6 +119,25 @@ public class MzTabFDRCleaner
 	) {
 		if (inputFile == null || outputFile == null)
 			return;
+		// get global FDR values already written the file,
+		// if not set to a fixed value provided by the user
+		if (statedPSMFDR == null || statedPeptideFDR == null ||
+			statedProteinFDR == null) {
+			String[] preComputedFDR =
+				MzTabCounter.extractGlobalFDRValues(inputFile.getFile());
+			if (preComputedFDR != null) {
+				// propagate any missing global FDR values from the file
+				if (statedPSMFDR == null && preComputedFDR[0] != null) try {
+					statedPSMFDR = Double.parseDouble(preComputedFDR[0]);
+				} catch (NumberFormatException error) {}
+				if (statedPeptideFDR == null && preComputedFDR[1] != null) try {
+					statedPeptideFDR = Double.parseDouble(preComputedFDR[1]);
+				} catch (NumberFormatException error) {}
+				if (statedProteinFDR == null && preComputedFDR[2] != null) try {
+					statedProteinFDR = Double.parseDouble(preComputedFDR[2]);
+				} catch (NumberFormatException error) {}
+			}
+		}
 		// set up first intermediate output file
 		String filename = inputFile.getFile().getName();
 		File tempFile1 = new File(String.format("%s.1.temp", filename));
