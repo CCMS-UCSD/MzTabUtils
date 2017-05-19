@@ -129,11 +129,12 @@ public class ProteoSAFeUtils
 		if (descriptor == null)
 			return null;
 		// if so, strip off the descriptor prefix
-		else if (descriptor.matches(FILE_DESCRIPTOR_PATTERN))
-			descriptor = descriptor.substring(2);
+		String relativePath = descriptor;
+		if (relativePath.matches(FILE_DESCRIPTOR_PATTERN))
+			relativePath = relativePath.substring(2);
 		// if this file is present in the argument dataset, then the first
 		// directory in the descriptor path should be the dataset ID
-		if (descriptor.split(Pattern.quote("/"))[0].equals(datasetID))
+		if (relativePath.split(Pattern.quote("/"))[0].equals(datasetID))
 			return descriptor;
 		// if not, then even though the file exists, it's not in this dataset
 		else return null;
@@ -147,11 +148,13 @@ public class ProteoSAFeUtils
 		if (descriptor == null)
 			return null;
 		// if so, strip off the descriptor prefix
-		else if (descriptor.matches(FILE_DESCRIPTOR_PATTERN))
-			descriptor = descriptor.substring(2);
+		String relativePath = descriptor;
+		if (relativePath.matches(FILE_DESCRIPTOR_PATTERN))
+			relativePath = relativePath.substring(2);
 		// if this file is present in some dataset, then the first
 		// directory in the descriptor path should be a valid dataset ID
-		if (descriptor.split(Pattern.quote("/"))[0].matches(DATASET_ID_PATTERN))
+		if (relativePath.split(Pattern.quote("/"))[0].matches(
+			DATASET_ID_PATTERN))
 			return descriptor;
 		// if not, then even though the file exists, it's not in any dataset
 		else return null;
