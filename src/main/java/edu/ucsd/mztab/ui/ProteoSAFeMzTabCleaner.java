@@ -83,7 +83,8 @@ public class ProteoSAFeMzTabCleaner
 			// get this input mzTab file
 			MzTabFile inputFile = cleanup.context.getMzTabFile(file);
 			// get final output file
-			File outputFile = new File(cleanup.outputDirectory, file.getName());
+			File outputFile = getOutputFile(
+				file, cleanup.mzTabDirectory, cleanup.outputDirectory);
 			// add all processors needed for general mzTab file cleanup
 			Collection<MzTabProcessor> processors =
 				new LinkedHashSet<MzTabProcessor>(2);
@@ -367,6 +368,31 @@ public class ProteoSAFeMzTabCleaner
 			error.printStackTrace();
 			return null;
 		}
+	}
+	
+	private static File getOutputFile(
+		File inputFile, File inputDirectory, File outputDirectory
+	) {
+		if (inputFile == null || outputDirectory == null ||
+			outputDirectory.isDirectory() == false)
+			return null;
+		else if (inputDirectory == null)
+			return new File(outputDirectory, inputFile.getName());
+		// get relative path of the input file
+		// with respect to the input directory
+		String inputFilePath =
+			FilenameUtils.separatorsToUnix(inputFile.getAbsolutePath());
+		String inputDirectoryPath =
+			FilenameUtils.separatorsToUnix(inputDirectory.getAbsolutePath());
+		if (inputFilePath.startsWith(inputDirectoryPath) == false)
+			throw new IllegalStateException();
+		String relativePath =
+			inputFilePath.substring(inputDirectoryPath.length());
+		// trim off leading slash, if present
+		if (relativePath.startsWith("/"))
+			relativePath = relativePath.substring(1);
+		// append relative path to output directory
+		return new File(outputDirectory, relativePath);
 	}
 	
 	private static void die(String message) {
