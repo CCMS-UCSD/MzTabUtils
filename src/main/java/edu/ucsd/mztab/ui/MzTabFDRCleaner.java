@@ -133,9 +133,9 @@ public class MzTabFDRCleaner
 				if (statedPeptideFDR == null && preComputedFDR[1] != null) try {
 					statedPeptideFDR = Double.parseDouble(preComputedFDR[1]);
 				} catch (NumberFormatException error) {}
-				if (statedProteinFDR == null && preComputedFDR[2] != null) try {
-					statedProteinFDR = Double.parseDouble(preComputedFDR[2]);
-				} catch (NumberFormatException error) {}
+//				if (statedProteinFDR == null && preComputedFDR[2] != null) try {
+//					statedProteinFDR = Double.parseDouble(preComputedFDR[2]);
+//				} catch (NumberFormatException error) {}
 			}
 		}
 		// set up first intermediate output file
@@ -202,9 +202,10 @@ public class MzTabFDRCleaner
 		if (targets == 0 && decoys > 0)
 			targets = statistics.getElementCount("nullDecoyProtein");
 		// protein-level FDR
-		Double proteinFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
-		if (proteinFDR == null)
-			proteinFDR = statedProteinFDR;
+//		Double proteinFDR = MzTabFDRCleaner.calculateFDR(targets, decoys);
+//		if (proteinFDR == null)
+//			proteinFDR = statedProteinFDR;
+		Double proteinFDR = statedProteinFDR;
 		Double proteinQValue = statistics.getMaxQValue(FDRType.PROTEIN);
 		if (proteinQValue != null &&
 			(proteinFDR == null || proteinQValue > proteinFDR))
@@ -1029,9 +1030,9 @@ public class MzTabFDRCleaner
 		if (peptideFDR != null)
 			fdr.append(String.format(MzTabConstants.GLOBAL_PEPTIDE_FDR_TERM,
 				formatFDR(peptideFDR))).append("|");
-//		if (proteinFDR != null)
-//			fdr.append(String.format(MzTabConstants.GLOBAL_PROTEIN_FDR_TERM,
-//				formatFDR(proteinFDR))).append("|");
+		if (proteinFDR != null)
+			fdr.append(String.format(MzTabConstants.GLOBAL_PROTEIN_FDR_TERM,
+				formatFDR(proteinFDR))).append("|");
 		// chomp trailing pipe ("|")
 		if (fdr.charAt(fdr.length() - 1) == '|')
 			fdr.setLength(fdr.length() - 1);
