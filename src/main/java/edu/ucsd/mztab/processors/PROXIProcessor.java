@@ -266,9 +266,10 @@ public class PROXIProcessor implements MzTabProcessor
 					proteins = new String[]{null};
 				// import PSM separately for each matched protein
 				for (String protein : proteins) {
-					// get clean protein accession
+					// get filtered and cleaned protein accession
 					String cleanedAccession =
-						ProteomicsUtils.cleanProteinAccession(protein);
+						ProteomicsUtils.cleanProteinAccession(
+							ProteomicsUtils.filterProteinAccession(protein));
 					// get modifications
 					Collection<Modification> modifications =
 						ProteomicsUtils.getModifications(

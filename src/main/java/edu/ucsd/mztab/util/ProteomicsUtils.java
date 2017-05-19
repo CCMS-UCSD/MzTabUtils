@@ -212,6 +212,19 @@ public class ProteomicsUtils
 		else return accession;
 	}
 	
+	public static String filterProteinAccession(String accession) {
+		if (accession == null)
+			return null;
+		// reject any protein accession matching a fixed black
+		// list of bad protein regular expression patterns
+		else if (accession.matches("^[-+]?[0-9]+/[-+]?[0-9]+$") ||
+			accession.contains("@"))
+			return null;
+		// allow any protein accession that did not
+		// match any of the black listed patterns
+		else return accession;
+	}
+	
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
