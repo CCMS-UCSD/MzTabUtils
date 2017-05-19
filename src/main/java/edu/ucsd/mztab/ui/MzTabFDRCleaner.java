@@ -328,8 +328,6 @@ public class MzTabFDRCleaner
 						Matcher matcher =
 							MzTabConstants.FDR_LINE_PATTERN.matcher(line);
 						if (matcher.matches()) {
-							// TODO: extract previous FDR values,
-							// preserve them somehow
 							String calculatedFDRList = getCalculatedFDRList(
 								psmFDR, peptideFDR, proteinFDR);
 							if (calculatedFDRList == null)
@@ -1031,9 +1029,9 @@ public class MzTabFDRCleaner
 		if (peptideFDR != null)
 			fdr.append(String.format(MzTabConstants.GLOBAL_PEPTIDE_FDR_TERM,
 				formatFDR(peptideFDR))).append("|");
-		if (proteinFDR != null)
-			fdr.append(String.format(MzTabConstants.GLOBAL_PROTEIN_FDR_TERM,
-				formatFDR(proteinFDR))).append("|");
+//		if (proteinFDR != null)
+//			fdr.append(String.format(MzTabConstants.GLOBAL_PROTEIN_FDR_TERM,
+//				formatFDR(proteinFDR))).append("|");
 		// chomp trailing pipe ("|")
 		if (fdr.charAt(fdr.length() - 1) == '|')
 			fdr.setLength(fdr.length() - 1);
