@@ -11,12 +11,12 @@ import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
-import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext;
 import edu.ucsd.mztab.model.ProteoSAFeFileMappingContext.UploadMapping;
 import edu.ucsd.mztab.util.FileIOUtils;
+import edu.ucsd.mztab.util.ProteoSAFeUtils;
 
 public class TaskMzTabContext
 {
@@ -153,7 +153,7 @@ public class TaskMzTabContext
 		Collection<File> datasetFiles = null;
 		if (datasetID != null)
 			datasetFiles = FileIOUtils.findFiles(
-				new File(MzTabConstants.DATASET_FILES_ROOT, datasetID));
+				new File(ProteoSAFeUtils.DATASET_FILES_ROOT, datasetID));
 		// extract file mapping context from params.xml
 		ProteoSAFeFileMappingContext mappings =
 			new ProteoSAFeFileMappingContext(parameters);
