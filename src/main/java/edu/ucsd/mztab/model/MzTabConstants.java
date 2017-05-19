@@ -196,11 +196,4 @@ public class MzTabConstants
 		SIMPLE_FLOAT_PATTERN_STRING);
 	public static final Pattern QUOTED_STRING_PATTERN =
 		Pattern.compile("^\"(.*)\"$");
-	
-	// TODO: this functionality should be factored out into an
-	// application that should have knowledge of ProteoSAFe/MassIVE
-	// files - NOT a generic mzTab utility package like this!
-	public static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
-	public static final String DATASET_ID_PATTERN = "^MSV[0-9]{9}$";
-	public static final String DATASET_FILES_ROOT = "/data/ccms-data/uploads";
 }

@@ -11,8 +11,6 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -26,11 +24,8 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
-
-import edu.ucsd.mztab.model.MzTabConstants;
 
 public class FileIOUtils
 {
@@ -267,79 +262,6 @@ public class FileIOUtils
 		return foundFiles;
 	}
 	
-	public static File findFileInDataset(
-		String filePath, String datasetID, Collection<File> datasetFiles
-	) {
-		if (filePath == null || datasetID == null)
-			return null;
-		// otherwise, look through all the dataset's
-		// files to find find the best match
-		if (datasetFiles == null) {
-			// get dataset directory
-			File datasetDirectory =
-				new File(MzTabConstants.DATASET_FILES_ROOT, datasetID);
-			// if dataset directory does not yet exist, then this is an original
-			// submission and obviously it doesn't contain any files yet
-			if (datasetDirectory.isDirectory() == false)
-				return null;
-			// get all of this dataset's files
-			datasetFiles = FileIOUtils.findFiles(datasetDirectory);
-		}
-		// if the dataset has no files, then obviously this one isn't there
-		if (datasetFiles == null || datasetFiles.isEmpty())
-			return null;
-		// find both exact path matches and leaf (filename) matches
-		Collection<File> exactMatches = new HashSet<File>();
-		Collection<File> leafMatches = new HashSet<File>();
-		// be sure relative path starts with a slash so
-		// we aren't matching directory name substrings
-		if (filePath.startsWith("/") == false)
-			filePath = String.format("/%s", filePath);
-		// get leaf filename of argument path
-		String filename = FilenameUtils.getName(filePath);
-		// look through all files to find matches
-		for (File datasetFile : datasetFiles) {
-			if (datasetFile.getAbsolutePath().endsWith(filePath))
-				exactMatches.add(datasetFile);
-			else if (datasetFile.getName().equals(filename))
-				leafMatches.add(datasetFile);
-		}
-		// if there one exact match, return that
-		if (exactMatches.size() == 1)
-			return exactMatches.iterator().next();
-		// if there is more than one exact match, try to
-		// prune by considering known processed collections
-		else if (exactMatches.size() > 1) {
-			Collection<File> prunedMatches =
-				pruneDatasetMatches(exactMatches, datasetID);
-			// if there is still more than one exact match,
-			// then we don't know which one to pick
-			if (prunedMatches.size() != 1)
-				throw new IllegalStateException(String.format(
-					"Dataset [%s] contains %d distinct files " +
-					"with identical relative path [%s].",
-					datasetID, exactMatches.size(), filePath));
-			else return prunedMatches.iterator().next();
-		// if there are no exact matches but one leaf match, return that
-		} else if (leafMatches.size() == 1)
-			return leafMatches.iterator().next();
-		// if there is more than one remaining match, try to
-		// prune by considering known processed collections
-		else if (leafMatches.size() > 1) {
-			Collection<File> prunedMatches =
-				pruneDatasetMatches(leafMatches, datasetID);
-			// if there is still more than one remaining match,
-			// then we don't know which one to pick
-			if (prunedMatches.size() != 1)
-				throw new IllegalStateException(String.format(
-					"Dataset [%s] contains %d distinct files " +
-					"with identical filename [%s].",
-					datasetID, leafMatches.size(), filename));
-			else return prunedMatches.iterator().next();
-		// if there are no matches at all, then it's just not there
-		} else return null;
-	}
-	
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
@@ -352,76 +274,5 @@ public class FileIOUtils
 			new String[]{"CMD", "/C", "mklink",
 				source.isDirectory() ? "/J" : "/H", dstPath, srcPath} :
 			new String[]{"ln", "-s", srcPath, dstPath};
-	}
-	
-	private static Collection<File> pruneDatasetMatches(
-		Collection<File> files, String datasetID
-	) {
-		if (files == null || files.isEmpty() || datasetID == null)
-			return files;
-		// first look for the file in top-level "ccms_result"
-		String pruneExpression =
-			String.format("^.*%s/ccms_result/.*$", datasetID);
-		Collection<File> pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "ccms_result" for updates
-		pruneExpression =
-			String.format("^.*%s/updates/[^/]+/ccms_result/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "ccms_result" for reanalysis attachments
-		pruneExpression =
-			String.format("^.*%s/reanalyses/[^/]+/ccms_result/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in top-level "ccms_peak"
-		pruneExpression = String.format("^.*%s/ccms_peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in top-level "peak"
-		pruneExpression = String.format("^.*%s/peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "ccms_peak" for updates
-		pruneExpression =
-			String.format("^.*%s/updates/[^/]+/ccms_peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "peak" for updates
-		pruneExpression =
-			String.format("^.*%s/updates/[^/]+/peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "peak" for reanalysis attachments
-		pruneExpression =
-			String.format("^.*%s/reanalyses/[^/]+/peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// if none of these collections yielded a unique match, then
-		// the filename collision is legitimately irreconcilable
-		return files;
-	}
-	
-	private static Collection<File> pruneMatches(
-		Collection<File> files, String preferredPathExpression
-	) {
-		if (files == null || files.isEmpty() || preferredPathExpression == null)
-			return files;
-		// remove all files from the argument collection that
-		// do not contain the argument directory in their path
-		Collection<File> pruned = new LinkedHashSet<File>(files);
-		for (File file : files)
-			if (FilenameUtils.separatorsToUnix(file.getAbsolutePath())
-				.matches(preferredPathExpression) == false)
-				pruned.remove(file);
-		return pruned;
 	}
 }
