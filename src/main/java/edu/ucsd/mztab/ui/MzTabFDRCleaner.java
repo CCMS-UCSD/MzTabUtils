@@ -669,6 +669,9 @@ public class MzTabFDRCleaner
 		PrintWriter writer = null;
 		try {
 			reader = new BufferedReader(new FileReader(input));
+			// make sure any necessary parent directories are
+			// present before trying to write the output file
+			output.getParentFile().mkdirs();
 			writer = new PrintWriter(
 				new BufferedWriter(new FileWriter(output, false)));
 			// initialize protein section header variables
