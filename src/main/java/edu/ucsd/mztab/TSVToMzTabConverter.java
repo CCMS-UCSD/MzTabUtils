@@ -411,9 +411,19 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				// TODO: deal with search engines and scores
 				else if (column.equals("retention_time"))
 					psm.setRetentionTime(value);
-				else if (column.equals("charge"))
-					psm.setCharge(value);
-				else if (column.equals("exp_mass_to_charge"))
+				else if (column.equals("charge")) {
+					// try to convert the parsed value to an integer
+					try {
+						psm.setCharge(Integer.parseInt(value));
+					} catch (NumberFormatException parseError) {
+						try {
+							double parsed = Double.parseDouble(value);
+							int truncated = (int)parsed;
+							if (parsed == truncated)
+								psm.setCharge(truncated);
+						} catch (NumberFormatException innerParseError) {}
+					}
+				} else if (column.equals("exp_mass_to_charge"))
 					psm.setExpMassToCharge(value);
 				else if (column.equals("calc_mass_to_charge"))
 					psm.setCalcMassToCharge(value);
