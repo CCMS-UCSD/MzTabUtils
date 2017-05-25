@@ -138,7 +138,7 @@ public class CountProcessor implements MzTabProcessor
 			psmHeader = new MzTabSectionHeader(line);
 			psmHeader.validateHeaderExpectations(
 				MzTabSection.PSM, Arrays.asList(RELEVANT_PSM_COLUMNS));
-		} else if (line.startsWith("PSM")) {
+		} else if (line.startsWith("PSM")) try {
 			if (psmHeader == null)
 				throw new IllegalArgumentException(String.format(
 					"Line %d of mzTab file [%s] is invalid:\n" +
@@ -175,6 +175,13 @@ public class CountProcessor implements MzTabProcessor
 			addElement("variant", String.format("%s_%s",
 				modifiedSequence != null ? modifiedSequence : "null",
 				charge != null ? charge : "null"));
+		} catch (Throwable error) {
+			System.err.println(String.format(
+				"There was an error counting statistics for result file " +
+				"[%s], line %d.", mzTabFilename, lineNumber));
+			if (error instanceof RuntimeException)
+				throw (RuntimeException)error;
+			else throw new RuntimeException(error);
 		}
 		return line;
 	}
