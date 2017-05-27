@@ -72,36 +72,38 @@ public class ProteoSAFeMzTabCleaner
 		// otherwise, read through all mzTab files, and run
 		// all relevant MassIVE cleanup operations on each
 		Collection<File> files = FileIOUtils.findFiles(cleanup.mzTabDirectory);
-		// sort files alphabetically
-		Collections.sort(new ArrayList<File>(files));
-		for (File file : files) {
-			// only process this file if it's an mzTab file
-			String extension = FilenameUtils.getExtension(file.getName());
-			if (extension == null ||
-				extension.trim().equalsIgnoreCase("mztab") == false)
-				continue;
-			// get this input mzTab file
-			MzTabFile inputFile = cleanup.context.getMzTabFile(file);
-			// get final output file
-			File outputFile = getOutputFile(
-				file, cleanup.mzTabDirectory, cleanup.outputDirectory);
-			// add all processors needed for general mzTab file cleanup
-			Collection<MzTabProcessor> processors =
-				new LinkedHashSet<MzTabProcessor>(2);
-			// clean all ms_run-location file references to use
-			// fully qualified ProteoSAFe file descriptor paths
-			processors.add(new MsRunCleanProcessor());
-			// ensure that each PSM row has the special columns
-			// needed by ProteoSAFe to ensure validity
-			processors.add(new ValidityProcessor());
-			// FDR-process this mzTab file
-			MzTabFDRCleaner.processMzTabFileFDR(inputFile, outputFile,
-				processors, cleanup.passThresholdColumn,
-				cleanup.decoyColumn, cleanup.decoyPattern,
-				cleanup.psmQValueColumn, cleanup.peptideQValueColumn,
-				cleanup.proteinQValueColumn, cleanup.filter,
-				cleanup.filterType, cleanup.filterFDR,
-				cleanup.psmFDR, cleanup.peptideFDR, cleanup.proteinFDR);
+		if (files != null && files.isEmpty() == false) {
+			// sort files alphabetically
+			Collections.sort(new ArrayList<File>(files));
+			for (File file : files) {
+				// only process this file if it's an mzTab file
+				String extension = FilenameUtils.getExtension(file.getName());
+				if (extension == null ||
+					extension.trim().equalsIgnoreCase("mztab") == false)
+					continue;
+				// get this input mzTab file
+				MzTabFile inputFile = cleanup.context.getMzTabFile(file);
+				// get final output file
+				File outputFile = getOutputFile(
+					file, cleanup.mzTabDirectory, cleanup.outputDirectory);
+				// add all processors needed for general mzTab file cleanup
+				Collection<MzTabProcessor> processors =
+					new LinkedHashSet<MzTabProcessor>(2);
+				// clean all ms_run-location file references to use
+				// fully qualified ProteoSAFe file descriptor paths
+				processors.add(new MsRunCleanProcessor());
+				// ensure that each PSM row has the special columns
+				// needed by ProteoSAFe to ensure validity
+				processors.add(new ValidityProcessor());
+				// FDR-process this mzTab file
+				MzTabFDRCleaner.processMzTabFileFDR(inputFile, outputFile,
+					processors, cleanup.passThresholdColumn,
+					cleanup.decoyColumn, cleanup.decoyPattern,
+					cleanup.psmQValueColumn, cleanup.peptideQValueColumn,
+					cleanup.proteinQValueColumn, cleanup.filter,
+					cleanup.filterType, cleanup.filterFDR,
+					cleanup.psmFDR, cleanup.peptideFDR, cleanup.proteinFDR);
+			}
 		}
 	}
 	
