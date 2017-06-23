@@ -84,7 +84,7 @@ public class ProteinMapper
 		else return REFERENCE_PROTEINS_BY_DESCRIPTION.get(description);
 	}
 	
-	public static String cleanProtein(String fragment) {
+	public static String getReferenceProtein(String fragment) {
 		if (fragment == null)
 			return null;
 		// first check to see if the argument protein is in fact

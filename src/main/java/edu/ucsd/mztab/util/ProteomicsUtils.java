@@ -206,7 +206,10 @@ public class ProteomicsUtils
 	public static String cleanProteinAccession(String accession) {
 		if (accession == null)
 			return null;
-		// strip off any pre/post suffix, if present
+		// first try to get the proper accession by resolving
+		// it against the list of reference proteins
+		accession = ProteinMapper.getReferenceProtein(accession);
+		// then strip off any pre/post suffix, if present
 		Matcher matcher =
 			MzTabConstants.PRE_POST_PROTEIN_ACCESSION_PATTERN.matcher(
 				accession);
