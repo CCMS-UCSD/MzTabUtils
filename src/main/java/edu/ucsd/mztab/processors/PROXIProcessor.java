@@ -20,6 +20,7 @@ import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.model.PSM;
 import edu.ucsd.mztab.model.MzTabMsRun;
 import edu.ucsd.mztab.util.CommonUtils;
+import edu.ucsd.mztab.util.ProteinMapper;
 import edu.ucsd.mztab.util.ProteomicsUtils;
 
 public class PROXIProcessor implements MzTabProcessor
@@ -1131,7 +1132,10 @@ public class PROXIProcessor implements MzTabProcessor
 	private Integer recordProtein(String accession) {
 		if (accession == null)
 			return null;
-		// first check to see if this protein has already been recorded
+		// first try to clean the protein accession by resolving
+		// it against the list of reference proteins
+		accession = ProteinMapper.cleanProtein(accession);
+		// check to see if this protein has already been recorded
 		Integer proteinID = getElementID("accession", accession);
 		if (proteinID != null)
 			return proteinID;
