@@ -77,6 +77,9 @@ public class ProteomicsUtils
 	) {
 		if (peptide == null)
 			return null;
+		// do not write this mass offset into the peptide string if it's only 0
+		else if (mass == 0.0)
+			return peptide;
 		// determine the actual string position at which to insert
 		// this mod, based on the given sequence position
 		int index;
