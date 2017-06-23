@@ -414,17 +414,22 @@ implements MzTabProcessor
 		// then try to extract a "query"
 		if (value == null) {
 			matcher = MzTabConstants.QUERY_PATTERN.matcher(nativeID);
-			if (matcher.find()) try {
-				// nativeIDs of type MS:1001528 ("Mascot query number") are
-				// defined to be 1-based indices. However, since we encode all
-				// indices as nativeIDs of type MS:1000774 ("multiple peak
-				// list nativeID format"), and this format requires 0-based
-				// indexing, we must decrement the query number here.
-				value = Integer.parseInt(matcher.group(1)) - 1;
-				scan = false;
-			} catch (NumberFormatException error) {
-				throw new IllegalStateException(error);
-			}
+			// we currently cannot properly handle "query" nativeIDs,
+			// since there is no consistent way to dereference the
+			// query number in Mascot search results converted to mzTab
+			if (matcher.find())
+				return null;
+//			if (matcher.find()) try {
+//				// nativeIDs of type MS:1001528 ("Mascot query number") are
+//				// defined to be 1-based indices. However, since we encode all
+//				// indices as nativeIDs of type MS:1000774 ("multiple peak
+//				// list nativeID format"), and this format requires 0-based
+//				// indexing, we must decrement the query number here.
+//				value = Integer.parseInt(matcher.group(1)) - 1;
+//				scan = false;
+//			} catch (NumberFormatException error) {
+//				throw new IllegalStateException(error);
+//			}
 		}
 		// if it's a file specifier, and no index was also specified,
 		// then assume it's just a 1-spectrum file

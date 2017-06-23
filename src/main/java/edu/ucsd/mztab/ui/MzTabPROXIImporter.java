@@ -8,6 +8,7 @@ import java.sql.Connection;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
+import java.util.regex.Matcher;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -248,7 +249,8 @@ public class MzTabPROXIImporter
 					// just as the importer would; if it builds
 					// with no errors, then the row is good
 					try {
-						new PSM(columns[psmHeader.getColumnIndex("PSM_ID")],
+						PSM psm = new PSM(
+							columns[psmHeader.getColumnIndex("PSM_ID")],
 							columns[psmHeader.getColumnIndex("spectra_ref")],
 							columns[psmHeader.getColumnIndex("sequence")],
 							columns[psmHeader.getColumnIndex("charge")],
@@ -258,6 +260,11 @@ public class MzTabPROXIImporter
 								columns[psmHeader.getColumnIndex(
 									"modifications")])
 						);
+						// ensure that the parsed PSM's nativeID is acceptable
+						Matcher matcher = MzTabConstants.QUERY_PATTERN.matcher(
+							psm.getNativeID());
+						if (matcher.matches())
+							continue;
 					} catch (Throwable error) {
 						continue;
 					}
