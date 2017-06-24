@@ -19,6 +19,7 @@ import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.model.PSM;
 import edu.ucsd.mztab.model.MzTabMsRun;
+import edu.ucsd.mztab.ui.MzTabPROXIImporter;
 import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.ProteomicsUtils;
 
@@ -253,6 +254,27 @@ public class PROXIProcessor implements MzTabProcessor
 			} catch (Throwable error) {
 				importable = false;
 			}
+			// instantiate and validate the PSM
+			Collection<Modification> modifications =
+				ProteomicsUtils.getModifications(
+					columns[psmHeader.getColumnIndex("modifications")]);
+			PSM psm = null;
+			try {
+				psm = new PSM(
+					columns[psmHeader.getColumnIndex("PSM_ID")],
+					columns[psmHeader.getColumnIndex("spectra_ref")],
+					columns[psmHeader.getColumnIndex("sequence")],
+					columns[psmHeader.getColumnIndex("charge")],
+					columns[psmHeader.getColumnIndex(
+						"exp_mass_to_charge")],
+					modifications
+				);
+				// if this PSM doesn't pass basic validation, do not import
+				if (MzTabPROXIImporter.isImportable(psm) == false)
+					importable = false;
+			} catch (Throwable error) {
+				importable = false;
+			}
 			// only record this PSM if it passes the threshold
 			if (importable) {
 				// split protein list, if aggregated (should only be one per
@@ -270,26 +292,13 @@ public class PROXIProcessor implements MzTabProcessor
 					String cleanedAccession =
 						ProteomicsUtils.cleanProteinAccession(
 							ProteomicsUtils.filterProteinAccession(protein));
-					// get modifications
-					Collection<Modification> modifications =
-						ProteomicsUtils.getModifications(
-							columns[psmHeader.getColumnIndex("modifications")]);
 					// retry this PSM import the specified number of times,
 					// ignoring early errors since they are assumed to be
 					// caused by parallel import race conditions
 					Throwable importError = null;
 					for (int tries=1; tries<=IMPORT_ATTEMPTS_PER_PSM; tries++) {
 						try {
-							cascadePSM(
-								columns[psmHeader.getColumnIndex("PSM_ID")],
-								columns[psmHeader.getColumnIndex(
-									"spectra_ref")],
-								columns[psmHeader.getColumnIndex("sequence")],
-								cleanedAccession,
-								columns[psmHeader.getColumnIndex("charge")],
-								columns[psmHeader.getColumnIndex(
-									"exp_mass_to_charge")],
-								modifications);
+							cascadePSM(psm, cleanedAccession, modifications);
 							connection.commit();
 							importError = null;
 							break;
@@ -545,12 +554,10 @@ public class PROXIProcessor implements MzTabProcessor
 	}
 	
 	private Integer cascadePSM(
-		String psmFileID, String spectraRef, String sequence,
-		String accession, String charge, String massToCharge,
-		Collection<Modification> modifications
+		PSM psm, String accession, Collection<Modification> modifications
 	) {
-		PSM psm = new PSM(psmFileID, spectraRef, sequence,
-			charge, massToCharge, modifications);
+		if (psm == null)
+			return null;
 		Integer spectrumFileID = null;
 		Integer peptideID = null;
 		Integer variantID = null;
