@@ -988,7 +988,8 @@ public class PROXIProcessor implements MzTabProcessor
 		if (sequence == null)
 			return null;
 		// first check to see if this variant has already been recorded
-		Integer variantID = getElementID("variant", sequence);
+		String variant = String.format("%s_%d", sequence, charge);
+		Integer variantID = getElementID("variant", variant);
 		if (variantID != null)
 			return variantID;
 		// otherwise, write variant to the database
@@ -1007,8 +1008,10 @@ public class PROXIProcessor implements MzTabProcessor
 			if (insertion == 0) {
 				try { statement.close(); } catch (Throwable error) {}
 				statement = connection.prepareStatement(
-					"SELECT id FROM proxi.variants WHERE sequence=?");
+					"SELECT id FROM proxi.variants " +
+					"WHERE sequence=? AND charge=?");
 				statement.setString(1, sequence);
+				statement.setInt(2, charge);
 				result = statement.executeQuery();
 				if (result.next())
 					variantID = result.getInt(1);
