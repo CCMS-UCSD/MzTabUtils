@@ -247,7 +247,7 @@ public class MzTabPROXIImporter
 					}
 					// try instantiating this row as a PSM object,
 					// just as the importer would; if it builds
-					// with no errors, then the row is good
+					// with no errors, then the row is probably good
 					try {
 						PSM psm = new PSM(
 							columns[psmHeader.getColumnIndex("PSM_ID")],
@@ -260,10 +260,9 @@ public class MzTabPROXIImporter
 								columns[psmHeader.getColumnIndex(
 									"modifications")])
 						);
-						// ensure that the parsed PSM's nativeID is acceptable
-						Matcher matcher = MzTabConstants.QUERY_PATTERN.matcher(
-							psm.getNativeID());
-						if (matcher.matches())
+						// even if the PSM instantiates,
+						// it may still have problems
+						if (isImportable(psm) == false)
 							continue;
 					} catch (Throwable error) {
 						continue;
@@ -283,6 +282,17 @@ public class MzTabPROXIImporter
 		} finally {
 			try { reader.close(); } catch (Throwable error) {}
 		}
+	}
+	
+	public static boolean isImportable(PSM psm) {
+		if (psm == null)
+			return false;
+		// ensure that the parsed PSM's nativeID is acceptable
+		Matcher matcher =
+			MzTabConstants.QUERY_PATTERN.matcher(psm.getNativeID());
+		if (matcher.matches())
+			return false;
+		return true;
 	}
 	
 	/*========================================================================
