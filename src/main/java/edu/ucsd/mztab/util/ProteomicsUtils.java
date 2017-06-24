@@ -206,16 +206,16 @@ public class ProteomicsUtils
 	public static String cleanProteinAccession(String accession) {
 		if (accession == null)
 			return null;
-		// first try to get the proper accession by resolving
-		// it against the list of reference proteins
-		accession = ProteinMapper.getReferenceProtein(accession);
-		// then strip off any pre/post suffix, if present
+		// first strip off any pre/post suffix, if present
 		Matcher matcher =
 			MzTabConstants.PRE_POST_PROTEIN_ACCESSION_PATTERN.matcher(
 				accession);
 		if (matcher.matches())
-			return matcher.group(1);
-		else return accession;
+			accession = matcher.group(1);
+		// then try to get the proper accession by resolving
+		// it against the list of reference proteins
+		accession = ProteinMapper.getReferenceProtein(accession);
+		return accession;
 	}
 	
 	public static String filterProteinAccession(String accession) {
