@@ -1084,8 +1084,7 @@ public class PROXIProcessor implements MzTabProcessor
 			try { statement.close(); } catch (Throwable error) {}
 		}
 		// add this variant to the set of recorded variants
-		addElement(
-			"variant", String.format("%s_%d", sequence, charge), variantID);
+		addElement("variant", variant, variantID);
 		return variantID;
 	}
 	
