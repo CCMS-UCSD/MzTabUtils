@@ -247,7 +247,7 @@ public class PROXIProcessor implements MzTabProcessor
 			}
 			// if flag is set to only import PSMs at or below the designated
 			// Q-value threshold, determine if this PSM makes the cut
-			if (importByQValue) try {
+			if (importable && importByQValue) try {
 				double qValue = Double.parseDouble(columns[qValueColumn]);
 				if (qValue > MzTabConstants.DEFAULT_IMPORT_Q_VALUE_THRESHOLD)
 					importable = false;
@@ -255,18 +255,17 @@ public class PROXIProcessor implements MzTabProcessor
 				importable = false;
 			}
 			// instantiate and validate the PSM
-			Collection<Modification> modifications =
-				ProteomicsUtils.getModifications(
-					columns[psmHeader.getColumnIndex("modifications")]);
+			Collection<Modification> modifications = null;
 			PSM psm = null;
-			try {
+			if (importable) try {
+				modifications = ProteomicsUtils.getModifications(
+					columns[psmHeader.getColumnIndex("modifications")]);
 				psm = new PSM(
 					columns[psmHeader.getColumnIndex("PSM_ID")],
 					columns[psmHeader.getColumnIndex("spectra_ref")],
 					columns[psmHeader.getColumnIndex("sequence")],
 					columns[psmHeader.getColumnIndex("charge")],
-					columns[psmHeader.getColumnIndex(
-						"exp_mass_to_charge")],
+					columns[psmHeader.getColumnIndex("exp_mass_to_charge")],
 					modifications
 				);
 				// if this PSM doesn't pass basic validation, do not import
