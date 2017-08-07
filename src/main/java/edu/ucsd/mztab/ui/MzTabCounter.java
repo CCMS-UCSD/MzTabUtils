@@ -7,16 +7,21 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
+import edu.ucsd.mztab.model.ProteomicsStatistics;
 import edu.ucsd.mztab.processors.CountProcessor;
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class MzTabCounter
 {
@@ -55,23 +60,23 @@ public class MzTabCounter
 				die(String.format("Could not create output file [%s]",
 					count.outputFile.getAbsolutePath()));
 			// get files from input mzTab directory
-			File[] files = count.mzTabDirectory.listFiles();
+			Collection<File> files =
+				FileIOUtils.findFiles(count.mzTabDirectory);
 			// if the input mzTab directory is empty, leave the stats file blank
-			if (files.length < 1)
+			if (files == null || files.isEmpty())
 				return;
-			// otherwise, sort files alphabetically
-			Arrays.sort(files);
+			// otherwise, sort files alphabetically and process as mzTabs
+			Collections.sort(new ArrayList<File>(files));
+			Collection<MzTabFile> mzTabFiles =
+				new ArrayList<MzTabFile>(files.size());
+			for (File file : files)
+				mzTabFiles.add(context.getMzTabFile(file));
 			// set up output file writer and write header line
 			writer = new PrintWriter(new BufferedWriter(
 				new FileWriter(count.outputFile, false)));
 			writer.println(MZTAB_SUMMARY_FILE_HEADER_LINE);
 			// read through all mzTab files, write counts to output file
-			for (File file : files) {
-				// get this mzTab file
-				MzTabFile mzTabFile = context.getMzTabFile(file);
-				// summarize this mzTab file
-				summarizeMzTabFile(mzTabFile, writer);
-			}
+			summarizeMzTabFiles(mzTabFiles, writer);
 		} catch (Throwable error) {
 			die(error.getMessage(), error);
 		} finally {
@@ -162,28 +167,63 @@ public class MzTabCounter
 	public static void summarizeMzTabFile(
 		MzTabFile inputFile, PrintWriter writer
 	) {
-		if (inputFile == null || writer == null)
+		summarizeMzTabFile(inputFile, writer, null);
+	}
+	
+	public static void summarizeMzTabFile(
+		MzTabFile inputFile, PrintWriter writer, ProteomicsStatistics statistics
+	) {
+		if (inputFile == null)
 			return;
 		Map<String, Integer> counts = new HashMap<String, Integer>(7);
+		Map<String, Set<String>> uniqueElements =
+			new HashMap<String, Set<String>>();
 		MzTabReader reader = new MzTabReader(inputFile);
-		reader.addProcessor(new CountProcessor(counts));
+		reader.addProcessor(new CountProcessor(counts, uniqueElements));
 		reader.read();
-		// get relevant file names to print to output file
+		// add statistics for this mzTab file to the global count
+		if (statistics != null) {
+			statistics.addPSMs(counts.get("PSM_ID"));
+			statistics.addPeptides(uniqueElements.get("sequence"));
+			statistics.addVariants(uniqueElements.get("variant"));
+			statistics.addProteins(uniqueElements.get("accession"));
+		}
+		// get relevant file names to print to summary file
 		String uploadedFilename = inputFile.getUploadedResultPath();
 		if (uploadedFilename == null)
 			uploadedFilename = inputFile.getMzTabFilename();
-		// extract global FDR values to print to output file
-		String[] fdr = extractGlobalFDRValues(inputFile.getFile());
-		writer.println(String.format(
-			"%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
-			inputFile.getFile().getName(), uploadedFilename,
-			inputFile.getMzTabPath(), inputFile.getDescriptor(),
-			counts.get("PSM"), counts.get("invalid_PSM"),
-			counts.get("PSM_ID"), fdr[0],
-			counts.get("PEP"), counts.get("sequence"),
-			counts.get("variant"), fdr[1],
-			counts.get("PRT"), counts.get("accession"), fdr[2],
-			counts.get("modification")));
+		// print to summary file, if present
+		if (writer != null) {
+			// extract global FDR values
+			String[] fdr = MzTabCounter.extractGlobalFDRValues(inputFile.getFile());
+			writer.println(String.format(
+				"%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t" +
+				"%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
+				inputFile.getFile().getName(), uploadedFilename,
+				inputFile.getMzTabPath(), inputFile.getDescriptor(),
+				counts.get("PSM"), counts.get("invalid_PSM"),
+				counts.get("PSM_ID"), fdr[0],
+				counts.get("PEP"), counts.get("sequence"),
+				counts.get("variant"), fdr[1],
+				counts.get("PRT"), counts.get("accession"), fdr[2],
+				counts.get("modification")));
+		}
+	}
+	
+	public static void summarizeMzTabFiles(
+		Collection<MzTabFile> inputFiles, PrintWriter writer
+	) {
+		summarizeMzTabFiles(inputFiles, writer, null);
+	}
+	
+	public static void summarizeMzTabFiles(
+		Collection<MzTabFile> inputFiles, PrintWriter writer,
+		ProteomicsStatistics statistics
+	) {
+		if (inputFiles == null || inputFiles.isEmpty())
+			return;
+		for (MzTabFile inputFile : inputFiles)
+			summarizeMzTabFile(inputFile, writer, statistics);
 	}
 	
 	/*========================================================================
