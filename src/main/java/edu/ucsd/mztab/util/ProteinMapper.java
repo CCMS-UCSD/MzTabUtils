@@ -14,6 +14,8 @@ public class ProteinMapper
 	 *========================================================================*/
 	public static final Set<String> REFERENCE_PROTEINS;
 	public static final Map<String, String> REFERENCE_PROTEINS_BY_ACCESSION;
+	public static final Map<String, String>
+		REFERENCE_PROTEINS_BY_ID_PLUS_ACCESSION;
 	public static final Map<String, String> REFERENCE_PROTEINS_BY_NAME;
 	public static final Map<String, String> REFERENCE_PROTEINS_BY_DESCRIPTION;
 	static {
@@ -27,6 +29,8 @@ public class ProteinMapper
 			REFERENCE_PROTEINS = new HashSet<String>(referenceProteins.size());
 			REFERENCE_PROTEINS_BY_ACCESSION =
 				new HashMap<String, String>(referenceProteins.size());
+			REFERENCE_PROTEINS_BY_ID_PLUS_ACCESSION =
+					new HashMap<String, String>(referenceProteins.size());
 			REFERENCE_PROTEINS_BY_NAME =
 				new HashMap<String, String>(referenceProteins.size());
 			REFERENCE_PROTEINS_BY_DESCRIPTION =
@@ -46,6 +50,9 @@ public class ProteinMapper
 				REFERENCE_PROTEINS.add(protein);
 				// map by accession
 				REFERENCE_PROTEINS_BY_ACCESSION.put(tokens[1], protein);
+				// map by concatenation of database identifier and accession
+				REFERENCE_PROTEINS_BY_ID_PLUS_ACCESSION.put(
+					String.format("%s|%s", tokens[0], tokens[1]), protein);
 				// map by name
 				REFERENCE_PROTEINS_BY_NAME.put(tokens[2], protein);
 				// map by description
@@ -72,6 +79,14 @@ public class ProteinMapper
 		else return REFERENCE_PROTEINS_BY_ACCESSION.get(accession);
 	}
 	
+	public static String getReferenceProteinByIDPlusAccession(
+		String identifier
+	) {
+		if (identifier == null)
+			return null;
+		else return REFERENCE_PROTEINS_BY_ID_PLUS_ACCESSION.get(identifier);
+	}
+	
 	public static String getReferenceProteinByName(String name) {
 		if (name == null)
 			return null;
@@ -93,6 +108,10 @@ public class ProteinMapper
 			return fragment;
 		// try accession
 		String protein = getReferenceProteinByAccession(fragment);
+		if (protein != null)
+			return protein;
+		// try database id and accession
+		protein = getReferenceProteinByIDPlusAccession(fragment);
 		if (protein != null)
 			return protein;
 		// try name
