@@ -184,6 +184,16 @@ public class MzTabConstants
 	// constants pertaining to protein accession strings
 	public static final Pattern PRE_POST_PROTEIN_ACCESSION_PATTERN =
 		Pattern.compile("^(.*?)\\|?\\(?pre=.{1},post=.{1}\\)?$");
+	public static final Pattern NUMBER_SLASH_PREFIX_PROTEIN_ACCESSION_PATTERN =
+		Pattern.compile("^[0-9]?/(.*?)$");
+	public static final Pattern[] BAD_PROTEIN_ACCESSION_PATTERNS =
+	new Pattern[]{
+		Pattern.compile("^[-+]?[0-9]+/[-+]?[0-9]+$")
+	};
+	public static final String[] BAD_PROTEIN_ACCESSION_SUBSTRINGS =
+	new String[]{
+		"@"
+	};
 	
 	// general constants
 	public static final Pattern FILE_URI_PROTOCOL_PATTERN =

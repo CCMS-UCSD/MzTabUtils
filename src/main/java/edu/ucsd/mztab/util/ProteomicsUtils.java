@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import edu.ucsd.mztab.exceptions.InvalidMzTabColumnValueException;
 import edu.ucsd.mztab.model.Modification;
@@ -206,10 +207,15 @@ public class ProteomicsUtils
 	public static String cleanProteinAccession(String accession) {
 		if (accession == null)
 			return null;
-		// first strip off any pre/post suffix, if present
+		// strip off any pre/post suffix, if present
 		Matcher matcher =
 			MzTabConstants.PRE_POST_PROTEIN_ACCESSION_PATTERN.matcher(
 				accession);
+		if (matcher.matches())
+			accession = matcher.group(1);
+		// strip off any "#/" prefix, as seen in ENOSI output
+		matcher = MzTabConstants.NUMBER_SLASH_PREFIX_PROTEIN_ACCESSION_PATTERN
+			.matcher(accession);
 		if (matcher.matches())
 			accession = matcher.group(1);
 		// then try to get the proper accession by resolving
@@ -223,12 +229,17 @@ public class ProteomicsUtils
 			return null;
 		// reject any protein accession matching a fixed black
 		// list of bad protein regular expression patterns
-		else if (accession.matches("^[-+]?[0-9]+/[-+]?[0-9]+$") ||
-			accession.contains("@"))
-			return null;
+		for (Pattern pattern : MzTabConstants.BAD_PROTEIN_ACCESSION_PATTERNS)
+			if (pattern.matcher(accession).matches())
+				return null;
+		// reject any protein accession containing any
+		// of a fixed black list of bad characters
+		for (String substring : MzTabConstants.BAD_PROTEIN_ACCESSION_SUBSTRINGS)
+			if (accession.contains(substring))
+				return null;
 		// allow any protein accession that did not
 		// match any of the black listed patterns
-		else return accession;
+		return accession;
 	}
 	
 	/*========================================================================
