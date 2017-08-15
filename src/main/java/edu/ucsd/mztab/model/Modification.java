@@ -20,10 +20,15 @@ public class Modification
 	 * Constructors
 	 *========================================================================*/
 	public Modification(String name) {
-		this(name, null);
+		this(name, (Collection<Integer>)null);
 	}
 	
 	public Modification(String name, String positions) {
+		// determine positions from positions string
+		this(name, getPositions(positions));
+	}
+	
+	public Modification(String name, Collection<Integer> positions) {
 		// validate input modification name
 		if (name == null)
 			throw new NullPointerException(
@@ -31,8 +36,7 @@ public class Modification
 		else this.name = name;
 		// determine mass from modification identifier
 		mass = getMass(name);
-		// determine positions from positions string
-		this.positions = getPositions(positions);
+		this.positions = new LinkedHashSet<Integer>(positions);
 	}
 	
 	/*========================================================================
@@ -93,7 +97,7 @@ public class Modification
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private Double getMass(String identifier) {
+	private static Double getMass(String identifier) {
 		if (identifier == null)
 			return null;
 		else identifier = identifier.trim();
@@ -129,7 +133,7 @@ public class Modification
 		else return mass;
 	}
 	
-	private Collection<Integer> getPositions(String position) {
+	private static Collection<Integer> getPositions(String position) {
 		Collection<Integer> positions = new LinkedHashSet<Integer>();
 		if (position == null)
 			return positions;
