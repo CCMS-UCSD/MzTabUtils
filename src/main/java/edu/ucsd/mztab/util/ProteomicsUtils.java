@@ -142,6 +142,7 @@ public class ProteomicsUtils
 			return null;
 		Collection<Modification> modifications =
 			new LinkedHashSet<Modification>();
+		// ensure that modification string matches the expected mzTab format
 		Matcher matcher =
 			MzTabConstants.MZTAB_MODIFICATION_PATTERN.matcher(mods);
 		if (matcher.find() == false)
@@ -151,7 +152,8 @@ public class ProteomicsUtils
 				"lists of strings each conforming to the following " +
 				"format:\n%s", mods,
 				MzTabConstants.MZTAB_MODIFICATION_STRING_FORMAT));
-		else do {
+		// collect all found mods
+		do {
 			modifications.add(
 				new Modification(matcher.group(2), matcher.group(1)));
 		} while (matcher.find());

@@ -9,7 +9,9 @@ import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.regex.Matcher;
 
 import edu.ucsd.mztab.model.Modification;
 import edu.ucsd.mztab.model.MzTabConstants;
@@ -258,8 +260,9 @@ public class PROXIProcessor implements MzTabProcessor
 			Collection<Modification> modifications = null;
 			PSM psm = null;
 			if (importable) try {
-				modifications = ProteomicsUtils.getModifications(
-					columns[psmHeader.getColumnIndex("modifications")]);
+				modifications = cleanModificationsForSearch(
+					ProteomicsUtils.getModifications(
+						columns[psmHeader.getColumnIndex("modifications")]));
 				psm = new PSM(
 					columns[psmHeader.getColumnIndex("PSM_ID")],
 					columns[psmHeader.getColumnIndex("spectra_ref")],
@@ -1359,6 +1362,30 @@ public class PROXIProcessor implements MzTabProcessor
 		// add this modification to the set of recorded modifications
 		addElement("modification", name, modificationID);
 		return modificationID;
+	}
+	
+	private Collection<Modification> cleanModificationsForSearch(
+		Collection<Modification> modifications
+	) {
+		if (modifications == null)
+			return null;
+		Collection<Modification> cleaned =
+			new LinkedHashSet<Modification>(modifications.size());
+		for (Modification modification : modifications) {
+			// clean CHEMMODs to use 1 digit of precision
+			Matcher matcher = MzTabConstants.MZTAB_CHEMMOD_PATTERN.matcher(
+				modification.getName());
+			if (matcher.matches()) try {
+				int mass = (int)Math.rint(Double.parseDouble(matcher.group(1)));
+				String name = String.format("CHEMMOD:%s%d",
+					mass >= 0 ? "+" : "-", mass);
+				cleaned.add(
+					new Modification(name, modification.getPositions()));
+			} catch (NumberFormatException error) {}
+			// just pass through any other kind of mod
+			else cleaned.add(modification);
+		}
+		return cleaned;
 	}
 	
 	private Integer getElementID(String type, String value) {
