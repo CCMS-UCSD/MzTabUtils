@@ -1378,7 +1378,7 @@ public class PROXIProcessor implements MzTabProcessor
 			if (matcher.matches()) try {
 				int mass = (int)Math.rint(Double.parseDouble(matcher.group(1)));
 				String name = String.format("CHEMMOD:%s%d",
-					mass >= 0 ? "+" : "-", mass);
+					mass >= 0 ? "+" : "", mass);
 				cleaned.add(
 					new Modification(name, modification.getPositions()));
 			} catch (NumberFormatException error) {}
