@@ -19,6 +19,7 @@ public class ProteoSAFeUtils
 	public static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
 	public static final String DATASET_ID_PATTERN = "^MSV[0-9]{9}$";
 	public static final String DATASET_FILES_ROOT = "/data/ccms-data/uploads";
+	public static final String MASSIVE_REPOSITORY_ROOT = "/data/massive";
 	
 	/*========================================================================
 	 * Public interface methods
@@ -104,6 +105,10 @@ public class ProteoSAFeUtils
 		File file = null;
 		if (path.startsWith(DATASET_FILES_ROOT))
 			file = new File(path);
+		// if this path starts with the repository root, replace it
+		else if (path.startsWith(MASSIVE_REPOSITORY_ROOT))
+			file = new File(String.format("%s%s", DATASET_FILES_ROOT,
+				path.substring(MASSIVE_REPOSITORY_ROOT.length())));
 		else file = new File(DATASET_FILES_ROOT, path);
 		// if the file was found, build and return its descriptor
 		if (file.exists()) {
