@@ -1,9 +1,11 @@
 package edu.ucsd.mztab.util;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.Properties;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
@@ -18,8 +20,30 @@ public class ProteoSAFeUtils
 	 *========================================================================*/
 	public static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
 	public static final String DATASET_ID_PATTERN = "^R?MSV[0-9]{9}$";
-	public static final String DATASET_FILES_ROOT = "/data/ccms-data/uploads";
-	public static final String MASSIVE_REPOSITORY_ROOT = "/data/massive";
+	private static final String PROTEOSAFE_CONFIG_FILE = "massive.properties";
+	private static final String DEFAULT_DATASET_FILES_ROOT =
+		"/data/ccms-data/uploads";
+	private static final String DEFAULT_MASSIVE_REPOSITORY_ROOT =
+		"/data/massive";
+	
+	/*========================================================================
+	 * Static properties
+	 *========================================================================*/
+	public static final String DATASET_FILES_ROOT;
+	public static final String MASSIVE_REPOSITORY_ROOT;
+	private static Properties proteoSAFeConfig = null;
+	static {
+		proteoSAFeConfig = loadProteoSAFeConfiguration();
+		if (proteoSAFeConfig != null) {
+			DATASET_FILES_ROOT = proteoSAFeConfig.getProperty(
+				"uploads.root", DEFAULT_DATASET_FILES_ROOT);
+			MASSIVE_REPOSITORY_ROOT = proteoSAFeConfig.getProperty(
+				"repository.root", DEFAULT_MASSIVE_REPOSITORY_ROOT);
+		} else {
+			DATASET_FILES_ROOT = DEFAULT_DATASET_FILES_ROOT;
+			MASSIVE_REPOSITORY_ROOT = DEFAULT_MASSIVE_REPOSITORY_ROOT;
+		}
+	}
 	
 	/*========================================================================
 	 * Public interface methods
@@ -168,6 +192,24 @@ public class ProteoSAFeUtils
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
+	private static Properties loadProteoSAFeConfiguration() {
+		Properties properties = new Properties();
+		try {
+			File appRoot = new File(DatabaseUtils.class.getProtectionDomain()
+				.getCodeSource().getLocation().toURI()).getParentFile();
+			properties.load(
+				new FileInputStream(new File(appRoot, PROTEOSAFE_CONFIG_FILE)));
+		} catch (Throwable error) {
+			System.err.println(
+				"There was an error loading the database configuration.");
+			error.printStackTrace();
+			return null;
+		}
+		if (properties.isEmpty())
+			return null;
+		else return properties;
+	}
+	
 	private static Collection<File> pruneMatches(
 		Collection<File> files, String preferredPathExpression
 	) {
