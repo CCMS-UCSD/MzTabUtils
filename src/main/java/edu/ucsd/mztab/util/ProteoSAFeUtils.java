@@ -17,7 +17,7 @@ public class ProteoSAFeUtils
 	 * Constants
 	 *========================================================================*/
 	public static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
-	public static final String DATASET_ID_PATTERN = "^MSV[0-9]{9}$";
+	public static final String DATASET_ID_PATTERN = "^R?MSV[0-9]{9}$";
 	public static final String DATASET_FILES_ROOT = "/data/ccms-data/uploads";
 	public static final String MASSIVE_REPOSITORY_ROOT = "/data/massive";
 	
