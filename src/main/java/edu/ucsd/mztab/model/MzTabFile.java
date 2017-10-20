@@ -127,8 +127,11 @@ public class MzTabFile
 			} catch (IllegalStateException error) {
 				System.err.println(String.format(
 					"There was an error setting the dataset descriptor " +
-					"for mzTab file [%s] under dataset [%s].",
-					file.getAbsolutePath(), datasetID));
+					"for mzTab file [%s] associated with dataset [%s]: " +
+					"(mzTab directory relative path [%s], file relative " +
+					"path [%s], default descriptor [%s])",
+					file.getAbsolutePath(), datasetID, mzTabRelativePath,
+					filePath, defaultDescriptor.toString()));
 				throw error;
 			}
 			
