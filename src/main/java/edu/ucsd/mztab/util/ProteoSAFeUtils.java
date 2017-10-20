@@ -20,6 +20,8 @@ public class ProteoSAFeUtils
 	 *========================================================================*/
 	public static final String FILE_DESCRIPTOR_PATTERN = "^.{1}\\..*$";
 	public static final String DATASET_ID_PATTERN = "^R?MSV[0-9]{9}$";
+	public static final String DATASET_ACCESSION_PREFIX = "MSV";
+	public static final String REANALYSIS_CONTAINER_ACCESSION_PREFIX = "RMSV";
 	private static final String PROTEOSAFE_CONFIG_FILE = "massive.properties";
 	private static final String DEFAULT_DATASET_FILES_ROOT =
 		"/data/ccms-data/uploads";
@@ -230,52 +232,61 @@ public class ProteoSAFeUtils
 	) {
 		if (files == null || files.isEmpty() || datasetID == null)
 			return files;
-		// first look for the file in top-level "ccms_result"
-		String pruneExpression =
-			String.format("^.*%s/ccms_result/.*$", datasetID);
-		Collection<File> pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "ccms_result" for updates
-		pruneExpression =
-			String.format("^.*%s/updates/[^/]+/ccms_result/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "ccms_result" for reanalysis attachments
-		pruneExpression =
-			String.format("^.*%s/reanalyses/[^/]+/ccms_result/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in top-level "ccms_peak"
-		pruneExpression = String.format("^.*%s/ccms_peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in top-level "peak"
-		pruneExpression = String.format("^.*%s/peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "ccms_peak" for updates
-		pruneExpression =
-			String.format("^.*%s/updates/[^/]+/ccms_peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "peak" for updates
-		pruneExpression =
-			String.format("^.*%s/updates/[^/]+/peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
-		// then look in "peak" for reanalysis attachments
-		pruneExpression =
-			String.format("^.*%s/reanalyses/[^/]+/peak/.*$", datasetID);
-		pruned = pruneMatches(files, pruneExpression);
-		if (pruned != null && pruned.size() == 1)
-			return pruned;
+		String pruneExpression = null;
+		Collection<File> pruned = null;
+		// if this is a regular dataset, look in the appropriate collections
+		if (datasetID.startsWith(DATASET_ACCESSION_PREFIX)) {
+			// first look for the file in top-level "ccms_result"
+			pruneExpression =
+				String.format("^.*%s/ccms_result/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+			// then look in "ccms_result" for updates
+			pruneExpression =
+				String.format("^.*%s/updates/[^/]+/ccms_result/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+			// then look in top-level "ccms_peak"
+			pruneExpression = String.format("^.*%s/ccms_peak/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+			// then look in top-level "peak"
+			pruneExpression = String.format("^.*%s/peak/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+			// then look in "ccms_peak" for updates
+			pruneExpression =
+				String.format("^.*%s/updates/[^/]+/ccms_peak/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+			// then look in "peak" for updates
+			pruneExpression =
+				String.format("^.*%s/updates/[^/]+/peak/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+		}
+		// if this is a reanalysis container, look in the
+		// appropriate collections under each reanalysis
+		else if (datasetID.startsWith(REANALYSIS_CONTAINER_ACCESSION_PREFIX)) {
+			// first look in "ccms_result" for reanalysis attachments
+			pruneExpression =
+				String.format("^.*%s/[^/]+/ccms_result/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+			// then look in "peak" for reanalysis attachments
+			pruneExpression =
+				String.format("^.*%s/reanalyses/[^/]+/peak/.*$", datasetID);
+			pruned = pruneMatches(files, pruneExpression);
+			if (pruned != null && pruned.size() == 1)
+				return pruned;
+		}
 		// if none of these collections yielded a unique match, then
 		// the filename collision is legitimately irreconcilable
 		return files;
