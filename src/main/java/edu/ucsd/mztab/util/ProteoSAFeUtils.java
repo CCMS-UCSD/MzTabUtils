@@ -51,7 +51,8 @@ public class ProteoSAFeUtils
 	 * Public interface methods
 	 *========================================================================*/
 	public static File findFileInDataset(
-		String filePath, String datasetID, Collection<File> datasetFiles
+		String filePath, String datasetID, String relativePath,
+		Collection<File> datasetFiles
 	) {
 		if (filePath == null || datasetID == null)
 			return null;
@@ -60,6 +61,9 @@ public class ProteoSAFeUtils
 		if (datasetFiles == null) {
 			// get dataset directory
 			File datasetDirectory = new File(DATASET_FILES_ROOT, datasetID);
+			// if a relative path was provided, confine search to that
+			if (relativePath != null)
+				datasetDirectory = new File(datasetDirectory, relativePath);
 			// if dataset directory does not yet exist, then this is an original
 			// submission and obviously it doesn't contain any files yet
 			if (datasetDirectory.isDirectory() == false)

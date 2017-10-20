@@ -109,6 +109,16 @@ public class MzTabMsRun
 		
 		// if not, then figure out what the descriptor should be
 		if (descriptor == null) {
+			// if this is a reanalysis, be sure to look only at its
+			// own files, not everything under the entire container
+			String reanalysis = null;
+			if (datasetID.startsWith(
+				ProteoSAFeUtils.REANALYSIS_CONTAINER_ACCESSION_PREFIX) &&
+				peakListRelativePath != null)
+				// the first directory in the peak list relative path should
+				// be the root directory for this reanalysis attachment
+				reanalysis = peakListRelativePath.split(Pattern.quote("/"))[0];
+			
 			// if no peak list relative path is provided,
 			// then it defaults to "peak"
 			if (peakListRelativePath == null ||
@@ -142,7 +152,7 @@ public class MzTabMsRun
 			File foundFile = null;
 			try {
 				foundFile = ProteoSAFeUtils.findFileInDataset(
-					filePath, datasetID, datasetFiles);
+					filePath, datasetID, reanalysis, datasetFiles);
 			} catch (IllegalStateException error) {
 				throw error;
 			}

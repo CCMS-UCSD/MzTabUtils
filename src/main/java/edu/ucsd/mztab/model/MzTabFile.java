@@ -89,6 +89,16 @@ public class MzTabFile
 		
 		// if not, then figure out what the descriptor should be
 		if (descriptor == null) {
+			// if this is a reanalysis, be sure to look only at its
+			// own files, not everything under the entire container
+			String reanalysis = null;
+			if (datasetID.startsWith(
+				ProteoSAFeUtils.REANALYSIS_CONTAINER_ACCESSION_PREFIX) &&
+				mzTabRelativePath != null)
+				// the first directory in the mzTab relative path should
+				// be the root directory for this reanalysis attachment
+				reanalysis = mzTabRelativePath.split(Pattern.quote("/"))[0];
+			
 			// dataset files are never directly under the
 			// dataset directory; if no mzTab relative path
 			// is provided, then it defaults to "ccms_result"
@@ -123,7 +133,7 @@ public class MzTabFile
 			File foundFile = null;
 			try {
 				foundFile = ProteoSAFeUtils.findFileInDataset(
-					filePath, datasetID, datasetFiles);
+					filePath, datasetID, reanalysis, datasetFiles);
 			} catch (IllegalStateException error) {
 				System.err.println(String.format(
 					"There was an error setting the dataset descriptor " +
