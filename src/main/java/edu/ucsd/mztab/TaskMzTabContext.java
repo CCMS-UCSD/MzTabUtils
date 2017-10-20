@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.xpath.XPathAPI;
@@ -151,9 +152,20 @@ public class TaskMzTabContext
 			mzTabs = new ArrayList<MzTabFile>();
 		// cache all dataset files to speed up descriptor lookups
 		Collection<File> datasetFiles = null;
-		if (datasetID != null)
-			datasetFiles = FileIOUtils.findFiles(
-				new File(ProteoSAFeUtils.DATASET_FILES_ROOT, datasetID));
+		if (datasetID != null) {
+			File datasetDirectory =
+				new File(ProteoSAFeUtils.DATASET_FILES_ROOT, datasetID);
+			// if this is a reanalysis, be sure to look only at its
+			// own files, not everything under the entire container
+			if (datasetID.startsWith(
+				ProteoSAFeUtils.REANALYSIS_CONTAINER_ACCESSION_PREFIX) &&
+				mzTabRelativePath != null)
+				// the first directory in the mzTab relative path should
+				// be the root directory for this reanalysis attachment
+				datasetDirectory = new File(datasetDirectory,
+					mzTabRelativePath.split(Pattern.quote("/"))[0]);
+			datasetFiles = FileIOUtils.findFiles(datasetDirectory);
+		}
 		// extract file mapping context from params.xml
 		ProteoSAFeFileMappingContext mappings =
 			new ProteoSAFeFileMappingContext(parameters);
