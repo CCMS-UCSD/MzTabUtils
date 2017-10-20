@@ -125,6 +125,10 @@ public class MzTabFile
 				foundFile = ProteoSAFeUtils.findFileInDataset(
 					filePath, datasetID, datasetFiles);
 			} catch (IllegalStateException error) {
+				System.err.println(String.format(
+					"There was an error setting the dataset descriptor " +
+					"for mzTab file [%s] under dataset [%s].",
+					file.getAbsolutePath(), datasetID));
 				throw error;
 			}
 			
