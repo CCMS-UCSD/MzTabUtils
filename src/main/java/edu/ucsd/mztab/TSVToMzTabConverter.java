@@ -236,7 +236,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 					id = lineNumber - 1;
 				else id = lineNumber;
 				// parse out the elements of the line
-				String[] elements = line.split("\t");
+				String[] elements = line.split("\t", -1);
 				// remove any enclosing quotation marks from column values,
 				// e.g. ProteomeDiscoverer output
 				for (int i=0; i<elements.length; i++) {
