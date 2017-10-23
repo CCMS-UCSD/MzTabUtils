@@ -220,10 +220,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		}
 		// read all lines in the TSV file and add them to an mzTab PSM record
 		BufferedReader reader = null;
+		int lineNumber = 1;
 		try {
 			reader = new BufferedReader(new FileReader(source));
 			String line = null;
-			int lineNumber = 1;
 			while ((line = reader.readLine()) != null) {
 				// skip header row, if there is one
 				if (params.hasHeader() && lineNumber == 1) {
@@ -257,7 +257,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 				lineNumber++;
 			}
 		} catch (Throwable error) {
-			throw new RuntimeException(error);
+			throw new RuntimeException(String.format(
+				"An error occurred on line %d of input TSV " +
+				"file [%s] when trying to convert to mzTab.",
+				lineNumber, source.getAbsolutePath()), error);
 		} finally {
 			try { reader.close(); }
 			catch (Throwable error) {}
