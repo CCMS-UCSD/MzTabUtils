@@ -1,5 +1,6 @@
 package edu.ucsd.mztab.ui;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
@@ -9,13 +10,19 @@ import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.exceptions.UnverifiableNativeIDException;
+import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabFile;
 import edu.ucsd.mztab.model.MzTabMsRun;
+import edu.ucsd.mztab.model.MzTabSectionHeader;
+import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.processors.PSMValidationProcessor;
 import edu.ucsd.mztab.processors.SpectraRefValidationProcessor;
 
@@ -48,6 +55,9 @@ public class MzTabValidator
 	public static final String MZTAB_VALIDATION_LOG_HEADER_LINE =
 		"MzTab_file\tUploaded_file\tFile_descriptor\t" +
 		"PSM_rows\tInvalid_PSM_rows\tFound_PSMs";
+	private static final String[] PSM_VALIDITY_COLUMNS = new String[]{
+		MzTabConstants.VALID_COLUMN, MzTabConstants.INVALID_REASON_COLUMN
+	};
 	
 	/*========================================================================
 	 * Public interface methods
@@ -180,11 +190,29 @@ public class MzTabValidator
 		else percentage = (double)invalidRows / (double)psmRows * 100.0;
 		if (percentage > failureThreshold) {
 			//System.err.println(validation.context.toString());
-			die(String.format("Result file [%s] contains %s%% " +
-				"invalid PSM rows. Please correct the file and " +
-				"ensure that its referenced spectra are accessible " +
-				"within linked peak list files, and then re-submit.",
-				inputFile.getUploadedResultPath(), percentage));
+			// get the printed reason for this file's first invalid row
+			ImmutablePair<Integer, String> reason = null;
+			try { reason = getFirstInvalidReason(inputFile); }
+			catch (Throwable error) {}
+			// build error message
+			StringBuilder message = new StringBuilder("Result file [");
+			message.append(inputFile.getUploadedResultPath()).append("] ");
+			message.append("contains ").append(percentage).append("% ");
+			message.append("invalid PSM rows (").append(invalidRows);
+			message.append(" invalid out of ").append(psmRows);
+			message.append(" total).");
+			if (reason != null) {
+				message.append("\n\nThe first invalid PSM row is on line ");
+				message.append(reason.getLeft());
+				message.append(" of the converted mzTab file, with the ");
+				message.append("following reason given for invalidity:");
+				message.append("\n\n").append(reason.getRight());
+			}
+			message.append("\n\nPlease correct the file and ");
+			message.append("ensure that its referenced spectra are ");
+			message.append("accessible within linked peak list files, ");
+			message.append("and then re-submit.");
+			die(message.toString());
 		}
 		// get relevant file name to print to output file
 		String uploadedFilename = inputFile.getUploadedResultPath();
@@ -462,6 +490,119 @@ public class MzTabValidator
 			die("There was an error reading command line parameters " +
 				"to set up mzTab validation operation.", error);
 			return null;
+		}
+	}
+	
+	private static ImmutablePair<Integer, String> getFirstInvalidReason(
+		MzTabFile mzTabFile
+	) {
+		if (mzTabFile == null)
+			return null;
+		String mzTabFilename = mzTabFile.getMzTabFilename();
+		// read through mzTab file line by line until
+		// reaching the first invalid PSM row
+		BufferedReader reader = null;
+		try {
+			MzTabSectionHeader psmHeader = null;
+			int validIndex = -1;
+			int invalidReasonIndex = -1;
+			reader = new BufferedReader(new FileReader(mzTabFile.getFile()));
+			String line = null;
+			int lineNumber = 0;
+			while (true) {
+				line = reader.readLine();
+				if (line == null)
+					break;
+				lineNumber++;
+				// set up PSM section header
+				if (line.startsWith("PSH")) {
+					if (psmHeader != null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"A \"PSH\" row was already seen previously in " +
+							"this file.", lineNumber, mzTabFilename, line));
+					psmHeader = new MzTabSectionHeader(line);
+					psmHeader.validateHeaderExpectations(
+						MzTabSection.PSM, Arrays.asList(PSM_VALIDITY_COLUMNS));
+					// record all relevant column indices
+					List<String> headers = psmHeader.getColumns();
+					for (int i=0; i<headers.size(); i++) {
+						String header = headers.get(i);
+						if (header == null)
+							continue;
+						else if (header.equalsIgnoreCase(
+							MzTabConstants.VALID_COLUMN))
+							validIndex = i;
+						else if (header.equalsIgnoreCase(
+							MzTabConstants.INVALID_REASON_COLUMN))
+							invalidReasonIndex = i;
+					}
+					// ensure that both validity columns were found
+					if (validIndex < 0)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"No \"%s\" column was found.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.VALID_COLUMN));
+					else if (invalidReasonIndex < 0)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"No \"%s\" column was found.",
+							lineNumber, mzTabFilename, line,
+							MzTabConstants.INVALID_REASON_COLUMN));
+				}
+				// note the validity status of this PSM row
+				else if (line.startsWith("PSM")) {
+					if (psmHeader == null)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"A \"PSM\" row was found before any \"PSH\" row.",
+							lineNumber, mzTabFilename, line));
+					else psmHeader.validateMzTabRow(line);
+					// ensure that both validity columns are present in this row
+					String[] row = line.split("\\t");
+					if (validIndex >= row.length)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"The \"%s\" column was found at index %d in the " +
+							"PSM section header, but this PSM row contains " +
+							"only %d elements.", lineNumber, mzTabFilename,
+							line, MzTabConstants.VALID_COLUMN,
+							validIndex, row.length));
+					else if (invalidReasonIndex >= row.length)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of mzTab file [%s] is invalid:" +
+							"\n----------\n%s\n----------\n" +
+							"The \"%s\" column was found at index %d in the " +
+							"PSM section header, but this PSM row contains " +
+							"only %d elements.", lineNumber, mzTabFilename,
+							line, MzTabConstants.INVALID_REASON_COLUMN,
+							invalidReasonIndex, row.length));
+					// if this PSM row has been marked as invalid,
+					// then return its recorded reason
+					String valid = row[validIndex];
+					if (valid != null &&
+						valid.trim().equalsIgnoreCase("INVALID")) {
+						String reason = row[invalidReasonIndex];
+						if (reason == null || reason.trim().isEmpty())
+							reason = "null";
+						return new ImmutablePair<Integer, String>(
+							lineNumber, reason);
+					}
+				}
+			}
+			return null;
+		} catch (RuntimeException error) {
+			throw error;
+		} catch (Throwable error) {
+			throw new RuntimeException(error);
+		} finally {
+			try { reader.close(); } catch (Throwable error) {}
 		}
 	}
 	
