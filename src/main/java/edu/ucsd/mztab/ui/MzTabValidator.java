@@ -205,7 +205,8 @@ public class MzTabValidator
 				message.append(reason.getLeft());
 				message.append(" of the converted mzTab file, with the ");
 				message.append("following reason given for invalidity:");
-				message.append("\n\n").append(reason.getRight());
+				message.append("\n----------\n").append(reason.getRight());
+				message.append("\n----------");
 			}
 			message.append("\n\nPlease correct the file and ");
 			message.append("ensure that its referenced spectra are ");
