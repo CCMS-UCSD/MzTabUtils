@@ -192,15 +192,14 @@ public class MzTabValidator
 			//System.err.println(validation.context.toString());
 			// get the printed reason for this file's first invalid row
 			ImmutablePair<Integer, String> reason = null;
-			try { reason = getFirstInvalidReason(inputFile); }
+			try { reason = getFirstInvalidReason(outputFile); }
 			catch (Throwable error) {}
 			// build error message
 			StringBuilder message = new StringBuilder("Result file [");
 			message.append(inputFile.getUploadedResultPath()).append("] ");
 			message.append("contains ").append(percentage).append("% ");
 			message.append("invalid PSM rows (").append(invalidRows);
-			message.append(" invalid out of ").append(psmRows);
-			message.append(" total).");
+			message.append(" invalid out of ").append(psmRows).append(").");
 			if (reason != null) {
 				message.append("\n\nThe first invalid PSM row is on line ");
 				message.append(reason.getLeft());
@@ -494,11 +493,11 @@ public class MzTabValidator
 	}
 	
 	private static ImmutablePair<Integer, String> getFirstInvalidReason(
-		MzTabFile mzTabFile
+		File mzTabFile
 	) {
 		if (mzTabFile == null)
 			return null;
-		String mzTabFilename = mzTabFile.getMzTabFilename();
+		String mzTabFilename = mzTabFile.getAbsolutePath();
 		// read through mzTab file line by line until
 		// reaching the first invalid PSM row
 		BufferedReader reader = null;
@@ -506,7 +505,7 @@ public class MzTabValidator
 			MzTabSectionHeader psmHeader = null;
 			int validIndex = -1;
 			int invalidReasonIndex = -1;
-			reader = new BufferedReader(new FileReader(mzTabFile.getFile()));
+			reader = new BufferedReader(new FileReader(mzTabFile));
 			String line = null;
 			int lineNumber = 0;
 			while (true) {
