@@ -350,13 +350,16 @@ implements MzTabProcessor
 				try {
 					scans.add(Integer.parseInt(tokens[1]));
 				} catch (NumberFormatException error) {
-					throw new IllegalArgumentException(String.format(
-						"Line %d of spectrum IDs file [%s] is invalid:\n" +
-						"----------\n%s\n----------\n" +
-						"The second token [%s] is expected to be an integer " +
-						"representing this spectrum's scan number.",
-						lineNumber, spectrumIDsFile.getName(), line,
-						tokens[1]), error);
+					// do nothing, since this is not a valid scan number,
+					// and therefore cannot be said to represent any
+					// spectrum that was actually found in the file
+//					throw new IllegalArgumentException(String.format(
+//						"Line %d of spectrum IDs file [%s] is invalid:\n" +
+//						"----------\n%s\n----------\n" +
+//						"The second token [%s] is expected to be an integer " +
+//						"representing this spectrum's scan number.",
+//						lineNumber, spectrumIDsFile.getName(), line,
+//						tokens[1]), error);
 				}
 				// increment index; use 1-based indexing, just to be sure
 				// any potentially valid client index value will be matched
@@ -371,7 +374,7 @@ implements MzTabProcessor
 			try { reader.close(); }
 			catch (Throwable error) {}
 		}
-		if (scans.isEmpty() || highestIndex == null)
+		if (scans.isEmpty() && highestIndex == null)
 			return null;
 		else return new ImmutablePair<Integer, Collection<Integer>>(
 			highestIndex, scans);
