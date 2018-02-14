@@ -9,6 +9,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -42,7 +43,8 @@ public class MzTabPROXIImporter
 		"\n\t-task            <ProteoSAFeTaskID>" +
 		"\n\t-dataset         <DatasetID>|<DatasetIDFile>" +
 		"\n\t[-importByQValue true|false (default true)]";
-	private static final String DATASET_ID_PREFIX = "MSV";
+	private static final Pattern DATASET_ID_PATTERN =
+		Pattern.compile("^R?MSV(\\d{9}(?:\\.\\d+)?)$");
 	
 	/*========================================================================
 	 * Public interface methods
@@ -62,7 +64,7 @@ public class MzTabPROXIImporter
 	
 	public static boolean importDataset(
 		File mzTabDirectory, TaskMzTabContext context, String taskID,
-		Integer datasetID, Boolean importByQValue, Long start
+		String datasetID, Boolean importByQValue, Long start
 	) {
 		if (mzTabDirectory == null || context == null || taskID == null)
 			return false;
@@ -129,7 +131,7 @@ public class MzTabPROXIImporter
 	
 	public static ImmutablePair<Integer, Integer> importMzTabFile(
 		File mzTabFile, TaskMzTabContext context, String taskID,
-		Integer datasetID, Boolean importByQValue
+		String datasetID, Boolean importByQValue
 	) {
 		if (mzTabFile == null || context == null || taskID == null)
 			return null;
@@ -152,7 +154,7 @@ public class MzTabPROXIImporter
 	
 	public static ImmutablePair<Integer, Integer> importMzTabFile(
 		File mzTabFile, TaskMzTabContext context, String taskID,
-		Integer datasetID, Boolean importByQValue, Connection connection
+		String datasetID, Boolean importByQValue, Connection connection
 	) {
 		if (mzTabFile == null || context == null || taskID == null ||
 			connection == null)
@@ -307,7 +309,7 @@ public class MzTabPROXIImporter
 		 *====================================================================*/
 		private File             mzTabDirectory;
 		private String           taskID;
-		private Integer          datasetID;
+		private String           datasetID;
 		private Boolean          importByQValue;
 		private TaskMzTabContext context;
 		private long             start;
@@ -362,12 +364,11 @@ public class MzTabPROXIImporter
 			if (datasetID == null)
 				throw new NullPointerException(
 					"Argument dataset ID cannot be null.");
-			else try { this.datasetID = parseDatasetIDString(datasetID); }
-			catch (Throwable error) {
+			else if (isValidDatasetID(datasetID) == false)
 				throw new IllegalArgumentException(String.format(
 					"Dataset ID string [%s] could not be parsed into " +
-					"a valid dataset ID.", datasetID), error);
-			}
+					"a valid dataset ID.", datasetID));
+			else this.datasetID = datasetID;
 			// propagate importByQValue flag, if present (default true)
 			if (importByQValue == null)
 				this.importByQValue = true;
@@ -471,22 +472,10 @@ public class MzTabPROXIImporter
 		}
 	}
 	
-	private static int parseDatasetIDString(String datasetID) {
+	private static boolean isValidDatasetID(String datasetID) {
 		if (datasetID == null)
-			throw new NullPointerException("Dataset ID string cannot be null.");
-		else if (datasetID.startsWith(DATASET_ID_PREFIX) == false)
-			throw new IllegalArgumentException(String.format(
-				"Dataset ID string [%s] does not begin with " +
-				"the required MassIVE dataset ID prefix \"%s\".",
-				datasetID, DATASET_ID_PREFIX));
-		else try {
-			return Integer.parseInt(
-				datasetID.substring(DATASET_ID_PREFIX.length()));
-		} catch (NumberFormatException error) {
-			throw new IllegalArgumentException(String.format(
-				"Dataset ID string [%s] does not end with " +
-				"a valid integer ID.", datasetID), error);
-		}
+			return false;
+		else return DATASET_ID_PATTERN.matcher(datasetID).matches();
 	}
 	
 	private static void die(String message) {

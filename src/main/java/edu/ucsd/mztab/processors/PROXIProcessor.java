@@ -59,7 +59,7 @@ public class PROXIProcessor implements MzTabProcessor
 	 * Constructor
 	 *========================================================================*/
 	public PROXIProcessor(
-		String taskID, Integer datasetID, boolean importByQValue,
+		String taskID, String datasetID, boolean importByQValue,
 		Connection connection
 	) {
 		// validate database connection
@@ -403,7 +403,7 @@ public class PROXIProcessor implements MzTabProcessor
 		private MzTabFile mzTabFile;
 		private Integer   id;
 		private String    taskID;
-		private Integer   datasetID;
+		private String    datasetID;
 		
 		/*====================================================================
 		 * Constructor
@@ -440,7 +440,7 @@ public class PROXIProcessor implements MzTabProcessor
 			statement.setString(1, descriptor);
 			statement.setString(2, mzTabRecord.taskID);
 			if (mzTabRecord.datasetID != null)
-				statement.setInt(3, mzTabRecord.datasetID);
+				statement.setString(3, mzTabRecord.datasetID);
 			int insertion = statement.executeUpdate();
 			// if the row already exists, need to look it up manually to get ID
 			if (insertion == 0) {
@@ -658,7 +658,7 @@ public class PROXIProcessor implements MzTabProcessor
 			statement.setString(1, descriptor);
 			statement.setString(2, mzTabRecord.taskID);
 			if (mzTabRecord.datasetID != null)
-				statement.setInt(3, mzTabRecord.datasetID);
+				statement.setString(3, mzTabRecord.datasetID);
 			int insertion = statement.executeUpdate();
 			// if the row already exists, need to look it up manually to get ID
 			if (insertion == 0) {
@@ -743,7 +743,7 @@ public class PROXIProcessor implements MzTabProcessor
 			statement.setInt(8, peptideID);
 			statement.setInt(9, variantID);
 			if (mzTabRecord.datasetID != null)
-				statement.setInt(10, mzTabRecord.datasetID);
+				statement.setString(10, mzTabRecord.datasetID);
 			int insertion = statement.executeUpdate();
 			// if the row already exists, need to look it up manually to get ID
 			if (insertion == 0) {
@@ -915,7 +915,7 @@ public class PROXIProcessor implements MzTabProcessor
 				"INSERT IGNORE INTO proxi.dataset_peptides " +
 				"(sequence, dataset_id, peptide_id) VALUES(?, ?, ?)");
 			statement.setString(1, sequence);
-			statement.setInt(2, mzTabRecord.datasetID);
+			statement.setString(2, mzTabRecord.datasetID);
 			statement.setInt(3, peptideID);
 			int insertion = statement.executeUpdate();
 			if (insertion != 0 && insertion != 1)
@@ -1071,7 +1071,7 @@ public class PROXIProcessor implements MzTabProcessor
 				"INSERT IGNORE INTO proxi.dataset_variants " +
 				"(sequence, dataset_id, variant_id) VALUES(?, ?, ?)");
 			statement.setString(1, sequence);
-			statement.setInt(2, mzTabRecord.datasetID);
+			statement.setString(2, mzTabRecord.datasetID);
 			statement.setInt(3, variantID);
 			int insertion = statement.executeUpdate();
 			if (insertion != 0 && insertion != 1)
@@ -1216,7 +1216,7 @@ public class PROXIProcessor implements MzTabProcessor
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.dataset_proteins " +
 				"(dataset_id, protein_id) VALUES(?, ?)");
-			statement.setInt(1, mzTabRecord.datasetID);
+			statement.setString(1, mzTabRecord.datasetID);
 			statement.setInt(2, proteinID);
 			int insertion = statement.executeUpdate();
 			if (insertion != 0 && insertion != 1)
@@ -1345,7 +1345,7 @@ public class PROXIProcessor implements MzTabProcessor
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.dataset_modifications " +
 				"(dataset_id, modification_id) VALUES(?, ?)");
-			statement.setInt(1, mzTabRecord.datasetID);
+			statement.setString(1, mzTabRecord.datasetID);
 			statement.setInt(2, modificationID);
 			int insertion = statement.executeUpdate();
 			if (insertion != 0 && insertion != 1)
