@@ -443,8 +443,14 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			for (String column : params.getExtraColumns()) {
 				if (column == null)
 					continue;
-				String value = extractMixtureElement(
-					elements[params.getExtraColumnIndex(column)], index);
+				String value = null;
+				try {
+					value = extractMixtureElement(
+						elements[params.getExtraColumnIndex(column)], index);
+				}
+				// this row may not have a value for this column (e.g.
+				// non-rectangular TSV files); in this case just forget it
+				catch (ArrayIndexOutOfBoundsException missing) {}
 				if (value == null)
 					continue;
 				else psm.setOptionColumnValue(column, value);
