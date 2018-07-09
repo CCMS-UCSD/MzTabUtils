@@ -1,8 +1,10 @@
 package edu.ucsd.mztab.util;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -18,6 +20,8 @@ public class ProteinMapper
 		REFERENCE_PROTEINS_BY_ID_PLUS_ACCESSION;
 	public static final Map<String, String> REFERENCE_PROTEINS_BY_NAME;
 	public static final Map<String, String> REFERENCE_PROTEINS_BY_DESCRIPTION;
+	public static final Map<String, Collection<String>>
+		REFERENCE_PROTEINS_BY_SUBSTRING;
 	static {
 		try {
 			// read reference proteins as a Java properties file
@@ -35,6 +39,8 @@ public class ProteinMapper
 				new HashMap<String, String>(referenceProteins.size());
 			REFERENCE_PROTEINS_BY_DESCRIPTION =
 				new HashMap<String, String>(referenceProteins.size());
+			REFERENCE_PROTEINS_BY_SUBSTRING =
+				new HashMap<String, Collection<String>>();
 			// parse each property into its relevant mappings
 			for (String protein : referenceProteins.stringPropertyNames()) {
 				// each reference protein identifier should have as
@@ -125,5 +131,27 @@ public class ProteinMapper
 		// if all else fails, this is not a discernible fragment of
 		// any reference protein, so just return the fragment itself
 		return fragment;
+	}
+	
+	public static Collection<String> getReferenceProteins(String fragment) {
+		if (fragment == null)
+			return null;
+		// get all reference proteins for which this fragment is a substring
+		Collection<String> matches =
+			REFERENCE_PROTEINS_BY_SUBSTRING.get(fragment);
+		// if this fragment has not been searched before, do so now
+		if (matches == null) {
+			// perform case-insensitive substring comparison
+			String normalizedFragment = fragment.toUpperCase();
+			matches = new LinkedHashSet<String>();
+			for (String protein : REFERENCE_PROTEINS)
+				if (protein.toUpperCase().contains(normalizedFragment))
+					matches.add(protein);
+			// cache these matches to speed up future lookups
+			REFERENCE_PROTEINS_BY_SUBSTRING.put(fragment, matches);
+		}
+		if (matches.isEmpty())
+			return null;
+		else return matches;
 	}
 }
