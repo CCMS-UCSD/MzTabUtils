@@ -128,9 +128,9 @@ public class ProteinMapper
 		protein = getReferenceProteinByDescription(fragment);
 		if (protein != null)
 			return protein;
-		// if all else fails, this is not a discernible fragment of
-		// any reference protein, so just return the fragment itself
-		return fragment;
+		// if all else fails, this is not a discernible fragment
+		// of any reference protein, so return null
+		return null;
 	}
 	
 	public static Collection<String> getReferenceProteins(String fragment) {
