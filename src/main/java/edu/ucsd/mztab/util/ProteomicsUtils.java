@@ -223,18 +223,18 @@ public class ProteomicsUtils
 		// then try to get the proper accession by resolving
 		// it against the list of reference proteins
 		String resolved = ProteinMapper.getReferenceProtein(accession);
-		// if resolution did not work unambiguously, try substring match
-		if (resolved == null) {
-			Collection<String> matches =
-				ProteinMapper.getReferenceProteins(accession);
-			if (matches != null && matches.isEmpty() == false) {
-				if (matches.size() == 1)
-					resolved = matches.iterator().next();
-				else System.err.println(String.format(
-					"WARNING: protein identifier [%s] resolved to %d " +
-					"distinct reference proteins.", accession, matches.size()));
-			}
-		}
+//		// if resolution did not work unambiguously, try substring match
+//		if (resolved == null) {
+//			Collection<String> matches =
+//				ProteinMapper.getReferenceProteins(accession);
+//			if (matches != null && matches.isEmpty() == false) {
+//				if (matches.size() == 1)
+//					resolved = matches.iterator().next();
+//				else System.err.println(String.format(
+//					"WARNING: protein identifier [%s] resolved to %d " +
+//					"distinct reference proteins.", accession, matches.size()));
+//			}
+//		}
 		// if resolution worked, return resolved accession
 		if (resolved != null)
 			return resolved;
