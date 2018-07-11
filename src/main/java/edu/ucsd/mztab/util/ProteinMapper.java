@@ -19,6 +19,8 @@ public class ProteinMapper
 	public static final Map<String, String>
 		REFERENCE_PROTEINS_BY_ID_PLUS_ACCESSION;
 	public static final Map<String, String> REFERENCE_PROTEINS_BY_NAME;
+	public static final Map<String, String>
+		REFERENCE_PROTEINS_BY_ACCESSION_PLUS_NAME;
 	public static final Map<String, String> REFERENCE_PROTEINS_BY_DESCRIPTION;
 	public static final Map<String, Collection<String>>
 		REFERENCE_PROTEINS_BY_SUBSTRING;
@@ -37,6 +39,8 @@ public class ProteinMapper
 					new HashMap<String, String>(referenceProteins.size());
 			REFERENCE_PROTEINS_BY_NAME =
 				new HashMap<String, String>(referenceProteins.size());
+			REFERENCE_PROTEINS_BY_ACCESSION_PLUS_NAME =
+					new HashMap<String, String>(referenceProteins.size());
 			REFERENCE_PROTEINS_BY_DESCRIPTION =
 				new HashMap<String, String>(referenceProteins.size());
 			REFERENCE_PROTEINS_BY_SUBSTRING =
@@ -61,6 +65,9 @@ public class ProteinMapper
 					String.format("%s|%s", tokens[0], tokens[1]), protein);
 				// map by name
 				REFERENCE_PROTEINS_BY_NAME.put(tokens[2], protein);
+				// map by concatenation of accession and name
+				REFERENCE_PROTEINS_BY_ACCESSION_PLUS_NAME.put(
+					String.format("%s|%s", tokens[1], tokens[2]), protein);
 				// map by description
 				REFERENCE_PROTEINS_BY_NAME.put(
 					referenceProteins.getProperty(protein), protein);
@@ -144,6 +151,7 @@ public class ProteinMapper
 			// perform case-insensitive substring comparison
 			String normalizedFragment = fragment.toUpperCase();
 			matches = new LinkedHashSet<String>();
+			// TODO: use more efficient algorith for substring comparison
 			for (String protein : REFERENCE_PROTEINS)
 				if (protein.toUpperCase().contains(normalizedFragment))
 					matches.add(protein);
