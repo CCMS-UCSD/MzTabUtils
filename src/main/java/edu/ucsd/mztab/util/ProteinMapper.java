@@ -69,7 +69,7 @@ public class ProteinMapper
 				REFERENCE_PROTEINS_BY_ACCESSION_PLUS_NAME.put(
 					String.format("%s|%s", tokens[1], tokens[2]), protein);
 				// map by description
-				REFERENCE_PROTEINS_BY_NAME.put(
+				REFERENCE_PROTEINS_BY_DESCRIPTION.put(
 					referenceProteins.getProperty(protein), protein);
 			}
 		} catch (IOException error) {
@@ -135,12 +135,12 @@ public class ProteinMapper
 		protein = getReferenceProteinByIDPlusAccession(fragment);
 		if (protein != null)
 			return protein;
-		// try accession and name
-		protein = getReferenceProteinByAccessionPlusName(fragment);
-		if (protein != null)
-			return protein;
 		// try name
 		protein = getReferenceProteinByName(fragment);
+		if (protein != null)
+			return protein;
+		// try accession and name
+		protein = getReferenceProteinByAccessionPlusName(fragment);
 		if (protein != null)
 			return protein;
 		// try description
