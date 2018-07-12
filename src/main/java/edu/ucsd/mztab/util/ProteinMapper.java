@@ -106,6 +106,14 @@ public class ProteinMapper
 		else return REFERENCE_PROTEINS_BY_NAME.get(name);
 	}
 	
+	public static String getReferenceProteinByAccessionPlusName(
+		String identifier
+	) {
+		if (identifier == null)
+			return null;
+		else return REFERENCE_PROTEINS_BY_ACCESSION_PLUS_NAME.get(identifier);
+	}
+	
 	public static String getReferenceProteinByDescription(String description) {
 		if (description == null)
 			return null;
@@ -125,6 +133,10 @@ public class ProteinMapper
 			return protein;
 		// try database id and accession
 		protein = getReferenceProteinByIDPlusAccession(fragment);
+		if (protein != null)
+			return protein;
+		// try accession and name
+		protein = getReferenceProteinByAccessionPlusName(fragment);
 		if (protein != null)
 			return protein;
 		// try name
