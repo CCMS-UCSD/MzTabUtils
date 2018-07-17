@@ -45,6 +45,7 @@ public class PROXIProcessor implements MzTabProcessor
 	 *========================================================================*/
 	private Connection                        connection;
 	private Map<String, Map<String, Integer>> uniqueElements;
+	private Map<String, Map<String, Integer>> globalElements;
 	private Map<String, Integer>              rowCounts;
 	private PROXIMzTabRecord                  mzTabRecord;
 	private MzTabSectionHeader                prtHeader;
@@ -62,6 +63,12 @@ public class PROXIProcessor implements MzTabProcessor
 		String taskID, String datasetID, boolean importByQValue,
 		Connection connection
 	) {
+		this(taskID, datasetID, importByQValue, null, connection);
+	}
+	public PROXIProcessor(
+		String taskID, String datasetID, boolean importByQValue,
+		Map<String, Map<String, Integer>> globalElements, Connection connection
+	) {
 		// validate database connection
 		if (connection == null)
 			throw new NullPointerException(
@@ -78,6 +85,8 @@ public class PROXIProcessor implements MzTabProcessor
 		mzTabRecord.datasetID = datasetID;
 		// initialize counter maps
 		uniqueElements = new HashMap<String, Map<String, Integer>>();
+		if (globalElements == null)
+			this.globalElements = globalElements;
 		rowCounts = new HashMap<String, Integer>(3);
 		// initialize mzTab file parameters
 		prtHeader = null;
@@ -1392,7 +1401,12 @@ public class PROXIProcessor implements MzTabProcessor
 		if (type == null || value == null ||
 			value.trim().equalsIgnoreCase("null"))
 			return 0;
-		Map<String, Integer> values = uniqueElements.get(type);
+		Map<String, Integer> values = null;
+		// get element from global map first, if present
+		if (globalElements != null)
+			values = globalElements.get(type);
+		// otherwise get it from the local map
+		else values = uniqueElements.get(type);
 		if (values == null || values.containsKey(value) == false)
 			return null;
 		else return values.get(value);
@@ -1402,11 +1416,20 @@ public class PROXIProcessor implements MzTabProcessor
 		if (type == null || value == null ||
 			value.trim().equalsIgnoreCase("null"))
 			return;
+		// add to local map
 		Map<String, Integer> values = uniqueElements.get(type);
 		if (values == null)
 			values = new HashMap<String, Integer>();
 		values.put(value, id);
 		uniqueElements.put(type, values);
+		// add to global map, if present
+		if (globalElements != null) {
+			values = globalElements.get(type);
+			if (values == null)
+				values = new HashMap<String, Integer>();
+			values.put(value, id);
+			globalElements.put(type, values);
+		}
 	}
 	
 	private void incrementRowCount(String type) {
