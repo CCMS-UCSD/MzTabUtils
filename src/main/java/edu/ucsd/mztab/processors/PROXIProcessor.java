@@ -65,6 +65,7 @@ public class PROXIProcessor implements MzTabProcessor
 	) {
 		this(taskID, datasetID, importByQValue, null, connection);
 	}
+	
 	public PROXIProcessor(
 		String taskID, String datasetID, boolean importByQValue,
 		Map<String, Map<String, Integer>> globalElements, Connection connection

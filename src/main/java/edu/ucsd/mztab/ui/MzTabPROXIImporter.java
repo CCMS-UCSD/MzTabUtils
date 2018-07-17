@@ -8,6 +8,8 @@ import java.sql.Connection;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -66,6 +68,15 @@ public class MzTabPROXIImporter
 		File mzTabDirectory, TaskMzTabContext context, String taskID,
 		String datasetID, Boolean importByQValue, Long start
 	) {
+		return importDataset(mzTabDirectory, context, taskID, datasetID,
+			importByQValue, start, null);
+	}
+	
+	public static boolean importDataset(
+		File mzTabDirectory, TaskMzTabContext context, String taskID,
+		String datasetID, Boolean importByQValue, Long start,
+		Map<String, Map<String, Integer>> globalElements
+	) {
 		if (mzTabDirectory == null || context == null || taskID == null)
 			return false;
 		// importByQValue defaults to true
@@ -74,6 +85,10 @@ public class MzTabPROXIImporter
 		// start defaults to current time
 		if (start == null)
 			start = System.currentTimeMillis();
+		// set up global elements map, if not provided,
+		// to improve import performance
+		if (globalElements == null)
+			globalElements = new HashMap<String, Map<String, Integer>>();
 		// set up database connection
 		Connection connection = DatabaseUtils.getConnection();
 		if (connection == null)
@@ -101,7 +116,7 @@ public class MzTabPROXIImporter
 				// for benign reasons, errors should throw an exception
 				ImmutablePair<Integer, Integer> importCounts =
 					importMzTabFile(file, context, taskID, datasetID,
-						importByQValue, connection);
+						importByQValue, globalElements, connection);
 				if (importCounts == null)
 					continue;
 				filesImported++;
@@ -133,6 +148,15 @@ public class MzTabPROXIImporter
 		File mzTabFile, TaskMzTabContext context, String taskID,
 		String datasetID, Boolean importByQValue
 	) {
+		return importMzTabFile(mzTabFile, context, taskID, datasetID,
+			importByQValue, (Map<String, Map<String, Integer>>)null);
+	}
+	
+	public static ImmutablePair<Integer, Integer> importMzTabFile(
+		File mzTabFile, TaskMzTabContext context, String taskID,
+		String datasetID, Boolean importByQValue,
+		Map<String, Map<String, Integer>> globalElements
+	) {
 		if (mzTabFile == null || context == null || taskID == null)
 			return null;
 		// set up database connection
@@ -142,7 +166,7 @@ public class MzTabPROXIImporter
 				"Could not connect to the MassIVE search database server.");
 		try {
 			return importMzTabFile(mzTabFile, context, taskID, datasetID,
-				importByQValue, connection);
+				importByQValue, globalElements, connection);
 		} catch (Throwable error) {
 			throw new RuntimeException(String.format(
 				"Error importing mzTab file [%s] to the MassIVE search " +
@@ -156,6 +180,15 @@ public class MzTabPROXIImporter
 		File mzTabFile, TaskMzTabContext context, String taskID,
 		String datasetID, Boolean importByQValue, Connection connection
 	) {
+		return importMzTabFile(mzTabFile, context, taskID, datasetID,
+			importByQValue, null, connection);
+	}
+	
+	public static ImmutablePair<Integer, Integer> importMzTabFile(
+		File mzTabFile, TaskMzTabContext context, String taskID,
+		String datasetID, Boolean importByQValue,
+		Map<String, Map<String, Integer>> globalElements, Connection connection
+	) {
 		if (mzTabFile == null || context == null || taskID == null ||
 			connection == null)
 			return null;
@@ -166,8 +199,8 @@ public class MzTabPROXIImporter
 		if (isImportable(mzTabFile, importByQValue) == false)
 			return null;
 		MzTabReader reader = new MzTabReader(context.getMzTabFile(mzTabFile));
-		PROXIProcessor processor =
-			new PROXIProcessor(taskID, datasetID, importByQValue, connection);
+		PROXIProcessor processor = new PROXIProcessor(
+			taskID, datasetID, importByQValue, globalElements, connection);
 		reader.addProcessor(processor);
 		reader.read();
 		// return import counts:
