@@ -719,11 +719,11 @@ public class PROXIProcessor implements MzTabProcessor
 	) {
 		if (psm == null)
 			return null;
-		// first check to see if this psm has already been recorded
+		// first check to see if this PSM has already been recorded
 		Integer psmID = getElementID("psm", psm.getID().toString());
 		if (psmID != null)
 			return psmID;
-		// then write psm to the database
+		// then write PSM to the database
 		PreparedStatement statement = null;
 		ResultSet result = null;
 		try {
@@ -777,8 +777,7 @@ public class PROXIProcessor implements MzTabProcessor
 					psmID = result.getInt(1);
 				else throw new RuntimeException(
 					"The psm insert statement did not generate a row ID.");
-			}
-			else throw new RuntimeException(String.format(
+			} else throw new RuntimeException(String.format(
 				"The psm insert statement returned a value of \"%d\".",
 				insertion));
 		} catch (Throwable error) {
@@ -794,22 +793,36 @@ public class PROXIProcessor implements MzTabProcessor
 			throw new RuntimeException(String.format(
 				"No valid row ID could be obtained for PSM %d " +
 				"of result file %d.", psm.getID(), mzTabRecord.id));
-		// add this psm to the set of recorded psms
-		addElement("psm", psm.getID().toString(), psmID);
+		// add this PSM to the set of recorded psms (local map only)
+		addElement("psm", psm.getID().toString(), psmID, true);
 		return psmID;
 	}
 	
 	private void recordPSMProtein(int psmID, int proteinID) {
-		// write psm/protein link to the database
+		// first check to see if this PSM/protein link has already been recorded
+		String psmProteinName = String.format("%d_%d", psmID, proteinID);
+		Integer psmProteinID = getElementID("psmProtein", psmProteinName);
+		if (psmProteinID != null)
+			return;
+		// write PSM/protein link to the database
 		PreparedStatement statement = null;
+		ResultSet result = null;
 		try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.psm_proteins " +
-				"(psm_id, protein_id) VALUES(?, ?)");
+				"(psm_id, protein_id) VALUES(?, ?)",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, psmID);
 			statement.setInt(2, proteinID);
 			int insertion = statement.executeUpdate();
-			if (insertion != 0 && insertion != 1)
+			// if the insert succeeded, get its generated row ID
+			if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					psmProteinID = result.getInt(1);
+				else throw new RuntimeException("The psm_protein insert " +
+					"statement did not generate a row ID.");
+			} else if (insertion != 0)
 				throw new RuntimeException(String.format(
 					"The psm_protein insert statement " +
 					"returned a value of \"%d\".", insertion));
@@ -821,19 +834,37 @@ public class PROXIProcessor implements MzTabProcessor
 		} finally {
 			try { statement.close(); } catch (Throwable error) {}
 		}
+		// add this PSM/protein ID to the set of
+		// recorded PSM/protein links (local only)
+		if (psmProteinID != null)
+			addElement("psmProtein", psmProteinName, psmProteinID, true);
 	}
 	
 	private void recordPSMModification(int psmID, int modificationID) {
-		// write psm/modification link to the database
+		// first check to see if this PSM/mod link has already been recorded
+		String psmModName = String.format("%d_%d", psmID, modificationID);
+		Integer psmModID = getElementID("psmModification", psmModName);
+		if (psmModID != null)
+			return;
+		// write PSM/mod link to the database
 		PreparedStatement statement = null;
+		ResultSet result = null;
 		try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.psm_modifications " +
-				"(psm_id, modification_id) VALUES(?, ?)");
+				"(psm_id, modification_id) VALUES(?, ?)",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, psmID);
 			statement.setInt(2, modificationID);
 			int insertion = statement.executeUpdate();
-			if (insertion != 0 && insertion != 1)
+			// if the insert succeeded, get its generated row ID
+			if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					psmModID = result.getInt(1);
+				else throw new RuntimeException("The psm_modification insert " +
+					"statement did not generate a row ID.");
+			} else if (insertion != 0)
 				throw new RuntimeException(String.format(
 					"The psm_modification insert statement " +
 					"returned a value of \"%d\".", insertion));
@@ -844,6 +875,9 @@ public class PROXIProcessor implements MzTabProcessor
 		} finally {
 			try { statement.close(); } catch (Throwable error) {}
 		}
+		// add this PSM/mod ID to the set of recorded PSM/mod links (local only)
+		if (psmModID != null)
+			addElement("psmModification", psmModName, psmModID, true);
 	}
 	
 	private Integer recordPeptide(String sequence) {
@@ -950,17 +984,34 @@ public class PROXIProcessor implements MzTabProcessor
 		if (sequence == null)
 			throw new NullPointerException(
 				"Argument peptide sequence is null.");
+		// first check to see if this peptide/protein
+		// link has already been recorded
+		String peptideProteinName =
+			String.format("%d_%d", peptideID, proteinID);
+		Integer peptideProteinID =
+			getElementID("peptideProtein", peptideProteinName);
+		if (peptideProteinID != null)
+			return;
 		// write peptide/protein link to the database
 		PreparedStatement statement = null;
+		ResultSet result = null;
 		try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.peptide_proteins " +
-				"(peptide_id, protein_id, sequence) VALUES(?, ?, ?)");
+				"(peptide_id, protein_id, sequence) VALUES(?, ?, ?)",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, peptideID);
 			statement.setInt(2, proteinID);
 			statement.setString(3, sequence);
 			int insertion = statement.executeUpdate();
-			if (insertion != 0 && insertion != 1)
+			// if the insert succeeded, get its generated row ID
+			if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					peptideProteinID = result.getInt(1);
+				else throw new RuntimeException("The peptide_protein insert " +
+					"statement did not generate a row ID.");
+			} else if (insertion != 0)
 				throw new RuntimeException(String.format(
 					"The peptide_protein insert statement " +
 					"returned a value of \"%d\".", insertion));
@@ -971,19 +1022,39 @@ public class PROXIProcessor implements MzTabProcessor
 		} finally {
 			try { statement.close(); } catch (Throwable error) {}
 		}
+		// add this peptide/protein ID to the set
+		// of recorded peptide/protein links
+		if (peptideProteinID != null)
+			addElement("peptideProtein", peptideProteinName, peptideProteinID);
 	}
 	
 	private void recordPeptideModification(int peptideID, int modificationID) {
-		// write peptide/modification link to the database
+		// first check to see if this peptide/mod link has already been recorded
+		String peptideModName =
+			String.format("%d_%d", peptideID, modificationID);
+		Integer peptideModID =
+			getElementID("peptideModification", peptideModName);
+		if (peptideModID != null)
+			return;
+		// write peptide/mod link to the database
 		PreparedStatement statement = null;
+		ResultSet result = null;
 		try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.peptide_modifications " +
-				"(peptide_id, modification_id) VALUES(?, ?)");
+				"(peptide_id, modification_id) VALUES(?, ?)",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, peptideID);
 			statement.setInt(2, modificationID);
 			int insertion = statement.executeUpdate();
-			if (insertion != 0 && insertion != 1)
+			// if the insert succeeded, get its generated row ID
+			if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					peptideModID = result.getInt(1);
+				else throw new RuntimeException("The peptide_modification " +
+					"insert statement did not generate a row ID.");
+			} else if (insertion != 0)
 				throw new RuntimeException(String.format(
 					"The peptide_modification insert statement " +
 					"returned a value of \"%d\".", insertion));
@@ -994,6 +1065,9 @@ public class PROXIProcessor implements MzTabProcessor
 		} finally {
 			try { statement.close(); } catch (Throwable error) {}
 		}
+		// add this peptide/mod ID to the set of recorded peptide/mod links
+		if (peptideModID != null)
+			addElement("peptideModification", peptideModName, peptideModID);
 	}
 	
 	private Integer recordVariant(String sequence, int charge, int peptideID) {
@@ -1101,16 +1175,33 @@ public class PROXIProcessor implements MzTabProcessor
 	}
 	
 	private void recordVariantProtein(int variantID, int proteinID) {
+		// first check to see if this variant/protein
+		// link has already been recorded
+		String variantProteinName =
+			String.format("%d_%d", variantID, proteinID);
+		Integer variantProteinID =
+			getElementID("variantProtein", variantProteinName);
+		if (variantProteinID != null)
+			return;
 		// write variant/protein link to the database
 		PreparedStatement statement = null;
+		ResultSet result = null;
 		try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.variant_proteins " +
-				"(variant_id, protein_id) VALUES(?, ?)");
+				"(variant_id, protein_id) VALUES(?, ?)",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, variantID);
 			statement.setInt(2, proteinID);
 			int insertion = statement.executeUpdate();
-			if (insertion != 0 && insertion != 1)
+			// if the insert succeeded, get its generated row ID
+			if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					variantProteinID = result.getInt(1);
+				else throw new RuntimeException("The variant_protein insert " +
+					"statement did not generate a row ID.");
+			} else if (insertion != 0)
 				throw new RuntimeException(String.format(
 					"The variant_protein insert statement " +
 					"returned a value of \"%d\".", insertion));
@@ -1121,22 +1212,42 @@ public class PROXIProcessor implements MzTabProcessor
 		} finally {
 			try { statement.close(); } catch (Throwable error) {}
 		}
+		// add this variant/protein ID to the set
+		// of recorded variant/protein links
+		if (variantProteinID != null)
+			addElement("variantProtein", variantProteinName, variantProteinID);
 	}
 	
 	private void recordVariantModification(
 		int variantID, int modificationID, int position
 	) {
-		// write variant/modification link to the database
+		// first check to see if this variant/mod link has already been recorded
+		String variantModName =
+			String.format("%d_%d_%d", variantID, modificationID, position);
+		Integer variantModID =
+			getElementID("variantModification", variantModName);
+		if (variantModID != null)
+			return;
+		// write variant/mod link to the database
 		PreparedStatement statement = null;
+		ResultSet result = null;
 		try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.variant_modifications " +
-				"(variant_id, modification_id, location) VALUES(?, ?, ?)");
+				"(variant_id, modification_id, location) VALUES(?, ?, ?)",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, variantID);
 			statement.setInt(2, modificationID);
 			statement.setInt(3, position);
 			int insertion = statement.executeUpdate();
-			if (insertion != 0 && insertion != 1)
+			// if the insert succeeded, get its generated row ID
+			if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					variantModID = result.getInt(1);
+				else throw new RuntimeException("The variant_modification " +
+					"insert statement did not generate a row ID.");
+			} else if (insertion != 0)
 				throw new RuntimeException(String.format(
 					"The variant_modification insert statement " +
 					"returned a value of \"%d\".", insertion));
@@ -1147,6 +1258,9 @@ public class PROXIProcessor implements MzTabProcessor
 		} finally {
 			try { statement.close(); } catch (Throwable error) {}
 		}
+		// add this  variant/mod ID to the set of recorded variant/mod links
+		if (variantModID != null)
+			addElement("variantModification", variantModName, variantModID);
 	}
 	
 	private Integer recordProtein(String accession) {
@@ -1246,16 +1360,32 @@ public class PROXIProcessor implements MzTabProcessor
 	}
 	
 	private void recordProteinModification(int proteinID, int modificationID) {
-		// write protein/modification link to the database
+		// first check to see if this protein/mod link has already been recorded
+		String proteinModName =
+			String.format("%d_%d", proteinID, modificationID);
+		Integer proteinModID =
+			getElementID("proteinModification", proteinModName);
+		if (proteinModID != null)
+			return;
+		// write protein/mod link to the database
 		PreparedStatement statement = null;
+		ResultSet result = null;
 		try {
 			statement = connection.prepareStatement(
 				"INSERT IGNORE INTO proxi.protein_modifications " +
-				"(protein_id, modification_id) VALUES(?, ?)");
+				"(protein_id, modification_id) VALUES(?, ?)",
+				Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, proteinID);
 			statement.setInt(2, modificationID);
 			int insertion = statement.executeUpdate();
-			if (insertion != 0 && insertion != 1)
+			// if the insert succeeded, get its generated row ID
+			if (insertion == 1) {
+				result = statement.getGeneratedKeys();
+				if (result.next())
+					proteinModID = result.getInt(1);
+				else throw new RuntimeException("The protein_modification " +
+					"insert statement did not generate a row ID.");
+			} else if (insertion != 0)
 				throw new RuntimeException(String.format(
 					"The protein_modification insert statement " +
 					"returned a value of \"%d\".", insertion));
@@ -1266,6 +1396,9 @@ public class PROXIProcessor implements MzTabProcessor
 		} finally {
 			try { statement.close(); } catch (Throwable error) {}
 		}
+		// add this protein/mod ID to the set of recorded protein/mod links
+		if (proteinModID != null)
+			addElement("proteinModification", proteinModName, proteinModID);
 	}
 	
 	private Integer recordModification(String name, Double mass) {
@@ -1406,14 +1539,21 @@ public class PROXIProcessor implements MzTabProcessor
 		// get element from global map first, if present
 		if (globalElements != null)
 			values = globalElements.get(type);
-		// otherwise get it from the local map
-		else values = uniqueElements.get(type);
+		// then try to get it from the local map
+		if (values == null || values.containsKey(value) == false)
+			values = uniqueElements.get(type);
 		if (values == null || values.containsKey(value) == false)
 			return null;
 		else return values.get(value);
 	}
 	
 	private void addElement(String type, String value, int id) {
+		addElement(type, value, id, false);
+	}
+	
+	private void addElement(
+		String type, String value, int id, boolean localOnly
+	) {
 		if (type == null || value == null ||
 			value.trim().equalsIgnoreCase("null"))
 			return;
@@ -1423,8 +1563,8 @@ public class PROXIProcessor implements MzTabProcessor
 			values = new HashMap<String, Integer>();
 		values.put(value, id);
 		uniqueElements.put(type, values);
-		// add to global map, if present
-		if (globalElements != null) {
+		// add to global map, if requested and present
+		if (localOnly == false && globalElements != null) {
 			values = globalElements.get(type);
 			if (values == null)
 				values = new HashMap<String, Integer>();
