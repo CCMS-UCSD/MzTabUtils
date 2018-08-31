@@ -19,6 +19,7 @@ import java.util.regex.Matcher;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.util.FileIOUtils;
@@ -368,18 +369,37 @@ public class TSVToMzTabParamGenerator
 				"STY", "79.966331", false, null);
 			addDynamicMod("[UNIMOD,UNIMOD:28,Gln->pyro-Glu,\"%s\"]",
 				"Q", "-17.026549", false, true);
-			// TODO: this section isn't really useful unless we try to match
-			// these mods up with UNIMOD or PSI-MOD accessions, since adding
-			// more "unknown modifications" will just result in CHEMMODs;
-			// meaning the result will be the same as if we had not bothered to
-			// do this and just let the catch-all mod specifier pick these up
-//			NodeList parameters = XPathAPI.selectNodeList(
-//				document, "//parameter[@name='ptm.custom_PTM']");
-//			if (parameters != null && parameters.getLength() > 0) {
-//				for (int i=0; i<parameters.getLength(); i++) {
-//					String mod =
-//						parameters.item(i).getFirstChild().getNodeValue();
-//					if (mod != null && mod.trim().isEmpty() == false) {
+			// handle all "standard" ProteoSAFe mods selected
+			// by the user in "custom PTM" format
+			NodeList parameters = XPathAPI.selectNodeList(
+				document, "//parameter[@name='ptm.custom_PTM']");
+			if (parameters != null && parameters.getLength() > 0) {
+				for (int i=0; i<parameters.getLength(); i++) {
+					String mod =
+						parameters.item(i).getFirstChild().getNodeValue();
+					if (mod != null && mod.trim().isEmpty() == false) {
+						// handle all known fixed mods (known variable mods are
+						// all handled by blanket-adding as dynamic mods above)
+						if (mod.equals("+304.199040,K,fix"))
+							addDynamicMod("[UNIMOD,UNIMOD:731," +
+								"iTRAQ8plex:13C(6)15N(2),\"%s\"]",
+								"K", "+304.199040", true, null);
+						else if (mod.equals("+304.199040,*,fix_nterm"))
+							addDynamicMod("[UNIMOD,UNIMOD:731," +
+								"iTRAQ8plex:13C(6)15N(2),\"%s\"]",
+								"*", "+304.199040", true, true);
+						else if (mod.equals("+229.162932,K,fix"))
+							addDynamicMod("[UNIMOD,UNIMOD:737,TMT6plex,\"%s\"]",
+								"K", "+229.162932", true, null);
+						else if (mod.equals("+229.162932,*,fix_nterm"))
+							addDynamicMod("[UNIMOD,UNIMOD:737,TMT6plex,\"%s\"]",
+								"*", "+229.162932", true, true);
+						// TODO: the following code isn't really useful unless
+						// we try to match these mods up with UNIMOD or PSI-MOD
+						// accessions, since adding more "unknown modifications"
+						// will just result in CHEMMODs; meaning the result will
+						// be the same as if we had not bothered to do this and
+						// just let the catch-all mod specifier pick these up
 //						// "ptm.custom_PTM" parameters should have as their
 //						// value a string with the following format:
 //						// <mass>,<residues>,<type>
@@ -399,9 +419,9 @@ public class TSVToMzTabParamGenerator
 //						addDynamicMod(
 //							"[MS,MS:1001460,unknown modification,\"%s\"]",
 //							tokens[1], tokens[0], fixed, terminal);
-//					}
-//				}
-//			}
+					}
+				}
+			}
 			// if the mod-matching mode is mass difference threshold,
 			// and there are any remaining found masses that haven't
 			// yet been assigned to a mod, then try to match the
