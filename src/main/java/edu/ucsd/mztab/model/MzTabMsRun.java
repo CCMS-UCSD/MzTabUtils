@@ -38,7 +38,7 @@ public class MzTabMsRun
 		if (msRunLocation == null)
 			throw new NullPointerException(
 				"Argument \"ms_run[1-n]-location\" value cannot be null.");
-		else this.msRunLocation = msRunLocation;
+		else this.msRunLocation = cleanMsRunLocation(msRunLocation);
 		// initialize all other properties to null
 		descriptor = null;
 		mangledPeakListFilename = null;
@@ -279,5 +279,17 @@ public class MzTabMsRun
 		else msRun.append("\"").append(mappedPeakListPath).append("\"");
 		msRun.append("}");
 		return msRun.toString();
+	}
+	
+	/*========================================================================
+	 * Convenience methods
+	 *========================================================================*/
+	private String cleanMsRunLocation(String msRunLocation) {
+		if (msRunLocation == null)
+			return null;
+		// replace all non-ASCII characters
+		// (and hope there's no filename collision!)
+		msRunLocation = msRunLocation.replaceAll("[^\\p{ASCII}]", "_");
+		return msRunLocation;
 	}
 }
