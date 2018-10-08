@@ -98,9 +98,17 @@ public class CountProcessor implements MzTabProcessor
 			else prtHeader.validateMzTabRow(line);
 			incrementCount("PRT");
 			// extract count-worthy elements from this PRT row
-//			String[] columns = line.split("\\t");
-//			for (String column : RELEVANT_PRT_COLUMNS)
-//				addElement(column, columns[prtHeader.getColumnIndex(column)]);
+			String[] columns = line.split("\\t");
+			for (String column : RELEVANT_PRT_COLUMNS) {
+				String element = String.format("PRT_%s", column);
+				// clean protein accessions as a special case
+				if (column.equals("accession"))
+					addElement(element, ProteomicsUtils.cleanProteinAccession(
+						columns[prtHeader.getColumnIndex(column)]));
+				// just dump everything else as-is into the counter map
+				else addElement(
+					element, columns[prtHeader.getColumnIndex(column)]);
+			}
 		}
 		// peptide section
 		else if (line.startsWith("PEH")) {
@@ -212,6 +220,11 @@ public class CountProcessor implements MzTabProcessor
 		if (uniqueElements.containsKey("accession"))
 			counts.put("accession", uniqueElements.get("accession").size());
 		else counts.put("accession", 0);
+		// add count of found unique PRT-section proteins
+		if (uniqueElements.containsKey("PRT_accession"))
+			counts.put(
+				"PRT_accession", uniqueElements.get("PRT_accession").size());
+		else counts.put("PRT_accession", 0);
 		// add count of found unique modifications
 		if (uniqueElements.containsKey("modification"))
 			counts.put(

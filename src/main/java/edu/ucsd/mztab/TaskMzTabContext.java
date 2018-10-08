@@ -264,7 +264,9 @@ public class TaskMzTabContext
 				peakListCollection, paramsFile, datasetID);
 			System.out.println(context.toString());
 		} catch (Throwable error) {
-			System.out.println(usage);
+			error.printStackTrace();
+			System.err.println("----------");
+			System.err.println(usage);
 		}
 	}
 	
@@ -457,42 +459,53 @@ public class TaskMzTabContext
 		// now try to find the best match for this ms_run peak list file
 		// from among this task's "upload_file_mapping" parameters
 		String uploadedPeakListMatch = msRun.getMappedPeakListPath();
+		// first try the main peak list collection
+		UploadMapping mapping = getMsRunUploadMapping(
+			cleanedMsRun, uploadedPeakListMatch,
+			mappings.getUploadMappings(peakListCollection));
+		// if not found there, then try all the collections
+		if (mapping == null)
+			mapping = getMsRunUploadMapping(cleanedMsRun, uploadedPeakListMatch,
+				mappings.getUploadMappings());
+		// if a match was found, use it
+		if (mapping != null) {
+			msRun.setMangledPeakListFilename(mapping.getMangledFilename());
+			msRun.setUploadedPeakListPath(mapping.getUploadFilePath());
+		}
+	}
+	
+	private UploadMapping getMsRunUploadMapping(
+		String cleanedMsRun, String uploadedPeakListMatch,
+		Collection<UploadMapping> mappings
+	) {
+		if (cleanedMsRun == null || mappings == null || mappings.isEmpty())
+			return null;
 		// first try exact matches
-		for (UploadMapping mapping :
-			mappings.getUploadMappings(peakListCollection)) {
-			String mangledFilename = mapping.getMangledFilename();
-			String uploadedPeakListPath = mapping.getUploadFilePath();
+		for (UploadMapping mapping : mappings) {
 			// if an upload mapping exists for this ms_run,
 			// then there are two possible exact match scenarios:
 			// 1. the ms_run-location value ends with the mangled filename,
 			// e.g. analysis workflows with mzTab conversion integrated
-			if (cleanedMsRun.endsWith(mangledFilename) ||
+			if (cleanedMsRun.endsWith(mapping.getMangledFilename()) ||
 			// 2. the ms_run-location value is some ending portion of the
 			// uploaded peak list file path, e.g. the convert-tsv workflow
-				uploadedPeakListPath.endsWith(cleanedMsRun)) {
-				msRun.setMangledPeakListFilename(mangledFilename);
-				msRun.setUploadedPeakListPath(uploadedPeakListPath);
-				return;
-			}
+				mapping.getUploadFilePath().endsWith(cleanedMsRun))
+				return mapping;
 		}
 		// if no exact matches were found, try to match the mapped
 		// value with the first uploaded path that matches it
 		if (uploadedPeakListMatch != null) {
-			for (UploadMapping mapping :
-				mappings.getUploadMappings(peakListCollection)) {
-				String mangledFilename = mapping.getMangledFilename();
-				String uploadedPeakListPath = mapping.getUploadFilePath();
+			for (UploadMapping mapping : mappings) {
 				// if an upload mapping exists for this ms_run,
 				// then the best match scenario we could hope for is that
 				// a "result_file_mapping" exists, and its value is some
 				// ending portion of the uploaded peak list file path, e.g.
 				// MassIVE dataset submission or any workflow with file mapping
-				if (uploadedPeakListPath.endsWith(uploadedPeakListMatch)) {
-					msRun.setMangledPeakListFilename(mangledFilename);
-					msRun.setUploadedPeakListPath(uploadedPeakListPath);
-					return;
-				}
+				if (mapping.getUploadFilePath().endsWith(uploadedPeakListMatch))
+					return mapping;
 			}
 		}
+		// if no matches were found then return null
+		return null;
 	}
 }
