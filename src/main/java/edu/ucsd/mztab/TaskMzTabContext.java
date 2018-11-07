@@ -481,13 +481,20 @@ public class TaskMzTabContext
 		if (cleanedMsRun == null || mappings == null || mappings.isEmpty())
 			return null;
 		// first try exact matches
+		String msRunBase = stripExtension(cleanedMsRun);
 		for (UploadMapping mapping : mappings) {
+			String mangledFilename = mapping.getMangledFilename();
+			String mangledFilenameBase = stripExtension(mangledFilename);
 			// if an upload mapping exists for this ms_run,
 			// then there are two possible exact match scenarios:
 			// 1. the ms_run-location value ends with the mangled filename,
 			// e.g. analysis workflows with mzTab conversion integrated
-			if (cleanedMsRun.endsWith(mapping.getMangledFilename()) ||
-			// 2. the ms_run-location value is some ending portion of the
+			if (cleanedMsRun.endsWith(mangledFilename) ||
+			// 2. the ms_run-location value ends with some converted version
+			// of the mangled filename, e.g. analysis workflows with spectrum
+			// file conversion - in which case filename bases will match
+				msRunBase.endsWith(mangledFilenameBase) ||
+			// 3. the ms_run-location value is some ending portion of the
 			// uploaded peak list file path, e.g. the convert-tsv workflow
 				mapping.getUploadFilePath().endsWith(cleanedMsRun))
 				return mapping;
@@ -507,5 +514,15 @@ public class TaskMzTabContext
 		}
 		// if no matches were found then return null
 		return null;
+	}
+	
+	private String stripExtension(String path) {
+		if (path == null)
+			return null;
+		String filename = FilenameUtils.getName(path);
+		int dot = filename.indexOf(".");
+		if (dot < 0)
+			return path;
+		else return path.substring(0, path.length() - filename.length() + dot);
 	}
 }
