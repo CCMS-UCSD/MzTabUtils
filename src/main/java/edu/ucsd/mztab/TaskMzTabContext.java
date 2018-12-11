@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -481,24 +482,9 @@ public class TaskMzTabContext
 		if (cleanedMsRun == null || mappings == null || mappings.isEmpty())
 			return null;
 		// first try exact matches
-		String msRunBase = stripExtension(cleanedMsRun);
-		for (UploadMapping mapping : mappings) {
-			String mangledFilename = mapping.getMangledFilename();
-			String mangledFilenameBase = stripExtension(mangledFilename);
-			// if an upload mapping exists for this ms_run,
-			// then there are two possible exact match scenarios:
-			// 1. the ms_run-location value ends with the mangled filename,
-			// e.g. analysis workflows with mzTab conversion integrated
-			if (cleanedMsRun.endsWith(mangledFilename) ||
-			// 2. the ms_run-location value ends with some converted version
-			// of the mangled filename, e.g. analysis workflows with spectrum
-			// file conversion - in which case filename bases will match
-				msRunBase.endsWith(mangledFilenameBase) ||
-			// 3. the ms_run-location value is some ending portion of the
-			// uploaded peak list file path, e.g. the convert-tsv workflow
-				mapping.getUploadFilePath().endsWith(cleanedMsRun))
+		for (UploadMapping mapping : mappings)
+			if (matchMsRunUploadMapping(cleanedMsRun, mapping, true))
 				return mapping;
-		}
 		// if no exact matches were found, try to match the mapped
 		// value with the first uploaded path that matches it
 		if (uploadedPeakListMatch != null) {
@@ -512,8 +498,61 @@ public class TaskMzTabContext
 					return mapping;
 			}
 		}
+		// if no uploaded peak list match was provided,
+		// look for the best one in the mappings
+		else {
+			// collect all near matches, since we don't want any conflicts
+			Collection<UploadMapping> matches =
+				new LinkedHashSet<UploadMapping>();
+			for (UploadMapping mapping : mappings)
+				if (matchMsRunUploadMapping(cleanedMsRun, mapping, false))
+					matches.add(mapping);
+			// only return a near match if there are no conflicts
+			if (matches.size() == 1)
+				return matches.iterator().next();
+		}
 		// if no matches were found then return null
 		return null;
+	}
+	
+	private boolean matchMsRunUploadMapping(
+		String cleanedMsRun, UploadMapping mapping, boolean exact
+	) {
+		if (cleanedMsRun == null || mapping == null)
+			return false;
+		String msRunBase = stripExtension(cleanedMsRun);
+		String mangledFilename = mapping.getMangledFilename();
+		String mangledFilenameBase = stripExtension(mangledFilename);
+		String uploadFilePath = mapping.getUploadFilePath();
+		// if an upload mapping exists for this ms_run,
+		// then there are two possible exact match scenarios:
+		// 1. the ms_run-location value ends with the mangled filename,
+		// e.g. analysis workflows with mzTab conversion integrated
+		if (cleanedMsRun.endsWith(mangledFilename) ||
+		// 2. the ms_run-location value ends with some converted version
+		// of the mangled filename, e.g. analysis workflows with spectrum
+		// file conversion - in which case filename bases will match
+			msRunBase.endsWith(mangledFilenameBase) ||
+		// 3. the ms_run-location value is some ending portion of the
+		// uploaded peak list file path, e.g. the convert-tsv workflow
+			uploadFilePath.endsWith(cleanedMsRun))
+			return true;
+		// if we don't care about matching exactly,
+		// then try matching just the leaf filename
+		else if (exact == false) {
+			String msRunFilename = FilenameUtils.getBaseName(cleanedMsRun);
+			String uploadFilename = FilenameUtils.getBaseName(uploadFilePath);
+			if (uploadFilename.equals(msRunFilename))
+				return true;
+//			// if we really want to get crazy, then
+//			// try matching just the filename bases
+//			String msRunFilenameBase = stripExtension(msRunFilename);
+//			String uploadFilenameBase = stripExtension(uploadFilename);
+//			if (uploadFilenameBase.equals(msRunFilenameBase))
+//				return true;
+		}
+		// if nothing matched, then return false
+		return false;
 	}
 	
 	private String stripExtension(String path) {
