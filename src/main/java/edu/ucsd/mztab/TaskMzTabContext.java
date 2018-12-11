@@ -180,14 +180,15 @@ public class TaskMzTabContext
 				mzTab.setDatasetDescriptor(
 					datasetID, mzTabRelativePath, datasetFiles);
 			else mzTab.setTaskDescriptor(username, taskID, mzTabRelativePath);
+			// set descriptors appropriately for all ms_runs
 			Map<Integer, MzTabMsRun> msRuns = mzTab.getMsRuns();
 			for (Integer msRunIndex : msRuns.keySet()) {
 				MzTabMsRun msRun = msRuns.get(msRunIndex);
 				// fill out this ms_run's file mappings
 				mapMsRun(msRun, mzTab.getMappedResultPath(), mappings);
+				// if this is an ms_run for a dataset mzTab file, then
+				// the peak list file had better be in the same dataset
 				if (datasetID != null) {
-					// if this is an ms_run for a dataset mzTab file, then
-					// the peak list file had better be in the same dataset
 					msRun.setDatasetDescriptor(
 						datasetID, peakListRelativePath, datasetFiles);
 					// TODO: check to see if this file is actually in the
@@ -208,11 +209,20 @@ public class TaskMzTabContext
 //								datasetID, peakListRelativePath);
 //					}
 				}
-				// only try to use a task descriptor if there's no upload
-				// mapping; peak list files should always have such a mapping
-				else if (msRun.getUploadedPeakListPath() == null)
-					msRun.setTaskDescriptor(
-						username, taskID, peakListRelativePath);
+				// by default a peak list file's descriptor points
+				// to its uploaded path; only try to set it to
+				// something else if no uploaded path is present
+				else if (msRun.getUploadedPeakListPath() == null) {
+					// only try to use a task descriptor if a workflow-specific
+					// peak list subdirectory relative path was provided
+					if (peakListRelativePath != null)
+						msRun.setTaskDescriptor(
+							username, taskID, peakListRelativePath);
+					// otherwise we must assume that the ms_run-location
+					// does not correspond to any ProteoSAFe file, so
+					// just retain it in the mzTab file exactly as-is
+					else msRun.setDescriptor(msRun.getCleanedMsRunLocation());
+				}
 			}
 		}
 	}
