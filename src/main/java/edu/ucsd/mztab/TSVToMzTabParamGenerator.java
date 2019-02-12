@@ -635,6 +635,12 @@ public class TSVToMzTabParamGenerator
 		if (matcher.find()) try {
 			value = Integer.parseInt(matcher.group(1));
 		} catch (NumberFormatException error) {}
+		if (value == null) {
+			matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(scan);
+			if (matcher.find()) try {
+				value = Integer.parseInt(matcher.group(1));
+			} catch (NumberFormatException error) {}
+		}
 		// then try to parse scan number as a plain integer
 		if (value == null) try {
 			value = Integer.parseInt(scan);
