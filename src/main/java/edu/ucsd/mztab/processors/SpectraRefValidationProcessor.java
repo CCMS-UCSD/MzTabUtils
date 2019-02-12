@@ -401,6 +401,16 @@ implements MzTabProcessor
 		catch (NumberFormatException error) {
 			throw new IllegalStateException(error);
 		}
+		// check other known scan number nativeID formats
+		if (value == null) {
+			matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(nativeID);
+			if (matcher.find()) try {
+				value = Integer.parseInt(matcher.group(1));
+				scan = true;
+			} catch (NumberFormatException error) {
+				throw new IllegalStateException(error);
+			}
+		}
 		// then try to extract an index
 		if (value == null) {
 			matcher = MzTabConstants.INDEX_PATTERN.matcher(nativeID);

@@ -305,6 +305,11 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(spectrumID);
 			if (matcher.find())
 				spectrumID = matcher.group(1);
+			else {
+				matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(spectrumID);
+				if (matcher.find())
+					spectrumID = matcher.group(1);
+			}
 			spectraRef.append(String.format("scan=%s", spectrumID));
 		} else {
 			// if value is formatted as a nativeID, parse it out

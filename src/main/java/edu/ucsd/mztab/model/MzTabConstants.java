@@ -65,6 +65,8 @@ public class MzTabConstants
 	public static final Pattern SPECTRA_REF_PATTERN = Pattern.compile(
 		"ms_run\\[(\\d+)\\]:(.+)");
 	public static final Pattern SCAN_PATTERN = Pattern.compile("scan=(\\d+)");
+	public static final Pattern SCAN_ID_PATTERN =
+		Pattern.compile("scanId=(\\d+)");
 	public static final Pattern INDEX_PATTERN = Pattern.compile("index=(\\d+)");
 	public static final Pattern QUERY_PATTERN = Pattern.compile("query=(\\d+)");
 	public static final Pattern FILE_PATTERN = Pattern.compile("file=(.+)");

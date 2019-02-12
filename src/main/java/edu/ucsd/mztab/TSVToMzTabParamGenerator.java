@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 
+import javax.xml.bind.TypeConstraintException;
+
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -246,6 +248,9 @@ public class TSVToMzTabParamGenerator
 			// if explicitly specified on the command line
 			Integer scan = columnIndices.get("scan");
 			Integer index = columnIndices.get("index");
+			// allow for the special case where scan nativeIDs
+			// can be packed into the index column, e.g. MS-GF+
+			boolean scanInIndexColumn = false;
 			if (specIDType != null) {
 				scanMode = false;
 				if (specIDType.equalsIgnoreCase("scan"))
@@ -290,15 +295,27 @@ public class TSVToMzTabParamGenerator
 							String.format("Could not parse the tab-delimited " +
 								"elements of the first data line from input " +
 								"TSV file [%s].", filename));
-					scanMode = determineSpectrumIDType(elements, scan, index);
+					try {
+						scanMode =
+							determineSpectrumIDType(elements, scan, index);
+					}
+					// the "determineSpectrumIDType" method will
+					// throw a TypeConstraintException iff a scan
+					// nativeID was found in the index column
+					catch (TypeConstraintException error) {
+						scanMode = true;
+						scanInIndexColumn = true;
+					}
 					// add any found mods while we're looking at a data row
 					addModMasses(elements[psmIndex]);
 				}
 			}
 			// note proper spectrum ID column, now that it's been determined
-			if (scanMode)
-				columnIdentifiers.put("spectrum_id", scanColumn);
-			else columnIdentifiers.put("spectrum_id", indexColumn);
+			if (scanMode) {
+				if (scanInIndexColumn)
+					columnIdentifiers.put("spectrum_id", indexColumn);
+				else columnIdentifiers.put("spectrum_id", scanColumn);
+			} else columnIdentifiers.put("spectrum_id", indexColumn);
 			// set whether spectrum indices in the input file
 			// are ordered with 0-based or 1-based numbering
 			zeroBased = true;
@@ -609,7 +626,7 @@ public class TSVToMzTabParamGenerator
 	
 	private boolean determineSpectrumIDType(
 		String[] elements, int scanColumn, int indexColumn
-	) {
+	) throws TypeConstraintException {
 		String scan = elements[scanColumn];
 		String index = elements[indexColumn];
 		// first try to parse scan number as a nativeID
@@ -645,6 +662,22 @@ public class TSVToMzTabParamGenerator
 				(zeroBased == false && value > 0))
 				return false;
 		}
+		// the "index" column may in fact be a generic nativeID column,
+		// e.g. MS-GF+. In this case, check for known scan nativeID formats
+		value = null;
+		matcher = MzTabConstants.SCAN_PATTERN.matcher(index);
+		if (matcher.find()) try {
+			value = Integer.parseInt(matcher.group(1));
+		} catch (NumberFormatException error) {}
+		if (value == null) {
+			matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(index);
+			if (matcher.find()) try {
+				value = Integer.parseInt(matcher.group(1));
+			} catch (NumberFormatException error) {}
+		}
+		if (value != null && value > 0)
+			throw new TypeConstraintException(String.format(
+				"Found scan number nativeID [%s] in index column.", index));
 		// if neither column could be validated, then the
 		// row is bad and therefore so is the file
 		throw new IllegalArgumentException(String.format("Could not " +
