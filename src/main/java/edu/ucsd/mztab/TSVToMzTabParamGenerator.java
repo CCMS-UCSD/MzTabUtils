@@ -65,7 +65,13 @@ public class TSVToMzTabParamGenerator
 			"(if -spectrum_id_type=\"index\", " +
 			"specify 0-based/1-based numbering, default 0)]" +
 		"\n\t[-accession             <ProteinAccessionColumnHeaderOrIndex>]" +
-		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]";
+		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]" +
+		"\n\t[-exp_mz                <ExperimentalMZColumnHeaderOrIndex>]" +
+		"\n\t[-calc_mz               <CalculatedMZColumnHeaderOrIndex>]" +
+		"\n\t[-msgf_evalue           <MSGF:EValueColumnHeaderOrIndex>]" +
+		"\n\t[-msgf_spec_evalue      <MS-GF:SpecEValueColumnHeaderOrIndex>]" +
+		"\n\t[-msgf_qvalue           <MS-GF:QValueColumnHeaderOrIndex>]" +
+		"\n\t[-msgf_pep_qvalue       <MS-GF:PepQValueColumnHeaderOrIndex>]";
 	
 	/*========================================================================
 	 * Properties
@@ -98,6 +104,9 @@ public class TSVToMzTabParamGenerator
 		String fixedModsReported, String specIDType, String scanColumn,
 		String indexColumn, String indexNumbering,
 		String accessionColumn, String chargeColumn,
+		String experimentalMZColumn, String calculatedMZColumn,
+		String msgfEValueColumn, String msgfSpecEValueColumn,
+		String msgfQValueColumn, String msgfPepQValueColumn,
 		String massPrecisionToMatch, String maxMassDifferenceToMatch,
 		Collection<String> modPatterns, Collection<String> staticFixedMods,
 		Collection<String> staticVariableMods
@@ -236,7 +245,10 @@ public class TSVToMzTabParamGenerator
 						filename));
 			validateColumnHeaders(line, filename, elements,
 				filenameColumn, sequenceColumn, scanColumn, indexColumn,
-				accessionColumn, chargeColumn);
+				accessionColumn, chargeColumn,
+				experimentalMZColumn, calculatedMZColumn,
+				msgfEValueColumn, msgfSpecEValueColumn,
+				msgfQValueColumn, msgfPepQValueColumn);
 			// get modified peptide string column index
 			Integer psmIndex = columnIndices.get("modified_sequence");
 			// it should be impossible for the peptide sequence column index
@@ -554,6 +566,36 @@ public class TSVToMzTabParamGenerator
 			String charge = columnIdentifiers.get("charge");
 			if (charge != null)
 				output.println(String.format("charge=%s", charge));
+			// write experimental M/Z column identifier, if present
+			String experimentalMZ = columnIdentifiers.get("exp_mass_to_charge");
+			if (experimentalMZ != null)
+				output.println(
+					String.format("exp_mass_to_charge=%s", experimentalMZ));
+			// write calculated M/Z column identifier, if present
+			String calculatedMZ = columnIdentifiers.get("calc_mass_to_charge");
+			if (calculatedMZ != null)
+				output.println(
+					String.format("calc_mass_to_charge=%s", calculatedMZ));
+			// write MS-GF:EValue column identifier, if present
+			String msgfEValue = columnIdentifiers.get("msgf_evalue");
+			if (msgfEValue != null)
+				output.println(
+					String.format("msgf_evalue=%s", msgfEValue));
+			// write MS-GF:SpecEValue column identifier, if present
+			String msgfSpecEValue = columnIdentifiers.get("msgf_spec_evalue");
+			if (msgfSpecEValue != null)
+				output.println(
+					String.format("msgf_spec_evalue=%s", msgfSpecEValue));
+			// write MS-GF:QValue column identifier, if present
+			String msgfQValue = columnIdentifiers.get("msgf_qvalue");
+			if (msgfQValue != null)
+				output.println(
+					String.format("msgf_qvalue=%s", msgfQValue));
+			// write MS-GF:PepQValue column identifier, if present
+			String msgfPepQValue = columnIdentifiers.get("msgf_pep_qvalue");
+			if (msgfPepQValue != null)
+				output.println(
+					String.format("msgf_pep_qvalue=%s", msgfPepQValue));
 			System.out.println("Done.");
 		} catch (Throwable error) {
 			die(null, error);
@@ -569,7 +611,10 @@ public class TSVToMzTabParamGenerator
 	private void validateColumnHeaders(
 		String line, String filename, String[] elements,
 		String filenameColumn, String sequenceColumn, String scanColumn,
-		String indexColumn, String accessionColumn, String chargeColumn
+		String indexColumn, String accessionColumn, String chargeColumn,
+		String experimentalMZColumn, String calculatedMZColumn,
+		String msgfEValueColumn, String msgfSpecEValueColumn,
+		String msgfQValueColumn, String msgfPepQValueColumn
 	) {
 		// validate all columns declared on the command line
 		columnIdentifiers = new LinkedHashMap<String, String>();
@@ -621,6 +666,54 @@ public class TSVToMzTabParamGenerator
 		if (index != null) {
 			columnIndices.put("charge", index);
 			columnIdentifiers.put("charge", chargeColumn);
+		}
+		// experimental M/Z column
+		index = TSVToMzTabParameters.extractColumnIndex(
+			experimentalMZColumn, filename, "exp_mass_to_charge",
+			line, this.hasHeader, elements);
+		if (index != null) {
+			columnIndices.put("exp_mass_to_charge", index);
+			columnIdentifiers.put("exp_mass_to_charge", experimentalMZColumn);
+		}
+		// calculated M/Z column
+		index = TSVToMzTabParameters.extractColumnIndex(
+			calculatedMZColumn, filename, "calc_mass_to_charge",
+			line, this.hasHeader, elements);
+		if (index != null) {
+			columnIndices.put("calc_mass_to_charge", index);
+			columnIdentifiers.put("calc_mass_to_charge", calculatedMZColumn);
+		}
+		// MS-GF:EValue column
+		index = TSVToMzTabParameters.extractColumnIndex(
+			msgfEValueColumn, filename, "msgf_evalue",
+			line, this.hasHeader, elements);
+		if (index != null) {
+			columnIndices.put("msgf_evalue", index);
+			columnIdentifiers.put("msgf_evalue", msgfEValueColumn);
+		}
+		// MS-GF:SpecEValue column
+		index = TSVToMzTabParameters.extractColumnIndex(
+			msgfSpecEValueColumn, filename, "msgf_spec_evalue",
+			line, this.hasHeader, elements);
+		if (index != null) {
+			columnIndices.put("msgf_spec_evalue", index);
+			columnIdentifiers.put("msgf_spec_evalue", msgfSpecEValueColumn);
+		}
+		// MS-GF:QValue column
+		index = TSVToMzTabParameters.extractColumnIndex(
+			msgfQValueColumn, filename, "msgf_qvalue",
+			line, this.hasHeader, elements);
+		if (index != null) {
+			columnIndices.put("msgf_qvalue", index);
+			columnIdentifiers.put("msgf_qvalue", msgfQValueColumn);
+		}
+		// MS-GF:PepQValue column
+		index = TSVToMzTabParameters.extractColumnIndex(
+			msgfPepQValueColumn, filename, "msgf_pep_qvalue",
+			line, this.hasHeader, elements);
+		if (index != null) {
+			columnIndices.put("msgf_pep_qvalue", index);
+			columnIdentifiers.put("msgf_pep_qvalue", msgfPepQValueColumn);
 		}
 	}
 	
@@ -960,6 +1053,12 @@ public class TSVToMzTabParamGenerator
 		String indexNumbering = null;
 		String accessionColumn = null;
 		String chargeColumn = null;
+		String experimentalMZColumn = null;
+		String calculatedMZColumn = null;
+		String msgfEValueColumn = null;
+		String msgfSpecEValueColumn = null;
+		String msgfQValueColumn = null;
+		String msgfPepQValueColumn = null;
 		String massPrecisionToMatch = null;
 		String maxMassDifferenceToMatch = null;
 		Collection<String> modPatterns = new LinkedHashSet<String>();
@@ -1000,6 +1099,18 @@ public class TSVToMzTabParamGenerator
 					accessionColumn = value;
 				else if (argument.equalsIgnoreCase("-charge"))
 					chargeColumn = value;
+				else if (argument.equalsIgnoreCase("-exp_mz"))
+					experimentalMZColumn = value;
+				else if (argument.equalsIgnoreCase("-calc_mz"))
+					calculatedMZColumn = value;
+				else if (argument.equalsIgnoreCase("-msgf_evalue"))
+					msgfEValueColumn = value;
+				else if (argument.equalsIgnoreCase("-msgf_spec_evalue"))
+					msgfSpecEValueColumn = value;
+				else if (argument.equalsIgnoreCase("-msgf_qvalue"))
+					msgfQValueColumn = value;
+				else if (argument.equalsIgnoreCase("-msgf_pep_qvalue"))
+					msgfPepQValueColumn = value;
 				else if (argument.equalsIgnoreCase("-match_mass_precision"))
 					massPrecisionToMatch = value;
 				else if (argument.equalsIgnoreCase("-match_mass_difference"))
@@ -1021,6 +1132,9 @@ public class TSVToMzTabParamGenerator
 				paramsFile, hasHeader, filenameColumn, sequenceColumn,
 				fixedModsReported, specIDType, scanColumn, indexColumn,
 				indexNumbering, accessionColumn, chargeColumn,
+				experimentalMZColumn, calculatedMZColumn,
+				msgfEValueColumn, msgfSpecEValueColumn,
+				msgfQValueColumn, msgfPepQValueColumn,
 				massPrecisionToMatch, maxMassDifferenceToMatch,
 				modPatterns, fixedMods, variableMods);
 		} catch (IOException error) {

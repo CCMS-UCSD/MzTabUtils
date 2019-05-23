@@ -9,18 +9,22 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.regex.Matcher;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.mztab.model.ModificationParse;
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.ProteomicsUtils;
+import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
@@ -46,6 +50,18 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		"\n\t-params <InputParametersFile>" +
 		"\n\t-mzTab  <OutputMzTabDirectory>";
 	public static final String UNKNOWN_MODIFICATION_ACCESSION = "MS:1001460";
+	public static final Map<String, ImmutablePair<String, String>> SCORE_COLUMNS =
+		new LinkedHashMap<String, ImmutablePair<String, String>>();
+	static {
+		SCORE_COLUMNS.put("msgf_evalue",
+			new ImmutablePair<String, String>("MS:1002053", "MS-GF:EValue"));
+		SCORE_COLUMNS.put("msgf_spec_evalue",
+			new ImmutablePair<String, String>("MS:1002052", "MS-GF:SpecEValue"));
+		SCORE_COLUMNS.put("msgf_qvalue",
+			new ImmutablePair<String, String>("MS:1002054", "MS-GF:QValue"));
+		SCORE_COLUMNS.put("msgf_pep_qvalue",
+			new ImmutablePair<String, String>("MS:1002055", "MS-GF:PepQValue"));
+	}
 	
 	/*========================================================================
 	 * Properties
@@ -122,6 +138,24 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			int index = 0;
 			for (URL spectrumFile : params.getSpectrumFiles())
 				metadata.addMsRunLocation(++index, spectrumFile);
+			// add search engine scores, if any are present
+			List<String> psmScores = params.getPSMScores();
+			if (psmScores != null && psmScores.isEmpty() == false) {
+				for (int i=0; i<psmScores.size(); i++) {
+					String score = psmScores.get(i);
+					if (score == null)
+						continue;
+					ImmutablePair<String, String> term =
+						SCORE_COLUMNS.get(score);
+					if (term == null)
+						continue;
+					String accession = term.getLeft();
+					String cvLabel = accession.split(":")[0];
+					String name = term.getRight();
+					metadata.addPsmSearchEngineScoreParam((i + 1),
+						new CVParam(cvLabel, accession, name, null));
+				}
+			}
 			this.metadata = metadata;
 		}
 		return metadata;
@@ -443,6 +477,15 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 					psm.setStart(value);
 				else if (column.equals("end"))
 					psm.setEnd(value);
+				else if (params.isPSMScore(column)) {
+					Integer scoreIndex = params.getPSMScoreIndex(column);
+					Double scoreValue = null;
+					try {
+						scoreValue = Double.parseDouble(value);
+					} catch (NumberFormatException parseError) {}
+					if (scoreIndex != null && scoreValue != null)
+						psm.setSearchEngineScore(scoreIndex, scoreValue);
+				}
 			}
 			// add extra columns
 			for (String column : params.getExtraColumns()) {

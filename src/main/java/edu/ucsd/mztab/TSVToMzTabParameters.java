@@ -7,9 +7,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -50,6 +52,7 @@ public class TSVToMzTabParameters
 	private boolean                    fixedModsReported;
 	private Map<String, Integer>       columnIndices;
 	private Map<String, Integer>       extraColumns;
+	private List<String>               psmScores;
 	private Collection<ModRecord>      modifications;
 	private Collection<URL>            spectrumFiles;
 	private Map<String, ProteinRecord> proteins;
@@ -232,6 +235,7 @@ public class TSVToMzTabParameters
 			}
 			// validate all columns extracted from the parameters file
 			columnIndices = new LinkedHashMap<String, Integer>(columns.size());
+			psmScores = new ArrayList<String>(4);
 			for (String column : columns.keySet()) {
 				String columnID = columns.get(column);
 				Integer index = extractColumnIndex(
@@ -241,6 +245,12 @@ public class TSVToMzTabParameters
 						"There was an error parsing \"%s\" column [%s].",
 						column, columnID));
 				else columnIndices.put(column, index);
+				// collect recognized score columns in ordered list
+				if (column.equals("msgf_evalue") ||
+					column.equals("msgf_spec_evalue") ||
+					column.equals("msgf_qvalue") ||
+					column.equals("msgf_pep_qvalue"))
+					psmScores.add(column);
 			}
 			// collect all "extra" columns
 			int extraColumnCount = elements.length - columnIndices.size();
@@ -452,6 +462,25 @@ public class TSVToMzTabParameters
 		if (column == null)
 			return null;
 		else return columnIndices.get(column);
+	}
+	
+	public List<String> getPSMScores() {
+		return new ArrayList<String>(psmScores);
+	}
+	
+	public Integer getPSMScoreIndex(String column) {
+		if (column == null)
+			return null;
+		int index = psmScores.indexOf(column);
+		if (index < 0)
+			return null;
+		else return index;
+	}
+	
+	public boolean isPSMScore(String column) {
+		if (column == null)
+			return false;
+		else return psmScores.contains(column);
 	}
 	
 	public Collection<String> getExtraColumns() {
