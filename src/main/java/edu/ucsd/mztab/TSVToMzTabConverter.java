@@ -193,10 +193,10 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 		// add search engine score columns, if any are present
 		List<String> psmScores = params.getPSMScores();
 		if (psmScores != null && psmScores.isEmpty() == false) {
-			for (int i=1; i<=psmScores.size(); i++) {
+			for (int i=0; i<psmScores.size(); i++) {
 				psmColumnFactory.addSearchEngineScoreOptionalColumn(
 					new MZTabColumn("search_engine_score", Double.class,
-						true, "08", i), i, null);
+						true, "08", (i + 1)), i, null);
 			}
 		}
 		// add optional columns
