@@ -26,6 +26,7 @@ import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.ProteomicsUtils;
 import uk.ac.ebi.pride.jmztab.model.CVParam;
 import uk.ac.ebi.pride.jmztab.model.FixedMod;
+import uk.ac.ebi.pride.jmztab.model.MZTabColumn;
 import uk.ac.ebi.pride.jmztab.model.MZTabColumnFactory;
 import uk.ac.ebi.pride.jmztab.model.MZTabDescription;
 import uk.ac.ebi.pride.jmztab.model.Metadata;
@@ -189,6 +190,15 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			psmColumnFactory =
 				MZTabColumnFactory.getInstance(Section.PSM_Header);
 		psmColumnFactory.addDefaultStableColumns();
+		// add search engine score columns, if any are present
+		List<String> psmScores = params.getPSMScores();
+		if (psmScores != null && psmScores.isEmpty() == false) {
+			for (int i=1; i<=psmScores.size(); i++) {
+				psmColumnFactory.addSearchEngineScoreOptionalColumn(
+					new MZTabColumn("search_engine_score", Double.class,
+						false, "08", i), i, null);
+			}
+		}
 		// add optional columns
 		psmColumnFactory.addOptionalColumn("valid", String.class);
 		psmColumnFactory.addOptionalColumn("invalid_reason", String.class);
