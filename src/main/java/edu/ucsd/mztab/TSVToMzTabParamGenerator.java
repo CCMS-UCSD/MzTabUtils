@@ -66,8 +66,8 @@ public class TSVToMzTabParamGenerator
 			"specify 0-based/1-based numbering, default 0)]" +
 		"\n\t[-accession             <ProteinAccessionColumnHeaderOrIndex>]" +
 		"\n\t[-charge                <PrecursorChargeColumnHeaderOrIndex>]" +
-		"\n\t[-exp_mz                <ExperimentalMZColumnHeaderOrIndex>]" +
-		"\n\t[-calc_mz               <CalculatedMZColumnHeaderOrIndex>]" +
+		"\n\t[-exp_mass_to_charge    <ExperimentalMZColumnHeaderOrIndex>]" +
+		"\n\t[-calc_mass_to_charge   <CalculatedMZColumnHeaderOrIndex>]" +
 		"\n\t[-msgf_evalue           <MSGF:EValueColumnHeaderOrIndex>]" +
 		"\n\t[-msgf_spec_evalue      <MS-GF:SpecEValueColumnHeaderOrIndex>]" +
 		"\n\t[-msgf_qvalue           <MS-GF:QValueColumnHeaderOrIndex>]" +
@@ -1099,9 +1099,9 @@ public class TSVToMzTabParamGenerator
 					accessionColumn = value;
 				else if (argument.equalsIgnoreCase("-charge"))
 					chargeColumn = value;
-				else if (argument.equalsIgnoreCase("-exp_mz"))
+				else if (argument.equalsIgnoreCase("-exp_mass_to_charge"))
 					experimentalMZColumn = value;
-				else if (argument.equalsIgnoreCase("-calc_mz"))
+				else if (argument.equalsIgnoreCase("-calc_mass_to_charge"))
 					calculatedMZColumn = value;
 				else if (argument.equalsIgnoreCase("-msgf_evalue"))
 					msgfEValueColumn = value;
