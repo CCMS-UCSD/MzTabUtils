@@ -196,7 +196,7 @@ extends ConvertProvider<File, TSVToMzTabParameters>
 			for (int i=0; i<psmScores.size(); i++) {
 				psmColumnFactory.addSearchEngineScoreOptionalColumn(
 					new MZTabColumn("search_engine_score", Double.class,
-						true, "08", (i + 1)), i, null);
+						true, "08", i), (i + 1), null);
 			}
 		}
 		// add optional columns
