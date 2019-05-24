@@ -474,7 +474,8 @@ public class TSVToMzTabParameters
 		int index = psmScores.indexOf(column);
 		if (index < 0)
 			return null;
-		else return index;
+		// return 1-based index since that's how things are declared in mzTab
+		else return index + 1;
 	}
 	
 	public boolean isPSMScore(String column) {
