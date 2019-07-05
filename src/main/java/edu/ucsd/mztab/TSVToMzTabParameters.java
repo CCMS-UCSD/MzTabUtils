@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -35,8 +35,9 @@ public class TSVToMzTabParameters
 	 *========================================================================*/
 	private static final String USAGE = "---------- Usage: ----------\n" +
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.TSVToMzTabParameters " +
-		"\n\t-input  <ProteoSAFeParametersFile>" +
-		"\n\t-output <ConverterParametersFile>";
+		"\n\t-input          <ProteoSAFeParametersFile>" +
+		"\n\t-output         <ConverterParametersFile>" +
+		"\n\t[-max_filenames <MaxDistinctFilenameColumnValues>]";
 	private static final String[] REQUIRED_COLUMNS = {
 		"filename", "spectrum_id", "modified_sequence"
 	};
@@ -52,6 +53,7 @@ public class TSVToMzTabParameters
 	private boolean                    fixedModsReported;
 	private Map<String, Integer>       columnIndices;
 	private Map<String, Integer>       extraColumns;
+	private Integer                    maxFilenames;
 	private List<String>               psmScores;
 	private Collection<ModRecord>      modifications;
 	private Collection<URL>            spectrumFiles;
@@ -192,6 +194,15 @@ public class TSVToMzTabParameters
 				else for (int i=0; i<cvTerms.length; i++)
 					addVariableMod(cvTerms[i]);
 			}
+			// set maximum allowed distinct values in the filename column
+			else if (parameter.equalsIgnoreCase("max_filenames")) try {
+				maxFilenames = Integer.parseInt(value);
+				if (maxFilenames < 1)
+					maxFilenames = null;
+			} catch (NumberFormatException error) {
+				throw new IllegalArgumentException(String.format(
+					"Unrecognized \"max_filenames\" value: [%s]", value));
+			}
 			// add all column identifiers
 			else columns.put(parameter, value);
 		}
@@ -205,6 +216,8 @@ public class TSVToMzTabParameters
 		System.out.println(String.format(
 			"Reading input TSV file [%s] to finish setting up converter...",
 			this.tsvFile.getAbsolutePath()));
+		spectrumFiles = new LinkedHashSet<URL>();
+		String filenameColumn = null;
 		BufferedReader reader = null;
 		String line = null;
 		int lineNumber = -1;
@@ -245,8 +258,11 @@ public class TSVToMzTabParameters
 						"There was an error parsing \"%s\" column [%s].",
 						column, columnID));
 				else columnIndices.put(column, index);
+				// note filename column name
+				if (column.equals("filename"))
+					filenameColumn = columnID;
 				// collect recognized score columns in ordered list
-				if (column.equals("msgf_evalue") ||
+				else if (column.equals("msgf_evalue") ||
 					column.equals("msgf_spec_evalue") ||
 					column.equals("msgf_qvalue") ||
 					column.equals("msgf_pep_qvalue"))
@@ -288,7 +304,6 @@ public class TSVToMzTabParameters
 			}
 			// read all PSM rows, to collect spectrum filenames and to validate
 			// each row for complete inclusion of all registered column indices
-			spectrumFiles = new LinkedHashSet<URL>();
 			Integer accessionIndex = columnIndices.get("accession");
 			if (accessionIndex != null) {
 				proteins = new LinkedHashMap<String, ProteinRecord>();
@@ -389,12 +404,19 @@ public class TSVToMzTabParameters
 			}
 		} catch (Throwable error) {
 			throw new RuntimeException(String.format("There was an error " +
-				"parsing the input tab-delimited result file, line %d:\n%s",
-				lineNumber, error.getMessage()), error);
+				"parsing input tab-delimited result file [%s], line %d:\n%s",
+				filename, lineNumber, error.getMessage()), error);
 		} finally {
 			try { reader.close(); }
 			catch (Throwable error) {}
 		}
+		// verify that there aren't too many unique filenames
+		if (maxFilenames != null && spectrumFiles.size() > maxFilenames)
+			throw new IllegalArgumentException(String.format(
+				"Input tab-delimited result file [%s] contains too " +
+				"many spectrum filenames (column [%s]): found %d " +
+				"distinct values (%d maximum).",
+				filename, filenameColumn, spectrumFiles.size(), maxFilenames));
 		System.out.println("Done processing converter parameters.");
 	}
 	
@@ -525,25 +547,25 @@ public class TSVToMzTabParameters
 	 * Static application methods
 	 *========================================================================*/
 	public static void main(String[] args) {
-		ImmutablePair<File, File> files = extractArguments(args);
-		if (files == null)
+		ImmutableTriple<File, File, Integer> params = extractArguments(args);
+		if (params == null)
 			die(USAGE);
 		// parse params.xml file, convert to TSV converter key=value params file
 		PrintWriter output = null;
 		try {
 			System.out.println(String.format(
 				"Reading input XML parameters file [%s]...",
-				files.getLeft().getName()));
+				params.getLeft().getName()));
 			// parse input file as an XML document
-			Document document = FileIOUtils.parseXML(files.getLeft());
+			Document document = FileIOUtils.parseXML(params.getLeft());
 			if (document == null)
 				throw new NullPointerException(
 					"Parameters XML document could not be parsed.");
 			// open output file for writing
 			System.out.println(String.format(
 				"Writing output text parameters file [%s]...",
-				files.getRight().getName()));
-			output = new PrintWriter(files.getRight());
+				params.getMiddle().getName()));
+			output = new PrintWriter(params.getMiddle());
 			// extract header line status, and write it to the output file
 			Node parameter = XPathAPI.selectSingleNode(
 				document, "//parameter[@name='header_line']");
@@ -613,6 +635,10 @@ public class TSVToMzTabParameters
 						String.format("%s=%s", tokens[1], value));
 				}
 			}
+			// write max filenames limit to the output file, if specified
+			Integer maxFilenames = params.getRight();
+			if (maxFilenames != null)
+				output.println(String.format("max_filenames=%d", maxFilenames));
 			System.out.println("Done.");
 		} catch (Throwable error) {
 			die(null, error);
@@ -674,13 +700,16 @@ public class TSVToMzTabParameters
 	/*========================================================================
 	 * Static application convenience methods
 	 *========================================================================*/
-	private static ImmutablePair<File, File> extractArguments(String[] args) {
+	private static ImmutableTriple<File, File, Integer> extractArguments(
+		String[] args
+	) {
 		if (args == null || args.length < 1)
 			return null;
 		else try {
 			// extract file arguments
 			File inputFile = null;
 			File outputFile = null;
+			Integer maxFilenames = null;
 			for (int i=0; i<args.length; i++) {
 				String argument = args[i];
 				if (argument == null)
@@ -694,6 +723,11 @@ public class TSVToMzTabParameters
 						inputFile = new File(value);
 					else if (argument.equalsIgnoreCase("-output"))
 						outputFile = new File(value);
+					else if (argument.equalsIgnoreCase("-max_filenames")) try {
+						maxFilenames = Integer.parseInt(value);
+						if (maxFilenames < 1)
+							maxFilenames = null;
+					} catch (NumberFormatException error) {}
 					else throw new IllegalArgumentException(String.format(
 						"Unrecognized parameter at index %d: [%s]", i, argument));
 				}
@@ -727,7 +761,8 @@ public class TSVToMzTabParameters
 				throw new IllegalArgumentException(String.format(
 					"Output parameter file [%s] must be writable.",
 					outputFile.getName()));
-			else return new ImmutablePair<File, File>(inputFile, outputFile);
+			else return new ImmutableTriple<File, File, Integer>(
+				inputFile, outputFile, maxFilenames);
 		} catch (Throwable error) {
 			error.printStackTrace();
 			return null;
