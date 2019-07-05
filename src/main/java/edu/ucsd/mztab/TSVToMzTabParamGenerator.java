@@ -40,6 +40,7 @@ public class TSVToMzTabParamGenerator
 		"\n\t-output                 <OutputTSVToMzTabParametersFile>" +
 		"\n\t-header_line            \"true\"/\"false\"" +
 		"\n\t-filename               <SpectrumFilenameColumnHeaderOrIndex>" +
+		"\n\t[-max_filenames         <MaxDistinctFilenameColumnValues>]" +
 		"\n\t-modified_sequence      " +
 			"<ModifiedPeptideSequenceColumnHeaderOrIndex>" +
 		"\n\t-mod_pattern            <ModificationStringFormat> " +
@@ -100,7 +101,7 @@ public class TSVToMzTabParamGenerator
 	 *========================================================================*/
 	public TSVToMzTabParamGenerator(
 		File inputParams, File tsvFile, File paramsFile, String hasHeader,
-		String filenameColumn, String sequenceColumn,
+		String filenameColumn, Integer maxFilenames, String sequenceColumn,
 		String fixedModsReported, String specIDType, String scanColumn,
 		String indexColumn, String indexNumbering,
 		String accessionColumn, String chargeColumn,
@@ -220,6 +221,7 @@ public class TSVToMzTabParamGenerator
 				"ontology mods.", massPrecisionToMatch));
 		}
 		// parse and process the input tab-delimited result file
+		Collection<String> filenames = new HashSet<String>();
 		BufferedReader reader = null;
 		String line = null;
 		int lineNumber = -1;
@@ -249,6 +251,13 @@ public class TSVToMzTabParamGenerator
 				experimentalMZColumn, calculatedMZColumn,
 				msgfEValueColumn, msgfSpecEValueColumn,
 				msgfQValueColumn, msgfPepQValueColumn);
+			// get spectrum filename string column index
+			Integer fileIndex = columnIndices.get("filename");
+			// it should be impossible for the filename column index to
+			// not be known, since it would have thrown an exception
+			// when determining it earlier if it was not found
+			if (fileIndex == null)
+				throw new IllegalStateException();
 			// get modified peptide string column index
 			Integer psmIndex = columnIndices.get("modified_sequence");
 			// it should be impossible for the peptide sequence column index
@@ -299,6 +308,7 @@ public class TSVToMzTabParamGenerator
 				// data line of the file to determine the spectrum ID type
 				else {
 					line = reader.readLine();
+					reader.reset();
 					if (line == null)
 						elements = null;
 					else elements = line.split("\t");
@@ -333,27 +343,38 @@ public class TSVToMzTabParamGenerator
 			zeroBased = true;
 			if (indexNumbering != null && indexNumbering.trim().equals("1"))
 				zeroBased = false;
-			// if the mod-matching mode calls for it, read the remaining
-			// lines of the file to collect all found mods from the values
-			// of the modified_sequence column
-			if (matchMods) {
-				reader.reset();
+			// read the remaining lines of the file, if parameters call for it
+			if (maxFilenames != null || matchMods) {
 				while ((line = reader.readLine()) != null) {
-					elements = line.split("\t");
-					if (elements == null || elements.length <= psmIndex)
-						continue;
-					addModMasses(elements[psmIndex]);
 					lineNumber++;
+					elements = line.split("\t");
+					if (elements == null || elements.length < 1)
+						continue;
+					// if a filename limit has been given, collect all found
+					// filenames from the values of the filename column
+					if (maxFilenames != null && elements.length > fileIndex)
+						filenames.add(elements[fileIndex]);
+					// if the mod-matching mode calls for it, collect all found
+					// mods from the values of the modified_sequence column
+					if (matchMods && elements.length > psmIndex)
+						addModMasses(elements[psmIndex]);
 				}
 			}
 		} catch (Throwable error) {
 			throw new RuntimeException(String.format("There was an error " +
-				"parsing the input tab-delimited result file, line %d:\n%s",
-				lineNumber, error.getMessage()), error);
+				"parsing input tab-delimited result file [%s], line %d:\n%s",
+				filename, lineNumber, error.getMessage()), error);
 		} finally {
 			try { reader.close(); }
 			catch (Throwable error) {}
 		}
+		// verify that there aren't too many unique filenames
+		if (maxFilenames != null && filenames.size() > maxFilenames)
+			throw new IllegalArgumentException(String.format(
+				"Input tab-delimited result file [%s] contains too many " +
+				"spectrum filenames (column [%s]): found %d distinct values " +
+				"(%d maximum).", filename, filenameColumn, filenames.size(),
+				maxFilenames));
 		// parse params.xml file to match found mods against user-declared ones
 		try {
 			System.out.println(String.format(
@@ -1045,6 +1066,7 @@ public class TSVToMzTabParamGenerator
 		File paramsFile = null;
 		String hasHeader = null;
 		String filenameColumn = null;
+		Integer maxFilenames = null;
 		String sequenceColumn = null;
 		String fixedModsReported = null;
 		String specIDType = null;
@@ -1083,6 +1105,11 @@ public class TSVToMzTabParamGenerator
 					hasHeader = value;
 				else if (argument.equalsIgnoreCase("-filename"))
 					filenameColumn = value;
+				else if (argument.equalsIgnoreCase("-max_filenames")) try {
+					maxFilenames = Integer.parseInt(value);
+					if (maxFilenames < 1)
+						maxFilenames = null;
+				} catch (NumberFormatException error) {}
 				else if (argument.equalsIgnoreCase("-modified_sequence"))
 					sequenceColumn = value;
 				else if (argument.equalsIgnoreCase("-fixed_mods_reported"))
@@ -1129,9 +1156,9 @@ public class TSVToMzTabParamGenerator
 		// initialized parameter file generator
 		try {
 			return new TSVToMzTabParamGenerator(inputParams, tsvFile,
-				paramsFile, hasHeader, filenameColumn, sequenceColumn,
-				fixedModsReported, specIDType, scanColumn, indexColumn,
-				indexNumbering, accessionColumn, chargeColumn,
+				paramsFile, hasHeader, filenameColumn, maxFilenames,
+				sequenceColumn, fixedModsReported, specIDType, scanColumn,
+				indexColumn, indexNumbering, accessionColumn, chargeColumn,
 				experimentalMZColumn, calculatedMZColumn,
 				msgfEValueColumn, msgfSpecEValueColumn,
 				msgfQValueColumn, msgfPepQValueColumn,
