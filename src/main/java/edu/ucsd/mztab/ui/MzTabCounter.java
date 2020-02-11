@@ -189,9 +189,15 @@ public class MzTabCounter
 			statistics.addProteins(uniqueElements.get("accession"));
 		}
 		// get relevant file names to print to summary file
+		String filename = inputFile.getFile().getName();
 		String uploadedFilename = inputFile.getUploadedResultPath();
 		if (uploadedFilename == null)
 			uploadedFilename = inputFile.getMzTabFilename();
+		String mzTabPath = inputFile.getMzTabPath();
+		// if the mzTab path includes a mangled filename, then use the uploaded path
+		if (mzTabPath == null ||
+			MzTabConstants.MANGLED_FILE_PATH_PATTERN.matcher(mzTabPath).matches())
+			mzTabPath = inputFile.getUploadedMzTabPath();
 		// print to summary file, if present
 		if (writer != null) {
 			// extract global FDR values
@@ -199,8 +205,8 @@ public class MzTabCounter
 			writer.println(String.format(
 				"%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t" +
 				"%d\t%d\t%d\t%s\t%d\t%d\t%s\t%d",
-				inputFile.getFile().getName(), uploadedFilename,
-				inputFile.getMzTabPath(), inputFile.getDescriptor(),
+				filename, uploadedFilename,
+				mzTabPath, inputFile.getDescriptor(),
 				counts.get("PSM"), counts.get("invalid_PSM"),
 				counts.get("PSM_ID"), fdr[0],
 				counts.get("PEP"), counts.get("sequence"),

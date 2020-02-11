@@ -138,6 +138,8 @@ public class MzTabConstants
 	public static final String EXTRACTED_FILE_DELIMITER = "#";
 	public static final Pattern EXTRACTED_FILE_DELIMITER_PATTERN =
 		Pattern.compile("((?i)mztab|mzid)" + EXTRACTED_FILE_DELIMITER);
+	public static final Pattern MANGLED_FILE_PATH_PATTERN =
+		Pattern.compile("(.*/)?([^/]+-[0-9]{5}\\.[^/]+)");
 	
 	// constants pertaining to peptides
 	public static final Map<Character, Double> AMINO_ACID_MASSES =
