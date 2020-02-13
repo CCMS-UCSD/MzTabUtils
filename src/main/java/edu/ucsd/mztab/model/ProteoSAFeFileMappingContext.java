@@ -1,5 +1,7 @@
 package edu.ucsd.mztab.model;
 
+import java.io.File;
+import java.io.IOException;
 import java.security.InvalidParameterException;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -12,6 +14,8 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
+
+import edu.ucsd.mztab.util.FileIOUtils;
 
 public class ProteoSAFeFileMappingContext
 {
@@ -28,8 +32,13 @@ public class ProteoSAFeFileMappingContext
 	private Map<String, Map<String, String>> resultFileMappings;
 	
 	/*========================================================================
-	 * Constructor
+	 * Constructors
 	 *========================================================================*/
+	public ProteoSAFeFileMappingContext(File parametersFile)
+	throws IOException {
+		this(FileIOUtils.parseXML(parametersFile));
+	}
+	
 	public ProteoSAFeFileMappingContext(Document parameters) {
 		// validate parameters document
 		if (parameters == null)

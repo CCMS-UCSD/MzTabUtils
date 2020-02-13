@@ -31,8 +31,9 @@ public class TaskMzTabContext
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
-	private Collection<MzTabFile> mzTabs;
-	private String                peakListCollection;
+	private Collection<MzTabFile>        mzTabs;
+	private ProteoSAFeFileMappingContext mappings;
+	private String                       peakListCollection;
 	
 	/*========================================================================
 	 * Constructors
@@ -168,8 +169,7 @@ public class TaskMzTabContext
 			datasetFiles = FileIOUtils.findFiles(datasetDirectory);
 		}
 		// extract file mapping context from params.xml
-		ProteoSAFeFileMappingContext mappings =
-			new ProteoSAFeFileMappingContext(parameters);
+		mappings = new ProteoSAFeFileMappingContext(parameters);
 		// iterate through all mzTab and ms_run mappings
 		// and fill them out with params.xml knowledge
 		for (MzTabFile mzTab : mzTabs) {
@@ -320,6 +320,10 @@ public class TaskMzTabContext
 			}
 		}
 		return null;
+	}
+	
+	public ProteoSAFeFileMappingContext getMappingContext() {
+		return mappings;
 	}
 	
 	/*========================================================================
