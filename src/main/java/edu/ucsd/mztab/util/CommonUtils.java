@@ -121,4 +121,29 @@ public class CommonUtils
 			return matcher.group(1);
 		else return value;
 	}
+	
+	public static String prettyPrint(String content, int indent) {
+		if (content == null || indent < 1)
+			return content;
+		// if content ends with a newline, chomp it
+		boolean addEndingNewline = false;
+		if (content.endsWith("\n")) {
+			addEndingNewline = true;
+			content = content.substring(0, content.length() - 1);
+		}
+		// build per-line indent prefix
+		StringBuilder prefixBuilder = new StringBuilder();
+		for (int i=0; i<indent; i++)
+			prefixBuilder.append("\t");
+		String prefix = prefixBuilder.toString();
+		// prepend content string with prefix
+		content = String.format("%s%s", prefix, content);
+		// replace all newlines in content string with indent prefix
+		prefix = String.format("\n%s", prefix);
+		content = content.replace("\n", prefix);
+		// add trailing newline if it was chomped earlier
+		if (addEndingNewline)
+			content = String.format("%s\n", content);
+		return content;
+	}
 }
