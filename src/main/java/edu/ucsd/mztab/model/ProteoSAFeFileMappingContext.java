@@ -306,6 +306,52 @@ public class ProteoSAFeFileMappingContext
 		) {
 			this.normalizedUploadFilePath = normalizedUploadFilePath;
 		}
+		
+		/*====================================================================
+		 * Public interface methods
+		 *====================================================================*/
+		public String toJSON() {
+			// serialize this UploadMapping as a JSON object
+			StringBuilder json = new StringBuilder("{");
+			// mangled filename
+			json.append("\"mangledFilename\":\"")
+				.append(getMangledFilename()).append("\",");
+			// upload file path
+			json.append("\"uploadFilePath\":\"")
+				.append(getUploadFilePath()).append("\",");
+			// normalized upload file path
+			json.append("\"normalizedUploadFilePath\":");
+			String normalizedUploadFilePath = getNormalizedUploadFilePath();
+			if (normalizedUploadFilePath == null)
+				json.append("null");
+			else json.append("\"").append(normalizedUploadFilePath).append("\"");
+			json.append("}");
+			return json.toString();
+		}
+		
+		@Override
+		public String toString() {
+			return toJSON();
+		}
+		
+		/**
+		 * Test main method to simply print out this file mapping context
+		 */
+		public static void main(String[] args) {
+			String usage = "java -cp MassIVEUtils.jar " +
+				"edu.ucsd.mztab.model.ProteoSAFeFileMappingContext " +
+				"<ProteoSAFeParametersFile>";
+			try {
+				File paramsFile = new File(args[0]);
+				ProteoSAFeFileMappingContext context =
+					new ProteoSAFeFileMappingContext(paramsFile);
+				System.out.println(context.toString());
+			} catch (Throwable error) {
+				error.printStackTrace();
+				System.err.println("----------");
+				System.err.println(usage);
+			}
+		}
 	}
 	
 	/**
@@ -472,6 +518,67 @@ public class ProteoSAFeFileMappingContext
 				if (isInFolder(uploadFilePath, folder))
 					return true;
 			return false;
+		}
+		
+		/*====================================================================
+		 * Public interface methods
+		 *====================================================================*/
+		public String toJSON() {
+			// serialize this UploadCollection as a JSON object
+			StringBuilder json = new StringBuilder("{");
+			// basic collection parameters
+			json.append("\n\t\"parameterName\":\"")
+				.append(getParameterName()).append("\",");
+			json.append("\n\t\"parameterValue\":\"")
+				.append(getParameterValue()).append("\",");
+			json.append("\n\t\"mangledPrefix\":\"")
+				.append(getMangledPrefix()).append("\",");
+			// collection files
+			json.append("\n\t\"files\":[");
+			Collection<String> files = getFiles();
+			if (files == null || files.isEmpty())
+				json.append("],");
+			else {
+				for (String file : files)
+					json.append("\n\t\t\"").append(file).append("\",");
+				// chomp trailing comma
+				if (json.charAt(json.length() - 1) == ',')
+					json.setLength(json.length() - 1);
+				json.append("\n\t],");
+			}
+			// collection folders
+			json.append("\n\t\"folders\":[");
+			Collection<String> folders = getFolders();
+			if (folders == null || folders.isEmpty())
+				json.append("],");
+			else {
+				for (String folder : folders)
+					json.append("\n\t\t\"").append(folder).append("\",");
+				// chomp trailing comma
+				if (json.charAt(json.length() - 1) == ',')
+					json.setLength(json.length() - 1);
+				json.append("\n\t],");
+			}
+			// upload mappings
+			json.append("\n\t\"uploadMappings\":[");
+			Collection<UploadMapping> uploads = getUploadMappings();
+			if (uploads == null || uploads.isEmpty())
+				json.append("]");
+			else {
+				for (UploadMapping upload : uploads)
+					json.append("\n\t\t").append(upload.toJSON()).append(",");
+				// chomp trailing comma
+				if (json.charAt(json.length() - 1) == ',')
+					json.setLength(json.length() - 1);
+				json.append("\n\t]");
+			}
+			json.append("\n}");
+			return json.toString();
+		}
+		
+		@Override
+		public String toString() {
+			return toJSON();
 		}
 		
 		/*====================================================================
