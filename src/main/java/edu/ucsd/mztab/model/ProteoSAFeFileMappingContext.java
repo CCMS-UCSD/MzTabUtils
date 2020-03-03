@@ -66,10 +66,10 @@ public class ProteoSAFeFileMappingContext
 				}
 			}
 			// populate upload mappings
-			// NOTE: the logic implemented here assumes that upload_file_mapping
-			// parameters are written in the same order in params.xml as the
-			// declarations of their associated collections in the same file;
-			// otherwise, a more rigorous association procedure must be used
+			// NOTE: the logic implemented here assumes that the user
+			// did not assign the same file to two different collections
+			// OF THE SAME SIZE; in this case, the code has no way of
+			// making the right call so it just picks arbitrarily
 			NodeList mappings = XPathAPI.selectNodeList(
 				parameters, "//parameter[@name='upload_file_mapping']");
 			if (mappings != null && mappings.getLength() > 0) {
