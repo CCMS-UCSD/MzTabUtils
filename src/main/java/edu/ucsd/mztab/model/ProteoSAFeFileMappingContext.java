@@ -11,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
@@ -72,22 +73,141 @@ public class ProteoSAFeFileMappingContext
 			NodeList mappings = XPathAPI.selectNodeList(
 				parameters, "//parameter[@name='upload_file_mapping']");
 			if (mappings != null && mappings.getLength() > 0) {
+				// set up mapping parse data structures;
+				// "upload_file_mapping" parameter value ->
+				// mangled prefix/parsed upload file path pair
+				Map<String, ImmutablePair<String, String>> uploadMappings =
+					new LinkedHashMap<String, ImmutablePair<String, String>>(
+						mappings.getLength());
+				// mangled prefix -> number of files with that prefix
+				Map<String, Integer> mangledPrefixCounts =
+					new LinkedHashMap<String, Integer>(
+						uploadCollections.size());
+				// collection name -> upload file paths assigned to it
+				Map<String, Collection<String>> collectionAssignments =
+					new LinkedHashMap<String, Collection<String>>(
+						uploadCollections.size());
+				// upload file path -> collections it was assigned to
+				Map<String, Collection<UploadCollection>> candidateCollections =
+					new LinkedHashMap<String, Collection<UploadCollection>>();
 				for (int i=0; i<mappings.getLength(); i++) {
-					String value =
-						mappings.item(i).getFirstChild().getNodeValue();
-					// find proper collection to which to add this mapping
+					// parse this upload mapping into its parts
+					String value = mappings.item(i).getFirstChild().getNodeValue();
+					// each "upload_file_mapping" parameter should have
+					// as its value a string with the following format:
+					// <mangled_filename>|<source_filename>
+					String[] uploadTokens = value.split("\\|");
+					if (uploadTokens == null || uploadTokens.length != 2)
+						throw new IllegalArgumentException(String.format(
+							"\"upload_file_mapping\" parameter value [%s] " +
+							"is invalid - it should contain two tokens " +
+							"separated by a pipe (\"|\") character.", value));
+					String mangledFilename = uploadTokens[0];
+					String uploadFilePath = uploadTokens[1];
+					// each mangled filename should be a
+					// string with the following format:
+					// <mangled_prefix>-<index>.<extension>
+					String[] mangledTokens = mangledFilename.split("-");
+					if (mangledTokens == null || mangledTokens.length < 2)
+						throw new IllegalArgumentException(String.format(
+							"\"upload_file_mapping\" parameter [%s] is invalid - " +
+							"its mangled filename component [%s] should contain " +
+							"two tokens separated by a dash (\"-\") character.",
+							value, mangledFilename));
+					String mangledPrefix = mangledTokens[0];
+					// track parameter value -> mangled prefix/upload path pair
+					uploadMappings.put(value, new ImmutablePair<String, String>(
+						mangledPrefix, uploadFilePath));
+					// we do not know which collection assignment this mapping refers to
+					// (i.e. if the same file was added to multiple collections), so
+					// increment this mangled prefix's collection size to make the call later
+					Integer mangledPrefixCount = mangledPrefixCounts.get(mangledPrefix);
+					if (mangledPrefixCount == null)
+						mangledPrefixCount = 0;
+					mangledPrefixCounts.put(mangledPrefix, ++mangledPrefixCount);
+					// find candidate collections to which this mapping might belong
 					for (UploadCollection collection : uploadCollections) {
-						if (collection.isFromCollection(value)) try {
-							collection.addUploadMapping(value);
+						// if this file was uploaded to this collection, then this mapping
+						// might represent that assignment, so associate the two
+						if (collection.isFromCollection(mangledPrefix, uploadFilePath)) {
+							// first associate this file with this collection
+							String collectionName = collection.getParameterName();
+							Collection<String> files =
+								collectionAssignments.get(collectionName);
+							if (files == null)
+								files = new LinkedHashSet<String>();
+							files.add(uploadFilePath);
+							collectionAssignments.put(collectionName, files);
+							// then associate this collection with this file
+							Collection<UploadCollection> collections =
+								candidateCollections.get(uploadFilePath);
+							if (collections == null)
+								collections = new LinkedHashSet<UploadCollection>();
+							collections.add(collection);
+							candidateCollections.put(uploadFilePath, collections);
+						}
+					}
+				}
+				// now try to reconcile each mapping to its proper collection
+				// by comparing candidate collection sizes to mangled prefix counts
+				for (String mapping : uploadMappings.keySet()) {
+					ImmutablePair<String, String> values = uploadMappings.get(mapping);
+					String mangledPrefix = values.getLeft();
+					String uploadFilePath = values.getRight();
+					// get this uploaded file's candidate collections
+					Collection<UploadCollection> candidates =
+						candidateCollections.get(uploadFilePath);
+					// get the number of files in this mangled prefix's collection
+					Integer collectionSize = mangledPrefixCounts.get(mangledPrefix);
+					// this mapping should have both a non-empty set of candidate
+					// collections and a non-zero mangled prefix collection size
+					if (candidates == null)
+						throw new IllegalStateException(String.format(
+							"No candidate collections were found for uploaded file [%s].",
+							uploadFilePath));
+					else if (collectionSize == null)
+						throw new IllegalStateException(String.format(
+							"No file mappings were recorded for mangled prefix [%s] " +
+							"associated with uploaded file [%s].",
+							mangledPrefix, uploadFilePath));
+					// find the first collection whose size matches the
+					// number of file mappings with this mangled prefix
+					boolean matchFound = false;
+					for (UploadCollection collection : candidates) {
+						String collectionName = collection.getParameterName();
+						Collection<String> files =
+							collectionAssignments.get(collectionName);
+						// this collection should have a non-empty set of files
+						if (files == null)
+							throw new IllegalStateException(String.format(
+								"No files were found associated with collection [%s].",
+								collection));
+						else if (files.size() == collectionSize) try {
+							collection.addUploadMapping(mapping);
+							matchFound = true;
 							break;
 						}
-						// sometimes the same file is added to multiple
-						// collections; this is acceptable, and is properly
-						// handled simply by moving on to the next collection
+						// in the event that two candidate collections were found
+						// whose size matches the set of files mapped to this mangled
+						// prefix (i.e. the user assigned the same file to two
+						// different collections of the same size), and one has
+						// already been picked, then just move on to the next, and
+						// hope that the arbitrary choice between the two (based
+						// on the order in which collections were declared in
+						// params.xml) was correct...
 						catch (InvalidParameterException error) {
 							continue;
 						}
 					}
+					// if no match was found (candidate collection whose number
+					// of assigned files matches the number of upload mappings
+					// with this mapping's mangled prefix), then there's a problem
+					if (matchFound == false)
+						throw new IllegalStateException(String.format(
+							"No candidate collection to which this file [%s] was " +
+							"assigned could be found with the same number of files " +
+							"as those mapped to this file's mangled prefix [%s].",
+							uploadFilePath, mangledPrefix));
 				}
 			}
 			// populate result file mappings
@@ -494,6 +614,14 @@ public class ProteoSAFeFileMappingContext
 					"separated by a pipe (\"|\") character.", uploadMapping));
 			String mangledFilename = uploadTokens[0];
 			String uploadFilePath = uploadTokens[1];
+			addUploadMapping(mangledFilename, uploadFilePath);
+		}
+		
+		public void addUploadMapping(
+			String mangledFilename, String uploadFilePath
+		) {
+			if (mangledFilename == null || uploadFilePath == null)
+				return;
 			// instantiate this upload mapping
 			UploadMapping mapping =
 				new UploadMapping(mangledFilename, uploadFilePath);
@@ -504,7 +632,8 @@ public class ProteoSAFeFileMappingContext
 					"\"upload_file_mapping\" parameter [%s] is invalid - " +
 					"its mangled filename component [%s] should contain " +
 					"two tokens separated by a dash (\"-\") character.",
-					uploadMapping, mangledFilename));
+					String.format("%s|%s", mangledFilename, uploadFilePath),
+					mangledFilename));
 			else if (mangledPrefix == null)
 				mangledPrefix = mangledTokens[0];
 			else if (mangledPrefix.equals(mangledTokens[0]) == false)
@@ -513,7 +642,8 @@ public class ProteoSAFeFileMappingContext
 					"associated with upload collection [%s], even though " +
 					"this collection has already been associated with " +
 					"upload mappings having expected prefix [%s].",
-					uploadMapping, parameterName, mangledPrefix));
+					String.format("%s|%s", mangledFilename, uploadFilePath),
+					parameterName, mangledPrefix));
 			// determine this upload mapping's normalized upload path,
 			// if it's part of a folder selected for upload by the user
 			for (String folder : folders) {
@@ -549,8 +679,9 @@ public class ProteoSAFeFileMappingContext
 					"separated by a pipe (\"|\") character.", uploadMapping));
 			String mangledFilename = uploadTokens[0];
 			String uploadFilePath = uploadTokens[1];
-			// first check to see if the mangled prefix
-			// is known, and matches this one
+			// each mangled filename should be a
+			// string with the following format:
+			// <mangled_prefix>-<index>.<extension>
 			String[] mangledTokens = mangledFilename.split("-");
 			if (mangledTokens == null || mangledTokens.length < 2)
 				throw new IllegalArgumentException(String.format(
@@ -558,8 +689,18 @@ public class ProteoSAFeFileMappingContext
 					"its mangled filename component [%s] should contain " +
 					"two tokens separated by a dash (\"-\") character.",
 					uploadMapping, mangledFilename));
-			else if (mangledPrefix != null &&
-				mangledPrefix.equals(mangledTokens[0]))
+			return isFromCollection(mangledTokens[0], uploadFilePath);
+		}
+		
+		public boolean isFromCollection(
+			String mangledPrefix, String uploadFilePath
+		) {
+			if (mangledPrefix == null || uploadFilePath == null)
+				return false;
+			// first check to see if the mangled prefix
+			// is known, and matches this one
+			else if (this.mangledPrefix != null &&
+				this.mangledPrefix.equals(mangledPrefix))
 				return true;
 			// otherwise, check to see if this upload is any of
 			// the single files selected for this collection
