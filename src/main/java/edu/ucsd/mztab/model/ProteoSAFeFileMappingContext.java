@@ -15,6 +15,7 @@ import org.apache.xpath.XPathAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
+import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.FileIOUtils;
 
 public class ProteoSAFeFileMappingContext
@@ -256,6 +257,78 @@ public class ProteoSAFeFileMappingContext
 		return tokens;
 	}
 	
+	public String toJSON() {
+		// serialize this ProteoSAFeFileMappingContext object as a JSON object
+		StringBuilder json = new StringBuilder("{");
+		// upload collections
+		json.append("\n\t\"uploadCollections\":[");
+		if (uploadCollections == null || uploadCollections.isEmpty())
+			json.append("],");
+		else {
+			for (UploadCollection collection : uploadCollections)
+				json.append("\n")
+					.append(CommonUtils.prettyPrint(collection.toJSON(), 2))
+					.append(",");
+			// chomp trailing comma
+			if (json.charAt(json.length() - 1) == ',')
+				json.setLength(json.length() - 1);
+			json.append("\n\t],");
+		}
+		// result file mappings
+		json.append("\n\t\"resultFileMappings\":{");
+		if (resultFileMappings == null || resultFileMappings.isEmpty())
+			json.append("}");
+		else {
+			for (String resultFilename : resultFileMappings.keySet()) {
+				json.append("\n\t\t\"").append(resultFilename).append("\":[");
+				Map<String, String> msRuns =
+					resultFileMappings.get(resultFilename);
+				if (msRuns == null || msRuns.isEmpty())
+					json.append("],");
+				else {
+					for (String msRunLocation : msRuns.keySet())
+						json.append("\n\t\t\t\"")
+							.append(msRunLocation).append("\":\"")
+							.append(msRuns.get(msRunLocation)).append("\",");
+					// chomp trailing comma
+					if (json.charAt(json.length() - 1) == ',')
+						json.setLength(json.length() - 1);
+					json.append("\n\t\t],");
+				}
+			}
+			// chomp trailing comma
+			if (json.charAt(json.length() - 1) == ',')
+				json.setLength(json.length() - 1);
+			json.append("\n\t}");
+		}
+		json.append("\n}");
+		return json.toString();
+	}
+	
+	@Override
+	public String toString() {
+		return toJSON();
+	}
+	
+	/**
+	 * Test main method to simply print out this file mapping context
+	 */
+	public static void main(String[] args) {
+		String usage = "java -cp MassIVEUtils.jar " +
+			"edu.ucsd.mztab.model.ProteoSAFeFileMappingContext " +
+			"<ProteoSAFeParametersFile>";
+		try {
+			File paramsFile = new File(args[0]);
+			ProteoSAFeFileMappingContext context =
+				new ProteoSAFeFileMappingContext(paramsFile);
+			System.out.println(context.toString());
+		} catch (Throwable error) {
+			error.printStackTrace();
+			System.err.println("----------");
+			System.err.println(usage);
+		}
+	}
+	
 	/*========================================================================
 	 * Convenience classes
 	 *========================================================================*/
@@ -314,43 +387,24 @@ public class ProteoSAFeFileMappingContext
 			// serialize this UploadMapping as a JSON object
 			StringBuilder json = new StringBuilder("{");
 			// mangled filename
-			json.append("\"mangledFilename\":\"")
+			json.append("\n\t\"mangledFilename\":\"")
 				.append(getMangledFilename()).append("\",");
 			// upload file path
-			json.append("\"uploadFilePath\":\"")
+			json.append("\n\t\"uploadFilePath\":\"")
 				.append(getUploadFilePath()).append("\",");
 			// normalized upload file path
-			json.append("\"normalizedUploadFilePath\":");
+			json.append("\n\t\"normalizedUploadFilePath\":");
 			String normalizedUploadFilePath = getNormalizedUploadFilePath();
 			if (normalizedUploadFilePath == null)
 				json.append("null");
 			else json.append("\"").append(normalizedUploadFilePath).append("\"");
-			json.append("}");
+			json.append("\n}");
 			return json.toString();
 		}
 		
 		@Override
 		public String toString() {
 			return toJSON();
-		}
-		
-		/**
-		 * Test main method to simply print out this file mapping context
-		 */
-		public static void main(String[] args) {
-			String usage = "java -cp MassIVEUtils.jar " +
-				"edu.ucsd.mztab.model.ProteoSAFeFileMappingContext " +
-				"<ProteoSAFeParametersFile>";
-			try {
-				File paramsFile = new File(args[0]);
-				ProteoSAFeFileMappingContext context =
-					new ProteoSAFeFileMappingContext(paramsFile);
-				System.out.println(context.toString());
-			} catch (Throwable error) {
-				error.printStackTrace();
-				System.err.println("----------");
-				System.err.println(usage);
-			}
 		}
 	}
 	
@@ -566,7 +620,9 @@ public class ProteoSAFeFileMappingContext
 				json.append("]");
 			else {
 				for (UploadMapping upload : uploads)
-					json.append("\n\t\t").append(upload.toJSON()).append(",");
+					json.append("\n")
+						.append(CommonUtils.prettyPrint(upload.toJSON(), 2))
+						.append(",");
 				// chomp trailing comma
 				if (json.charAt(json.length() - 1) == ',')
 					json.setLength(json.length() - 1);
