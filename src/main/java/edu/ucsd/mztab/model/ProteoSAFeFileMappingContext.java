@@ -25,7 +25,7 @@ public class ProteoSAFeFileMappingContext
 	 * Constants
 	 *========================================================================*/
 	private static final Pattern UPLOAD_COLLECTION_PATTERN =
-		Pattern.compile("^((?:f\\.|d\\.).+;)+$");
+		Pattern.compile("^((?:f\\.|d\\.|t\\.|u\\.).+;)+$");
 	
 	/*========================================================================
 	 * Properties
