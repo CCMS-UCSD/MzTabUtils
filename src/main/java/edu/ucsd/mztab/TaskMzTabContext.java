@@ -156,7 +156,7 @@ public class TaskMzTabContext
 		Collection<File> datasetFiles = null;
 		if (datasetID != null) {
 			File datasetDirectory =
-				new File(ProteoSAFeUtils.DATASET_FILES_ROOT, datasetID);
+				new File(ProteoSAFeUtils.USER_FILES_ROOT, datasetID);
 			// if this is a reanalysis, be sure to look only at its
 			// own files, not everything under the entire container
 			if (datasetID.startsWith(

@@ -23,26 +23,32 @@ public class ProteoSAFeUtils
 	public static final String DATASET_ACCESSION_PREFIX = "MSV";
 	public static final String REANALYSIS_CONTAINER_ACCESSION_PREFIX = "RMSV";
 	private static final String PROTEOSAFE_CONFIG_FILE = "massive.properties";
-	private static final String DEFAULT_DATASET_FILES_ROOT =
+	private static final String DEFAULT_USER_FILES_ROOT =
 		"/data/ccms-data/uploads";
+	private static final String DEFAULT_TASK_FILES_ROOT =
+		"/data/ccms-data/tasks";
 	private static final String DEFAULT_MASSIVE_REPOSITORY_ROOT =
 		"/data/massive";
 	
 	/*========================================================================
 	 * Static properties
 	 *========================================================================*/
-	public static final String DATASET_FILES_ROOT;
+	public static final String USER_FILES_ROOT;
+	public static final String TASK_FILES_ROOT;
 	public static final String MASSIVE_REPOSITORY_ROOT;
 	private static Properties proteoSAFeConfig = null;
 	static {
 		proteoSAFeConfig = loadProteoSAFeConfiguration();
 		if (proteoSAFeConfig != null) {
-			DATASET_FILES_ROOT = proteoSAFeConfig.getProperty(
-				"uploads.root", DEFAULT_DATASET_FILES_ROOT);
+			USER_FILES_ROOT = proteoSAFeConfig.getProperty(
+				"uploads.root", DEFAULT_USER_FILES_ROOT);
+			TASK_FILES_ROOT = proteoSAFeConfig.getProperty(
+				"tasks.root", DEFAULT_TASK_FILES_ROOT);
 			MASSIVE_REPOSITORY_ROOT = proteoSAFeConfig.getProperty(
 				"repository.root", DEFAULT_MASSIVE_REPOSITORY_ROOT);
 		} else {
-			DATASET_FILES_ROOT = DEFAULT_DATASET_FILES_ROOT;
+			USER_FILES_ROOT = DEFAULT_USER_FILES_ROOT;
+			TASK_FILES_ROOT = DEFAULT_TASK_FILES_ROOT;
 			MASSIVE_REPOSITORY_ROOT = DEFAULT_MASSIVE_REPOSITORY_ROOT;
 		}
 	}
@@ -60,7 +66,7 @@ public class ProteoSAFeUtils
 		// files to find find the best match
 		if (datasetFiles == null) {
 			// get dataset directory
-			File datasetDirectory = new File(DATASET_FILES_ROOT, datasetID);
+			File datasetDirectory = new File(USER_FILES_ROOT, datasetID);
 			// if a relative path was provided, confine search to that
 			if (relativePath != null)
 				datasetDirectory = new File(datasetDirectory, relativePath);
@@ -133,17 +139,17 @@ public class ProteoSAFeUtils
 		// try to resolve the argument path to an actual
 		// file on disk under the ProteoSAFe files root
 		File file = null;
-		if (path.startsWith(DATASET_FILES_ROOT))
+		if (path.startsWith(USER_FILES_ROOT))
 			file = new File(path);
 		// if this path starts with the repository root, replace it
 		else if (path.startsWith(MASSIVE_REPOSITORY_ROOT))
-			file = new File(String.format("%s%s", DATASET_FILES_ROOT,
+			file = new File(String.format("%s%s", USER_FILES_ROOT,
 				path.substring(MASSIVE_REPOSITORY_ROOT.length())));
-		else file = new File(DATASET_FILES_ROOT, path);
+		else file = new File(USER_FILES_ROOT, path);
 		// if the file was found, build and return its descriptor
 		if (file.exists()) {
 			String relativePath = FilenameUtils.separatorsToUnix(
-				file.getAbsolutePath()).substring(DATASET_FILES_ROOT.length());
+				file.getAbsolutePath()).substring(USER_FILES_ROOT.length());
 			// trim off leading slash, if present
 			if (relativePath.startsWith("/"))
 				relativePath = relativePath.substring(1);

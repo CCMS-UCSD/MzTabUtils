@@ -18,6 +18,7 @@ import org.w3c.dom.NodeList;
 
 import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.FileIOUtils;
+import edu.ucsd.mztab.util.ProteoSAFeUtils;
 
 public class ProteoSAFeFileMappingContext
 {
@@ -25,7 +26,7 @@ public class ProteoSAFeFileMappingContext
 	 * Constants
 	 *========================================================================*/
 	private static final Pattern UPLOAD_COLLECTION_PATTERN =
-		Pattern.compile("^((?:f\\.|d\\.|t\\.|u\\.).+;)+$");
+		Pattern.compile("^((?:f\\.|d\\.|u\\.|t\\.).+;)+$");
 	
 	/*========================================================================
 	 * Properties
@@ -562,10 +563,29 @@ public class ProteoSAFeFileMappingContext
 			String[] uploads = parameterValue.split(";");
 			if (uploads != null && uploads.length > 0) {
 				for (int i=0; i<uploads.length; i++) {
-					if (uploads[i].startsWith("f."))
-						files.add(uploads[i].substring(2));
-					else if (uploads[i].startsWith("d."))
-						folders.add(uploads[i].substring(2));
+					String upload = uploads[i];
+					String path = upload.substring(2);
+					// get the file referenced by this file descriptor
+					File file = null;
+					if (upload.startsWith("f.") || upload.startsWith("d."))
+						file = new File(ProteoSAFeUtils.USER_FILES_ROOT, path);
+					else if (upload.startsWith("u.") || upload.startsWith("t."))
+						file = new File(ProteoSAFeUtils.TASK_FILES_ROOT, path);
+					// if no file could be found, use default logic;
+					// may not work if file descriptor conventions
+					// were not followed by the client
+					if (file == null || file.exists() == false) {
+						// user upload or task files
+						if (upload.startsWith("f.") || upload.startsWith("u."))
+							files.add(path);
+						// user upload or task directories
+						else if (upload.startsWith("d.") || upload.startsWith("t."))
+							folders.add(path);
+					}
+					// otherwise check file to determine if it's a file or folder
+					else if (file.isDirectory())
+						folders.add(path);
+					else files.add(path);
 				}
 			}
 			// initialize other properties
