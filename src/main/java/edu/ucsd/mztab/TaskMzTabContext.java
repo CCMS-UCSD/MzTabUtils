@@ -186,24 +186,31 @@ public class TaskMzTabContext
 				MzTabMsRun msRun = msRuns.get(msRunIndex);
 				// fill out this ms_run's file mappings
 				mapMsRun(msRun, mzTab.getMappedResultPath(), mappings);
-				// if this is an ms_run for a dataset mzTab file, then
-				// the peak list file should be in the same dataset -
-				// unless this is a reanalysis attachment
+				// handle repository submissions properly
 				if (datasetID != null) {
-					// if the cleaned ms_run-location string is already a
-					// dataset relative path, just use that as the descriptor
-					String msRunLocation = msRun.getCleanedMsRunLocation();
-					if (msRunLocation != null &&
-						msRunLocation.matches("^(R)?MSV[0-9]{9}/.*$"))
-						msRun.setDescriptor(msRunLocation);
-					// otherwise, only set the dataset descriptor with the given
-					// relative path if this is not already a dataset file
+					// if this is an ms_run for a dataset mzTab file, then
+					// the peak list file had better be in the same dataset
+					if (datasetID.startsWith("MSV"))
+						msRun.setDatasetDescriptor(
+							datasetID, peakListRelativePath, datasetFiles);
+					// otherwise this is a reanalysis, so the peak list file
+					// most likely will not be copied with this submission
 					else {
-						String uploaded = msRun.getUploadedPeakListPath();
-						if (uploaded == null ||
-							uploaded.matches("^(R)?MSV[0-9]{9}/.*$") == false)
-							msRun.setDatasetDescriptor(
-								datasetID, peakListRelativePath, datasetFiles);
+						// if the cleaned ms_run-location string is already a
+						// dataset relative path, just use that as the descriptor
+						String msRunLocation = msRun.getCleanedMsRunLocation();
+						if (msRunLocation != null &&
+							msRunLocation.matches("^(R)?MSV[0-9]{9}/.*$"))
+							msRun.setDescriptor(msRunLocation);
+						// otherwise, only set the dataset descriptor with the given
+						// relative path if this is not already a dataset file
+						else {
+							String uploaded = msRun.getUploadedPeakListPath();
+							if (uploaded == null ||
+								uploaded.matches("^(R)?MSV[0-9]{9}/.*$") == false)
+								msRun.setDatasetDescriptor(
+									datasetID, peakListRelativePath, datasetFiles);
+						}
 					}
 				}
 				// by default a peak list file's descriptor points
