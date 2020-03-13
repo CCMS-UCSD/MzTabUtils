@@ -187,27 +187,24 @@ public class TaskMzTabContext
 				// fill out this ms_run's file mappings
 				mapMsRun(msRun, mzTab.getMappedResultPath(), mappings);
 				// if this is an ms_run for a dataset mzTab file, then
-				// the peak list file had better be in the same dataset
+				// the peak list file should be in the same dataset -
+				// unless this is a reanalysis attachment
 				if (datasetID != null) {
-					msRun.setDatasetDescriptor(
-						datasetID, peakListRelativePath, datasetFiles);
-					// TODO: check to see if this file is actually in the
-					// same dataset; if not, try other available options 
-//					// if the cleaned ms_run-location string is already a
-//					// dataset relative path, just use that as the descriptor
-//					String msRunLocation = msRun.getCleanedMsRunLocation();
-//					if (msRunLocation != null &&
-//						msRunLocation.matches("^MSV[0-9]{9}/.*$"))
-//						msRun.setDescriptor(msRunLocation);
-//					// otherwise, only set the dataset descriptor with the given
-//					// relative path if this is not already a dataset file
-//					else {
-//						String uploaded = msRun.getUploadedPeakListPath();
-//						if (uploaded == null ||
-//							uploaded.matches("^MSV[0-9]{9}/.*$") == false)
-//							msRun.setDatasetDescriptor(
-//								datasetID, peakListRelativePath);
-//					}
+					// if the cleaned ms_run-location string is already a
+					// dataset relative path, just use that as the descriptor
+					String msRunLocation = msRun.getCleanedMsRunLocation();
+					if (msRunLocation != null &&
+						msRunLocation.matches("^(R)?MSV[0-9]{9}/.*$"))
+						msRun.setDescriptor(msRunLocation);
+					// otherwise, only set the dataset descriptor with the given
+					// relative path if this is not already a dataset file
+					else {
+						String uploaded = msRun.getUploadedPeakListPath();
+						if (uploaded == null ||
+							uploaded.matches("^(R)?MSV[0-9]{9}/.*$") == false)
+							msRun.setDatasetDescriptor(
+								datasetID, peakListRelativePath, datasetFiles);
+					}
 				}
 				// by default a peak list file's descriptor points
 				// to its uploaded path; only try to set it to
