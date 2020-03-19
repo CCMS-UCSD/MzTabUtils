@@ -216,7 +216,7 @@ public class ProteoSAFeFileMappingContext
 							"No candidate collection to which this file [%s] was " +
 							"assigned could be found with the same number of files " +
 							"as those mapped to this file's mangled prefix [%s] (%d):" +
-							"\n----------\n%s",
+							"\n----------%s",
 							uploadFilePath, mangledPrefix, collectionSize,
 							collectionSizes.toString()));
 					}
