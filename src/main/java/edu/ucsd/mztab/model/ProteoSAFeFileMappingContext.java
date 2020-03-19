@@ -203,12 +203,23 @@ public class ProteoSAFeFileMappingContext
 					// if no match was found (candidate collection whose number
 					// of assigned files matches the number of upload mappings
 					// with this mapping's mangled prefix), then there's a problem
-					if (matchFound == false)
+					if (matchFound == false) {
+						StringBuilder collectionSizes = new StringBuilder();
+						for (UploadCollection collection : candidates) {
+							String collectionName = collection.getParameterName();
+							Collection<String> files =
+								collectionAssignments.get(collectionName);
+							collectionSizes.append("\n").append(collectionName)
+								.append(" = ").append(files.size());
+						}
 						throw new IllegalStateException(String.format(
 							"No candidate collection to which this file [%s] was " +
 							"assigned could be found with the same number of files " +
-							"as those mapped to this file's mangled prefix [%s].",
-							uploadFilePath, mangledPrefix));
+							"as those mapped to this file's mangled prefix [%s] (%d):" +
+							"\n----------\n%s",
+							uploadFilePath, mangledPrefix, collectionSize,
+							collectionSizes.toString()));
+					}
 				}
 			}
 			// populate result file mappings
