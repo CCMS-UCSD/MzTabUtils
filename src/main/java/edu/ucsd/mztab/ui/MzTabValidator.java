@@ -5,7 +5,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.LineNumberReader;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
@@ -242,7 +241,7 @@ public class MzTabValidator
 			// sort files alphabetically
 			Arrays.sort(files);
 			// read through each scans file and log its line count
-			LineNumberReader reader = null;
+			BufferedReader reader = null;
 			for (File file : files) try {
 				// get uploaded peak list file descriptor
 				MzTabMsRun msRun = context.getPeakListFile(file.getName());
@@ -252,22 +251,36 @@ public class MzTabValidator
 				// we do not want to include it in this summary
 				if (msRun == null)
 					continue;
-				// read through file, counting the lines
-				reader = new LineNumberReader(new FileReader(file));
+				// read through file, counting the MS2 spectra
+				reader = new BufferedReader(new FileReader(file));
 				String line = null;
+				int lineNumber = 0;
+				int ms2Spectra = 0;
 				while (true) {
 					line = reader.readLine();
 					if (line == null)
 						break;
+					lineNumber++;
+					if (line.trim().equals(""))
+						continue;
+					String[] tokens = line.split("\\s+");
+					if (tokens == null || tokens.length != 3)
+						throw new IllegalArgumentException(String.format(
+							"Line %d of spectrum IDs file [%s] is invalid:\n" +
+							"----------\n%s\n----------\n" +
+							"Each non-empty line is expected to consist of " +
+							"three tokens separated by whitespace.",
+							lineNumber, file.getName(), line));
+					// only count MS2 spectra (i.e. having value = 2 in the MS level column)
+					try {
+						if (Integer.parseInt(tokens[1]) == 2)
+							ms2Spectra++;
+					} catch (NumberFormatException error) { continue; }
 				}
-				// write log line; normally we would increment the output
-				// of LineNumberReader.getLineNumber() since its count is
-				// 0-based, but ProteoSAFe scans files always write an
-				// empty line at the end that we don't want to count, so
-				// the 0-based indexing accounts for this automatically
+				// write log line
 				writer.println(String.format("%s\t%s\t%s\t%d",
 					file.getName(), msRun.getUploadedPeakListPath(),
-					msRun.getDescriptor(), reader.getLineNumber()));
+					msRun.getDescriptor(), ms2Spectra));
 				writer.flush();
 			} catch (RuntimeException error) {
 				throw error;
