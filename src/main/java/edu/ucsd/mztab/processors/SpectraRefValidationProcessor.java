@@ -49,7 +49,7 @@ implements MzTabProcessor
 	// null=no ambiguous nativeIDs found so far, true=scan, false=index
 	private Boolean            ambiguousNativeIDsAsScans;
 	// input spectrum file properties
-	private Map<String, ImmutablePair<Integer, Collection<Integer>>> spectra;
+	private Map<String, ImmutablePair<Integer, Collection<String>>> spectra;
 	private MzIdentMLNativeIDMap mzidCache;
 	
 	/*========================================================================
@@ -74,7 +74,7 @@ implements MzTabProcessor
 		this.ambiguousNativeIDsAsScans = ambiguousNativeIDsAsScans;
 		// initialize spectrum ID data structures
 		spectra = new LinkedHashMap<
-			String, ImmutablePair<Integer, Collection<Integer>>>();
+			String, ImmutablePair<Integer, Collection<String>>>();
 		mzidCache = new MzIdentMLNativeIDMap(uploadedResultDirectory);
 		// validate and process spectrum IDs directory (can be null)
 		if (spectrumIDsDirectory != null) {
@@ -92,7 +92,7 @@ implements MzTabProcessor
 			// needs in exchange for potentially much worse performance
 			else for (File spectrumIDsFile : spectrumIDsDirectory.listFiles()) {
 				if (spectrumIDsFile != null) {
-					ImmutablePair<Integer, Collection<Integer>> spectrumIDs =
+					ImmutablePair<Integer, Collection<String>> spectrumIDs =
 						readSpectrumIDsFile(spectrumIDsFile);
 					if (spectrumIDs != null)
 						spectra.put(spectrumIDsFile.getName(), spectrumIDs);
@@ -247,7 +247,7 @@ implements MzTabProcessor
 			}
 			String spectrumIDsFilename = String.format(
 				"%s.scans", FilenameUtils.getBaseName(mangledPeakListFilename));
-			ImmutablePair<Integer, Collection<Integer>> spectrumIDs =
+			ImmutablePair<Integer, Collection<String>> spectrumIDs =
 				getSpectrumIDs(spectrumIDsFilename);
 			if (spectrumIDs == null) {
 				row[validIndex] = "INVALID";
@@ -258,7 +258,7 @@ implements MzTabProcessor
 					msRun.getPeakListFilename(), spectrumIDsFilename);
 				return getLine(row);
 			}
-			// otherwise, validate nativeID
+			// validate nativeID
 			String validatedNativeID =
 				validateNativeID(nativeID, sequence, spectrumIDs);
 			// if the nativeID was successfully validated, and
@@ -306,7 +306,7 @@ implements MzTabProcessor
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
-	private ImmutablePair<Integer, Collection<Integer>> getSpectrumIDs(
+	private ImmutablePair<Integer, Collection<String>> getSpectrumIDs(
 		String spectrumIDsFilename
 	) {
 		if (spectrumIDsFilename == null)
@@ -314,7 +314,7 @@ implements MzTabProcessor
 		else return spectra.get(spectrumIDsFilename);
 	}
 	
-	private ImmutablePair<Integer, Collection<Integer>>
+	private ImmutablePair<Integer, Collection<String>>
 	readSpectrumIDsFile(File spectrumIDsFile) {
 		if (spectrumIDsFile == null)
 			throw new NullPointerException("Spectrum IDs file is null.");
@@ -323,9 +323,9 @@ implements MzTabProcessor
 			throw new IllegalArgumentException(String.format(
 				"Argument spectrum IDs file [%s] is not a readable file.",
 				spectrumIDsFile.getName()));
-		// read all lines of the input scans file and store them
-		Collection<Integer> scans = new LinkedHashSet<Integer>();
-		Integer highestIndex = null;
+		// read all lines of the input file and store them
+		Collection<String> nativeIDs = new LinkedHashSet<String>();
+		Integer maxMS2Index = null;
 		BufferedReader reader = null;
 		try {
 			reader = new BufferedReader(new FileReader(spectrumIDsFile));
@@ -346,27 +346,33 @@ implements MzTabProcessor
 						"Each non-empty line is expected to consist of " +
 						"three tokens separated by whitespace.",
 						lineNumber, spectrumIDsFile.getName(), line));
-				// parse scan field, which should be an integer
+				// only process MS2+ spectra (i.e. having value >1 in the MS level column)
 				try {
-					scans.add(Integer.parseInt(tokens[1]));
-				} catch (NumberFormatException error) {
-					// do nothing, since this is not a valid scan number,
-					// and therefore cannot be said to represent any
-					// spectrum that was actually found in the file
-//					throw new IllegalArgumentException(String.format(
-//						"Line %d of spectrum IDs file [%s] is invalid:\n" +
-//						"----------\n%s\n----------\n" +
-//						"The second token [%s] is expected to be an integer " +
-//						"representing this spectrum's scan number.",
-//						lineNumber, spectrumIDsFile.getName(), line,
-//						tokens[1]), error);
+					if (Integer.parseInt(tokens[1]) <= 1)
+						continue;
+				} catch (NumberFormatException error) { continue; }
+				// parse nativeID field - might be a comma-separated list
+				String[] theseNativeIDs = tokens[0].split(",");
+				for (String nativeID : theseNativeIDs) {
+					nativeID = nativeID.trim();
+					// ignore "null" nativeIDs
+					if (nativeID.equalsIgnoreCase("null"))
+						continue;
+					else nativeIDs.add(nativeID);
 				}
-				// increment index; use 1-based indexing, just to be sure
-				// any potentially valid client index value will be matched
-				// even though mzTab indices are supposed to be 0-based
-				if (highestIndex == null)
-					highestIndex = 1;
-				else highestIndex++;
+				// track max MS2+ index found so far
+				try {
+					int index = Integer.parseInt(tokens[2]);
+					if (maxMS2Index == null || index > maxMS2Index)
+						maxMS2Index = index;
+				}
+				// if for some reason the reported index is not
+				// a valid integer then increment manually
+				catch (NumberFormatException error) {
+					if (maxMS2Index == null)
+						maxMS2Index = 0;
+					else maxMS2Index++;
+				}
 			}
 		} catch (Throwable error) {
 			throw new RuntimeException(error);
@@ -374,109 +380,102 @@ implements MzTabProcessor
 			try { reader.close(); }
 			catch (Throwable error) {}
 		}
-		if (scans.isEmpty() && highestIndex == null)
+		if (nativeIDs.isEmpty() && maxMS2Index == null)
 			return null;
-		else return new ImmutablePair<Integer, Collection<Integer>>(
-			highestIndex, scans);
+		// increment reported max MS2+ index (assumed to be 0-based),
+		// just to be sure any potentially valid client index value will
+		// be matched even though mzTab indices are supposed to be 0-based
+		else return new ImmutablePair<Integer, Collection<String>>(
+			(maxMS2Index + 1), nativeIDs);
 	}
 	
-	@SuppressWarnings("unused")
 	private String validateNativeID(
 		String nativeID, String sequence,
-		ImmutablePair<Integer, Collection<Integer>> spectrumIDs
+		ImmutablePair<Integer, Collection<String>> spectrumIDs
 	) {
 		if (nativeID == null)
 			return null;
-		// extract the spectrum identifier from the nativeID string
-		Boolean scan = null;
-		Integer value = null;
-		// first try to extract a scan number
+		// first check if the source nativeID was found as-is in the file
+		Collection<String> nativeIDs = spectrumIDs.getRight();
+		if (isNativeIDInFile(nativeID, nativeIDs))
+			return nativeID;
+		// if not, then the nativeID might be slightly modified; try different formats
+		String modifiedNativeID = null;
+		Integer index = null;
+		// first try "scan="
 		Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(nativeID);
-		if (matcher.find()) try {
-			value = Integer.parseInt(matcher.group(1));
-			scan = true;
+		if (matcher.find()) {
+			modifiedNativeID = matcher.group();
+			if (modifiedNativeID.equals(nativeID) == false &&
+				isNativeIDInFile(modifiedNativeID, nativeIDs))
+				return modifiedNativeID;
 		}
-		// it should be impossible for a parsing error to occur here, since the
-		// nativeID value matched the integer portion of the regular expression
-		catch (NumberFormatException error) {
-			throw new IllegalStateException(error);
+		// next try the relatively rare "scanId="
+		matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(nativeID);
+		if (matcher.find()) {
+			modifiedNativeID = matcher.group();
+			if (modifiedNativeID.equals(nativeID) == false &&
+				isNativeIDInFile(modifiedNativeID, nativeIDs))
+				return modifiedNativeID;
 		}
-		// check other known scan number nativeID formats
-		if (value == null) {
-			matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(nativeID);
-			if (matcher.find()) try {
-				value = Integer.parseInt(matcher.group(1));
-				scan = true;
-			} catch (NumberFormatException error) {
-				throw new IllegalStateException(error);
-			}
+		// next try "index="
+		matcher = MzTabConstants.INDEX_PATTERN.matcher(nativeID);
+		if (matcher.find()) {
+			modifiedNativeID = matcher.group();
+			if (modifiedNativeID.equals(nativeID) == false &&
+				isNativeIDInFile(modifiedNativeID, nativeIDs))
+				return modifiedNativeID;
+			else try { index = Integer.parseInt(matcher.group(1)); }
+			catch (NumberFormatException error) { throw new IllegalStateException(error); }
 		}
-		// then try to extract an index
-		if (value == null) {
-			matcher = MzTabConstants.INDEX_PATTERN.matcher(nativeID);
-			if (matcher.find()) try {
-				// if found, assume all spectrum indices are 0-based,
-				// as per the definition of nativeID format
-				// MS:1000774 ("multiple peak list nativeID format")
-				value = Integer.parseInt(matcher.group(1));
-				scan = false;
-			} catch (NumberFormatException error) {
-				throw new IllegalStateException(error);
-			}
+		// next try Mascot "query="
+		matcher = MzTabConstants.QUERY_PATTERN.matcher(nativeID);
+		if (matcher.find()) {
+			modifiedNativeID = matcher.group();
+			if (modifiedNativeID.equals(nativeID) == false &&
+				isNativeIDInFile(modifiedNativeID, nativeIDs))
+				return modifiedNativeID;
+			// Commented out the code below since we currently cannot properly handle
+			// "query=" nativeIDs as indices, as there is no consistent way to dereference
+			// the query number in Mascot search results converted to mzTab
+//			// nativeIDs of type MS:1001528 ("Mascot query number") are
+//			// defined to be 1-based indices. However, since we encode all
+//			// indices as nativeIDs of type MS:1000774 ("multiple peak
+//			// list nativeID format"), and this format requires 0-based
+//			// indexing, we must decrement the query number here.
+//			else try { index = Integer.parseInt(matcher.group(1)) - 1; }
+//			catch (NumberFormatException error) { throw new IllegalStateException(error); }
 		}
-		// then try to extract a "query"
-		if (value == null) {
-			matcher = MzTabConstants.QUERY_PATTERN.matcher(nativeID);
-			// we currently cannot properly handle "query" nativeIDs,
-			// since there is no consistent way to dereference the
-			// query number in Mascot search results converted to mzTab
-			if (matcher.find())
-				return null;
-//			if (matcher.find()) try {
-//				// nativeIDs of type MS:1001528 ("Mascot query number") are
-//				// defined to be 1-based indices. However, since we encode all
-//				// indices as nativeIDs of type MS:1000774 ("multiple peak
-//				// list nativeID format"), and this format requires 0-based
-//				// indexing, we must decrement the query number here.
-//				value = Integer.parseInt(matcher.group(1)) - 1;
-//				scan = false;
-//			} catch (NumberFormatException error) {
-//				throw new IllegalStateException(error);
-//			}
+		// next try "file="
+		matcher = MzTabConstants.FILE_PATTERN.matcher(nativeID);
+		if (matcher.find()) {
+			modifiedNativeID = matcher.group();
+			if (modifiedNativeID.equals(nativeID) == false &&
+				isNativeIDInFile(modifiedNativeID, nativeIDs))
+				return modifiedNativeID;
+			// with "file=" nativeIDs we assume it's just a 1-spectrum file
+			index = 0;
 		}
-		// if it's a file specifier, and no index was also specified,
-		// then assume it's just a 1-spectrum file
-		if (value == null) {
-			matcher = MzTabConstants.FILE_PATTERN.matcher(nativeID);
-			if (matcher.find()) {
-				value = 0;
-				scan = false;
-			}
-		}
-		// at this point, the nativeID is not of any recognized or
-		// supported type, so try to parse it as a plain integer
-		if (value == null) try {
+		// at this point, the nativeID was not found in the file even
+		// after being transformed to all recognized types, so if an
+		// index was found then just use that and assume it's correct
+		if (index != null)
+			return String.format("index=%d", index);
+		// otherwise try to parse it as a plain integer
+		Integer value = null;
+		try {
 			value = Integer.parseInt(nativeID);
 		} catch (NumberFormatException error) {}
 		// if the nativeID can't even be parsed as a plain integer, then
 		// it's truly bad and there's nothing more we can do about it
 		if (value == null)
 			return null;
-		// if we were able to determine the spectrum ID type directly from
-		// the nativeID, then just check against that type in the IDs map
-		else if (scan != null) {
-			if (scan && isSpectrumIDInMap(value, true, spectrumIDs))
-				return String.format("scan=%d", value);
-			else if (scan == false &&
-				isSpectrumIDInMap(value, false, spectrumIDs))
-				return String.format("index=%d", value);
-			else return null;
-		}
 		// if it's just a plain integer, then we don't know if it's a scan or
-		// and index, so look it up in the source mzid file (if there is one)
-		else if (scan == null) try {
+		// index so look it up in the source mzid file (if there is one)
+		else try {
 			if (mzidCache.isScan(mzTabFile, sequence, value))
 				return String.format("scan=%d", value);
+			// fall back on index if it couldn't be found as a scan in the mzid
 			else return String.format("index=%d", value);
 		}
 		// if looking it up in the mzid file didn't help,
@@ -484,51 +483,80 @@ implements MzTabProcessor
 		catch (UnverifiableNativeIDException error) {
 			// if no ambiguous nativeID interpretation scheme has been
 			// selected yet, then try both, with scan first by default
+			Integer maxMS2Index = spectrumIDs.getLeft();
 			if (ambiguousNativeIDsAsScans == null) {
-				if (isSpectrumIDInMap(value, true, spectrumIDs)) {
+				nativeID = findScanInFile(value, nativeIDs);
+				if (nativeID != null) {
 					ambiguousNativeIDsAsScans = true;
-					return String.format("scan=%d", value);
+					return nativeID;
 				}
-				else if (isSpectrumIDInMap(value, false, spectrumIDs)) {
+				nativeID = findIndexInFile(value, maxMS2Index);
+				if (nativeID != null) {
 					ambiguousNativeIDsAsScans = false;
-					return String.format("index=%d", value);
+					return nativeID;
 				}
-				else return null;
 			}
 			// if a scheme has already been selected, then try that one only
-			else if (ambiguousNativeIDsAsScans &&
-				isSpectrumIDInMap(value, true, spectrumIDs))
-				return String.format("scan=%d", value);
-			else if (ambiguousNativeIDsAsScans == false &&
-				isSpectrumIDInMap(value, false, spectrumIDs))
-				return String.format("index=%d", value);
-			else return null;
+			else if (ambiguousNativeIDsAsScans) {
+				nativeID = findScanInFile(value, nativeIDs);
+				if (nativeID != null)
+					return nativeID;
+			}
+			else {
+				nativeID = findIndexInFile(value, maxMS2Index);
+				if (nativeID != null)
+					return nativeID;
+			}
+			return null;
 		}
+	}
+	
+	private boolean isNativeIDInFile(
+		String nativeID, Collection<String> nativeIDs
+	) {
+		if (nativeID == null || nativeIDs == null)
+			return false;
+		else return nativeIDs.contains(nativeID);
+	}
+	
+	private String findScanInFile(
+		Integer scan, Collection<String> nativeIDs
+	) {
+		if (scan == null || nativeIDs == null)
+			return null;
+		// try exact string match with all known scan number nativeID formats
+		String nativeID = String.format("scan=%d", scan);
+		if (isNativeIDInFile(nativeID, nativeIDs))
+			return nativeID;
+		nativeID = String.format("scanId=%d", scan);
+		if (isNativeIDInFile(nativeID, nativeIDs))
+			return nativeID;
+		// look through nativeID set and see if any match
+		// known scan number nativeID substring patterns
+		String value = Integer.toString(scan);
+		for (String nativeIDInFile : nativeIDs) {
+			Matcher matcher = MzTabConstants.SCAN_PATTERN.matcher(nativeIDInFile);
+			if (matcher.find() && matcher.group(1).equals(value))
+				return matcher.group();
+			matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(nativeIDInFile);
+			if (matcher.find() && matcher.group(1).equals(value))
+				return matcher.group();
+		}
+		// if the argument scan was not found in the file using any known
+		// scan number pattern (in whole or part), then it's really just not there
 		return null;
 	}
 	
-	private boolean isSpectrumIDInMap(
-		Integer value, boolean scan,
-		ImmutablePair<Integer, Collection<Integer>> spectrumIDs
+	private String findIndexInFile(
+		Integer index, Integer maxMS2Index
 	) {
-		if (value == null || spectrumIDs == null)
-			return false;
-		// if this is a scan number, then it must be in the scans
-		// collection to be verified present in the source file
-		if (scan) {
-			Collection<Integer> scans = spectrumIDs.getRight();
-			if (scans == null || scans.isEmpty())
-				return false;
-			else return scans.contains(value);
-		}
-		// otherwise, it's an index, so just check that the highest index
-		// found in the file is greater than or equal to this one
-		else {
-			Integer highestIndex = spectrumIDs.getLeft();
-			if (highestIndex == null)
-				return false;
-			else return value <= highestIndex;
-		}
+		if (index == null || maxMS2Index == null)
+			return null;
+		// we cannot assume the ordinality of the argument index, so we must use an
+		// inclusive comparison since the max index found is enforced to be 1-based
+		if (index <= maxMS2Index)
+			return String.format("index=%d", index);
+		else return null;
 	}
 	
 	private String getLine(String[] tokens) {
