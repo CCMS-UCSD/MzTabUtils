@@ -338,13 +338,13 @@ implements MzTabProcessor
 				lineNumber++;
 				if (line.trim().equals(""))
 					continue;
-				String[] tokens = line.split("\\s+");
+				String[] tokens = line.split("\\t");
 				if (tokens == null || tokens.length != 3)
 					throw new IllegalArgumentException(String.format(
 						"Line %d of spectrum IDs file [%s] is invalid:\n" +
 						"----------\n%s\n----------\n" +
 						"Each non-empty line is expected to consist of " +
-						"three tokens separated by whitespace.",
+						"three tokens separated by tabs.",
 						lineNumber, spectrumIDsFile.getName(), line));
 				// only process MS2+ spectra (i.e. having value >1 in the MS level column)
 				try {

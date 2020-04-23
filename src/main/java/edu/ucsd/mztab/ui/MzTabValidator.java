@@ -263,7 +263,7 @@ public class MzTabValidator
 					lineNumber++;
 					if (line.trim().equals(""))
 						continue;
-					String[] tokens = line.split("\\s+");
+					String[] tokens = line.split("\\t");
 					if (tokens == null || tokens.length != 3)
 						throw new IllegalArgumentException(String.format(
 							"Line %d of spectrum IDs file [%s] is invalid:\n" +
