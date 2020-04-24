@@ -70,6 +70,8 @@ public class MzTabConstants
 	public static final Pattern INDEX_PATTERN = Pattern.compile("index=(\\d+)");
 	public static final Pattern QUERY_PATTERN = Pattern.compile("query=(\\d+)");
 	public static final Pattern FILE_PATTERN = Pattern.compile("file=(.+)");
+    public static final String THERMO_SCAN_PREFIX =
+        "controllerType=0 controllerNumber=1 scan=";
 	
 	// constants pertaining to mzTab "modifications" column values,
 	// as seen in PRT, PEP and PSM rows

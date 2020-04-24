@@ -409,6 +409,13 @@ implements MzTabProcessor
 			if (modifiedNativeID.equals(nativeID) == false &&
 				isNativeIDInFile(modifiedNativeID, nativeIDs))
 				return modifiedNativeID;
+	        // if this is a scan nativeID but the plain "scan=" format was not found in the
+			// file, then try the Thermo "controllerType=0 controllerNumber=1 scan=" format
+	        modifiedNativeID = String.format(
+	            "%s%s", MzTabConstants.THERMO_SCAN_PREFIX, matcher.group(1));
+            if (modifiedNativeID.equals(nativeID) == false &&
+                isNativeIDInFile(modifiedNativeID, nativeIDs))
+                return modifiedNativeID;
 		}
 		// next try the relatively rare "scanId="
 		matcher = MzTabConstants.SCAN_ID_PATTERN.matcher(nativeID);
