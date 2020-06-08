@@ -675,23 +675,25 @@ public class ProteoSAFeFileMappingContext
 					"upload mappings having expected prefix [%s].",
 					String.format("%s|%s", mangledFilename, uploadFilePath),
 					parameterName, mangledPrefix));
-			// determine this upload mapping's normalized upload path,
-			// if it's part of a folder selected for upload by the user
-			for (String folder : folders) {
-				if (isInFolder(uploadFilePath, folder)) {
-					String normalizedPath =
-						uploadFilePath.substring(folder.length());
-					normalizedPath = String.format("%s%s",
-						FilenameUtils.getBaseName(folder), normalizedPath);
-					mapping.setNormalizedUploadFilePath(normalizedPath);
-					break;
-				}
-			}
-			// if it's not part of any user-selected folder, then this
-			// mapping's normalized upload path is just the filename
-			if (mapping.getNormalizedUploadFilePath() == null)
-				mapping.setNormalizedUploadFilePath(
-					FilenameUtils.getName(uploadFilePath));
+            // if this file was not selected individually, then
+            // it must be from a folder that the user selected
+            if (files.contains(uploadFilePath) == false) {
+                // determine this upload mapping's normalized upload
+                // path relative to the folder that contains it
+                for (String folder : folders) {
+                    if (isInFolder(uploadFilePath, folder)) {
+                        String normalizedPath = uploadFilePath.substring(folder.length());
+                        normalizedPath = String.format(
+                            "%s%s", FilenameUtils.getBaseName(folder), normalizedPath);
+                        mapping.setNormalizedUploadFilePath(normalizedPath);
+                        break;
+                    }
+                }
+            }
+            // if this file was not found in any selected folder, then
+            // its normalized upload path is just the filename
+            if (mapping.getNormalizedUploadFilePath() == null)
+                mapping.setNormalizedUploadFilePath(FilenameUtils.getName(uploadFilePath));
 			// finally, record the verified upload mapping
 			uploads.add(mapping);
 		}
