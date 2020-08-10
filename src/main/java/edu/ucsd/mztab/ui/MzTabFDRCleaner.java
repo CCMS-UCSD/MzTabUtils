@@ -100,12 +100,11 @@ public class MzTabFDRCleaner
 		// are not null, and there is at least one decoy
 		if (target == null || decoy == null || decoy <= 0)
 			return null;
-		// if we have non-zero decoys, but no targets (very unlikely),
-		// then we say there is one target to avoid a divide by zero error
+		// if we have non-zero decoys, but no targets (very unlikely), then FDR is 100%
 		else if (target <= 0)
-			target = 1;
+			return 1.0;
 		// global FDR = ratio of # decoys / # targets
-		return (double)decoy / (double)target;
+		else return (double)decoy / (double)target;
 	}
 	
 	public static void processMzTabFileFDR(
