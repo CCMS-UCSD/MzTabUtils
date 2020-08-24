@@ -247,7 +247,7 @@ public class CountProcessor implements MzTabProcessor
 	
 	private void addElement(String type, String value) {
 		if (type == null || value == null ||
-			value.trim().equalsIgnoreCase("null"))
+			value.trim().equalsIgnoreCase("null") || value.trim().equals("0"))
 			return;
 		else if (type.equals("modifications"))
 			addModifications(value);
