@@ -138,7 +138,7 @@ public class ProteomicsUtils
 	}
 	
 	public static Collection<Modification> getModifications(String mods) {
-		if (mods == null || mods.equalsIgnoreCase("null"))
+		if (mods == null || mods.equalsIgnoreCase("null") || mods.equals("0"))
 			return null;
 		Collection<Modification> modifications =
 			new LinkedHashSet<Modification>();

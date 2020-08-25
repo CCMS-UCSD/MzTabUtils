@@ -249,9 +249,15 @@ public class CountProcessor implements MzTabProcessor
 		if (type == null || value == null ||
 			value.trim().equalsIgnoreCase("null"))
 			return;
-		else if (type.equals("modifications"))
-			addModifications(value);
-		else {
+		else if (type.equals("modifications")) {
+			// section 6.3.15 of the official version 1.0.0 mzTab format specification allows
+			// a value of "0" to be used to indicate the absence of mods in the mzTab protein
+			// section; although this does not seem to be intended for the PSM section, we
+			// allow it here just to be more inclusive of otherwise valid mzTab files
+			if (value.trim().equals("0"))
+				return;
+			else addModifications(value);
+		} else {
 			Set<String> values = uniqueElements.get(type);
 			if (values == null)
 				values = new HashSet<String>();
