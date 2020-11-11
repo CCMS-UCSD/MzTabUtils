@@ -29,7 +29,7 @@ public class ProteoSAFeMzTabCleaner
 			"(if not provided, then cleanup is skipped]" +
 		"\n\t[-mztabPath      <MzTabRelativePath> " +
 			"(if not under MzTabDirectory)]" +
-        "\n\t[-resultErrors   <ResultFileErrorsDirectory>]" +
+        "\n\t[-mztabErrors    <MzTabErrorsDirectory>]" +
 		"\n\t[-peak           <PeakListFilesDirectory>]" +
 		"\n\t[-peakPath       <PeakListRelativePath> " +
 			"(if not under PeakListFilesDirectory)]" +
@@ -70,10 +70,10 @@ public class ProteoSAFeMzTabCleaner
 		// submission and no cleanup needs to occur
 		if (cleanup.context == null)
 			return;
-        // check result file errors directory, note any files that failed
+        // check mzTab errors directory, note any files that failed
         Collection<String> failedMangledNames = null;
-        if (cleanup.resultErrorsDirectory != null) {
-            File[] errorFiles = cleanup.resultErrorsDirectory.listFiles();
+        if (cleanup.mzTabErrorsDirectory != null) {
+            File[] errorFiles = cleanup.mzTabErrorsDirectory.listFiles();
             if (errorFiles != null && errorFiles.length > 0) {
                 failedMangledNames = new LinkedHashSet<String>(errorFiles.length);
                 for (File file : errorFiles) {
@@ -134,7 +134,7 @@ public class ProteoSAFeMzTabCleaner
 		 * Properties
 		 *====================================================================*/
 		private File             mzTabDirectory;
-        private File             resultErrorsDirectory;
+        private File             mzTabErrorsDirectory;
 		private File             outputDirectory;
 		private TaskMzTabContext context;
 		private String           passThresholdColumn;
@@ -154,7 +154,7 @@ public class ProteoSAFeMzTabCleaner
 		 * Constructors
 		 *====================================================================*/
 		public ProteoSAFeMzTabCleanupOperation(
-			File mzTabDirectory, String mzTabRelativePath, File resultErrorsDirectory,
+			File mzTabDirectory, String mzTabRelativePath, File mzTabErrorsDirectory,
 			File peakListDirectory, String peakListRelativePath,
 			String peakListCollection, File parameters,
 			File outputDirectory, String datasetID,
@@ -177,18 +177,18 @@ public class ProteoSAFeMzTabCleaner
 						mzTabDirectory.getAbsolutePath()));
 			}
 			this.mzTabDirectory = mzTabDirectory;
-            // validate result file errors directory (may be null)
-            if (resultErrorsDirectory != null) {
-                if (resultErrorsDirectory.isDirectory() == false)
+            // validate mzTab errors directory (may be null)
+            if (mzTabErrorsDirectory != null) {
+                if (mzTabErrorsDirectory.isDirectory() == false)
                     throw new IllegalArgumentException(String.format(
-                        "Result errors directory [%s] must be a directory.",
-                        resultErrorsDirectory.getAbsolutePath()));
-                else if (resultErrorsDirectory.canRead() == false)
+                        "MzTab errors directory [%s] must be a directory.",
+                        mzTabErrorsDirectory.getAbsolutePath()));
+                else if (mzTabErrorsDirectory.canRead() == false)
                     throw new IllegalArgumentException(String.format(
-                        "Result errors directory [%s] must be readable.",
-                        resultErrorsDirectory.getAbsolutePath()));
+                        "MzTab errors directory [%s] must be readable.",
+                        mzTabErrorsDirectory.getAbsolutePath()));
             }
-            this.resultErrorsDirectory = resultErrorsDirectory;
+            this.mzTabErrorsDirectory = mzTabErrorsDirectory;
 			// validate peak list files directory (can be null)
 			if (peakListDirectory != null) {
 				if (peakListDirectory.isDirectory() == false)
@@ -264,7 +264,7 @@ public class ProteoSAFeMzTabCleaner
 			return null;
 		File mzTabDirectory = null;
 		String mzTabRelativePath = null;
-        File resultErrorsDirectory = null;
+        File mzTabErrorsDirectory = null;
 		File peakListDirectory = null;
 		String peakListRelativePath = null;
 		String peakListCollection = null;
@@ -296,8 +296,8 @@ public class ProteoSAFeMzTabCleaner
 					mzTabDirectory = new File(value);
 				else if (argument.equals("-mztabPath"))
 					mzTabRelativePath = value;
-                else if (argument.equals("-resultErrors"))
-                    resultErrorsDirectory = new File(value);
+                else if (argument.equals("-mztabErrors"))
+                    mzTabErrorsDirectory = new File(value);
 				else if (argument.equals("-peak"))
 					peakListDirectory = new File(value);
 				else if (argument.equals("-peakPath"))
@@ -392,7 +392,7 @@ public class ProteoSAFeMzTabCleaner
 		}
 		try {
 			return new ProteoSAFeMzTabCleanupOperation(
-				mzTabDirectory, mzTabRelativePath, resultErrorsDirectory,
+				mzTabDirectory, mzTabRelativePath, mzTabErrorsDirectory,
 				peakListDirectory, peakListRelativePath, peakListCollection,
 				parameters, outputDirectory, datasetID,
 				passThresholdColumn, decoyColumn, decoyPattern,
