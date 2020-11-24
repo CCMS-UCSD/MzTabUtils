@@ -8,10 +8,14 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import edu.ucsd.mztab.MzTabReader;
@@ -24,6 +28,7 @@ import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.MzTabConstants.MzTabSection;
 import edu.ucsd.mztab.processors.PSMValidationProcessor;
 import edu.ucsd.mztab.processors.SpectraRefValidationProcessor;
+import edu.ucsd.mztab.util.CommonUtils;
 
 public class MzTabValidator
 {
@@ -32,24 +37,28 @@ public class MzTabValidator
 	 *========================================================================*/
 	private static final String USAGE =
 		"java -cp MzTabUtils.jar edu.ucsd.mztab.ui.MzTabValidator" +
-		"\n\t-params          <ParameterFile>" +
-		"\n\t[-mztab          <MzTabDirectory> " +
+		"\n\t-params              <ParameterFile>" +
+		"\n\t[-mztab              <MzTabDirectory> " +
 			"(if not provided, then validation is skipped]" +
-		"\n\t[-mztabPath      <MzTabRelativePath> " +
+		"\n\t[-mztabPath          <MzTabRelativePath> " +
 			"(if not under MzTabDirectory)]" +
-		"\n\t[-peak           <PeakListFilesDirectory>]" +
-		"\n\t[-peakPath       <PeakListRelativePath> " +
+		"\n\t[-peak               <PeakListFilesDirectory>]" +
+		"\n\t[-peakPath           <PeakListRelativePath> " +
 			"(if not under PeakListFilesDirectory)]" +
-		"\n\t[-peakCollection <PeakListCollectionName> " +
+		"\n\t[-peakCollection     <PeakListCollectionName> " +
 			"(default \"peak_list_files\")]" +
-		"\n\t[-scans          <ScansDirectory>]" +
-		"\n\t[-result         <UploadedResultDirectory>]" +
-		"\n\t[-dataset        <DatasetID>|<DatasetIDFile>]" +
-		"\n\t-output          <ValidatedMzTabDirectory>" +
-		"\n\t[-log            <LogFile> " +
+		"\n\t[-scans              <ScansDirectory>]" +
+		"\n\t[-result             <UploadedResultDirectory>]" +
+        "\n\t[-conversionErrors   <ResultFileConversionErrorsDirectory>]" +
+        "\n\t[-validationErrors   <ResultFileValidationErrorsDirectory>]" +
+		"\n\t[-dataset            <DatasetID>|<DatasetIDFile>]" +
+		"\n\t-output              <ValidatedMzTabDirectory>" +
+		"\n\t[-log                <LogFile> " +
 			"(if not specified, log output will be printed to stdout)]" +
-		"\n\t[-threshold      <InvalidPSMPercentageToFail: 0-100> " +
-			"(default 10)]";
+		"\n\t[-threshold          <InvalidPSMPercentageToFail: 0-100> " +
+			"(default 10)]" +
+        "\n\t[-bypass             true/false (default false; " +
+            "if set to true, will allow mzTab validation errors)]";
 	public static final Double DEFAULT_FAILURE_THRESHOLD = 10.0;
 	public static final String MZTAB_VALIDATION_LOG_HEADER_LINE =
 		"MzTab_file\tUploaded_file\tFile_descriptor\t" +
@@ -78,6 +87,25 @@ public class MzTabValidator
 				"marked as an unsupported (i.e. partial) submission.");
 			return;
 		}
+        // check result file conversion errors directory, note any files
+        // that failed and copy into validation errors directory
+        Collection<String> failedMangledNames = null;
+        if (validation.conversionErrorsDirectory != null) {
+            File[] errorFiles = validation.conversionErrorsDirectory.listFiles();
+            if (errorFiles != null && errorFiles.length > 0) {
+                failedMangledNames = new LinkedHashSet<String>(errorFiles.length);
+                for (File file : errorFiles) {
+                    failedMangledNames.add(FilenameUtils.getBaseName(file.getName()));
+                    try {
+                        FileUtils.copyFileToDirectory(file, validation.validationErrorsDirectory);
+                    } catch (Throwable error) {
+                        die(String.format("Could not copy result file conversion error file [%s] " +
+                            "to result file validation errors directory [%s].", file.getName(),
+                            validation.validationErrorsDirectory.getAbsolutePath()));
+                    }
+                }
+            }
+        }
 		// sort files alphabetically
 		Arrays.sort(files);
 		// set up log output stream
@@ -100,6 +128,10 @@ public class MzTabValidator
 			writer.println(MZTAB_VALIDATION_LOG_HEADER_LINE);
 			// validate all PSM rows, write proper line for each to the log
 			for (File file : files) {
+                // if this file failed to convert, don't validate it
+                String mangledBase = FilenameUtils.getBaseName(file.getName());
+                if (failedMangledNames != null && failedMangledNames.contains(mangledBase))
+                    continue;
 				// get this mzTab file
 				MzTabFile mzTabFile = validation.context.getMzTabFile(file);
 				// set up output file
@@ -107,9 +139,9 @@ public class MzTabValidator
 					new File(validation.outputDirectory, file.getName());
 				// validate this mzTab File
 				validateMzTabFile(mzTabFile, outputFile,
-					validation.uploadedResultDirectory,
+					validation.uploadedResultDirectory, validation.validationErrorsDirectory,
 					validation.scansDirectory, validation.failureThreshold,
-					writer);
+					validation.bypassValidation, writer);
 			}
 			// write peak list stats to log
 			logPeakListStats(
@@ -126,7 +158,8 @@ public class MzTabValidator
 	
 	public static void validateMzTabFile(
 		MzTabFile inputFile, File outputFile, File uploadedResultDirectory,
-		File scansDirectory, double failureThreshold, PrintWriter writer
+		File validationErrorsDirectory, File scansDirectory,
+		double failureThreshold, boolean bypassValidation, PrintWriter writer
 	) {
 		if (inputFile == null || outputFile == null || writer == null)
 			return;
@@ -211,7 +244,29 @@ public class MzTabValidator
 			message.append("ensure that its referenced spectra are ");
 			message.append("accessible within linked peak list files, ");
 			message.append("and then re-submit.");
-			die(message.toString());
+            // if validation bypass is not set, fail as normal
+            if (bypassValidation == false)
+                die(message.toString());
+            // otherwise, log error and move on
+            else {
+                System.out.println(message.toString());
+                File errorFile =
+                    new File(validationErrorsDirectory, inputFile.getMangledMzTabFilename());
+                PrintWriter errorWriter = null;
+                try {
+                    errorWriter = new PrintWriter(errorFile);
+                    errorWriter.println(message.toString());
+                } catch (Throwable error) {
+                    die(String.format("Could not write validation error message " +
+                        "for mzTab file [%s] to result file validation errors directory [%s].",
+                        inputFile.getMzTabPath(), validationErrorsDirectory.getAbsolutePath()),
+                        error);
+                } finally {
+                    try { errorWriter.close(); }
+                    catch (Throwable error) {}
+                }
+                return;
+            }
 		}
 		// get relevant file name to print to output file
 		String uploadedFilename = inputFile.getUploadedResultPath();
@@ -307,9 +362,12 @@ public class MzTabValidator
 		private File             mzTabDirectory;
 		private File             scansDirectory;
 		private File             uploadedResultDirectory;
+        private File             conversionErrorsDirectory;
+        private File             validationErrorsDirectory;
 		private File             outputDirectory;
 		private File             logFile;
 		private double           failureThreshold;
+		private boolean          bypassValidation;
 		
 		/*====================================================================
 		 * Constructors
@@ -317,9 +375,10 @@ public class MzTabValidator
 		public MzTabValidationOperation(
 			File parameters, File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
-			String peakListCollection, File scansDirectory,
-			File resultDirectory, String datasetID, File outputDirectory,
-			File logFile, String failureThreshold
+			String peakListCollection, File scansDirectory, File resultDirectory,
+			File conversionErrorsDirectory, File validationErrorsDirectory,
+			String datasetID, File outputDirectory, File logFile,
+			String failureThreshold, Boolean bypassValidation
 		) {
 			// validate parameters file
 			if (parameters == null)
@@ -394,6 +453,31 @@ public class MzTabValidator
 			// against the spectrum IDs map as both scan and index anyway
 //			this.uploadedResultDirectory = resultDirectory;
 			this.uploadedResultDirectory = null;
+            // validate result file conversion errors directory (may be null)
+            if (conversionErrorsDirectory != null) {
+                if (conversionErrorsDirectory.isDirectory() == false)
+                    throw new IllegalArgumentException(String.format(
+                        "Result file conversion errors directory [%s] must be a directory.",
+                        conversionErrorsDirectory.getAbsolutePath()));
+                else if (conversionErrorsDirectory.canRead() == false)
+                    throw new IllegalArgumentException(String.format(
+                        "Result file conversion errors directory [%s] must be readable.",
+                        conversionErrorsDirectory.getAbsolutePath()));
+                this.conversionErrorsDirectory = conversionErrorsDirectory;
+            }
+            // validate result file validation errors output directory
+            if (validationErrorsDirectory == null)
+                throw new NullPointerException(
+                    "Result file validation errors directory cannot be null.");
+            else if (validationErrorsDirectory.isDirectory() == false)
+                throw new IllegalArgumentException(String.format(
+                    "Result file validation errors directory [%s] must be a directory.",
+                    validationErrorsDirectory.getAbsolutePath()));
+            else if (validationErrorsDirectory.canWrite() == false)
+                throw new IllegalArgumentException(String.format(
+                    "Result file validation errors directory [%s] must be writable.",
+                    validationErrorsDirectory.getAbsolutePath()));
+            else this.validationErrorsDirectory = validationErrorsDirectory;
 			// validate processed mzTab output directory
 			if (outputDirectory == null)
 				throw new NullPointerException(
@@ -421,6 +505,10 @@ public class MzTabValidator
 					"Failure threshold [%s] must be a real number " +
 					"between 0 and 100.", failureThreshold));
 			} else this.failureThreshold = DEFAULT_FAILURE_THRESHOLD;
+            // initialize bypass flag
+            if (bypassValidation == null)
+                this.bypassValidation = false;
+            else this.bypassValidation = bypassValidation;
 		}
 	}
 	
@@ -438,10 +526,13 @@ public class MzTabValidator
 		String peakListCollection = null;
 		File scansDirectory = null;
 		File resultDirectory = null;
+        File conversionErrorsDirectory = null;
+        File validationErrorsDirectory = null;
 		String datasetID = null;
 		File outputDirectory = null;
 		File logFile = null;
 		String failureThreshold = null;
+        Boolean bypassValidation = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -467,6 +558,10 @@ public class MzTabValidator
 					scansDirectory = new File(value);
 				else if (argument.equals("-result"))
 					resultDirectory = new File(value);
+                else if (argument.equals("-conversionErrors"))
+                    conversionErrorsDirectory = new File(value);
+                else if (argument.equals("-validationErrors"))
+                    validationErrorsDirectory = new File(value);
 				else if (argument.equals("-dataset")) {
 					// if this argument is a file, read it to get dataset ID
 					File datasetIDFile = new File(value);
@@ -491,14 +586,17 @@ public class MzTabValidator
 					logFile = new File(value);
 				else if (argument.equals("-threshold"))
 					failureThreshold = value;
+                else if (argument.equals("-bypass"))
+                    bypassValidation = CommonUtils.parseBooleanColumn(value);
 				else return null;
 			}
 		}
 		try {
 			return new MzTabValidationOperation(params, mzTabDirectory,
 				mzTabRelativePath, peakListDirectory, peakListRelativePath,
-				peakListCollection, scansDirectory, resultDirectory, datasetID,
-				outputDirectory, logFile, failureThreshold);
+				peakListCollection, scansDirectory, resultDirectory,
+				conversionErrorsDirectory, validationErrorsDirectory,
+				datasetID, outputDirectory, logFile, failureThreshold, bypassValidation);
 		} catch (Throwable error) {
 			die("There was an error reading command line parameters " +
 				"to set up mzTab validation operation.", error);

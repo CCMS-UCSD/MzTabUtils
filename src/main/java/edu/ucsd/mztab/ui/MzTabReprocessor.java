@@ -163,10 +163,11 @@ public class MzTabReprocessor
 				// get this mzTab file
 				MzTabFile mzTabFile = context.getMzTabFile(resultFile);
 				// validate this mzTab File
+				// TODO: update this class's API to properly support validation bypass
 				MzTabValidator.validateMzTabFile(mzTabFile, destinationFile,
-					reprocessing.resultDirectory,
+					reprocessing.resultDirectory, null,
 					reprocessing.scansDirectory, reprocessing.failureThreshold,
-					writer);
+					false, writer);
 			}
 			// write peak list stats to log
 			MzTabValidator.logPeakListStats(
