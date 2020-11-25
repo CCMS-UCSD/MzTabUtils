@@ -230,7 +230,7 @@ public class TSVToMzTabParamGenerator
 				"Reading input TSV file [%s]...", filename));
 			// read the first line of the file
 			reader = new BufferedReader(new FileReader(this.tsvFile));
-			reader.mark(10000);
+			reader.mark(65535);
 			line = reader.readLine();
 			// if the first line is not supposed to be a header line, rewind
 			if (this.hasHeader == false) {
