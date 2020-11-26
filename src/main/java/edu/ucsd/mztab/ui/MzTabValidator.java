@@ -90,7 +90,8 @@ public class MzTabValidator
         // check result file conversion errors directory, note any files
         // that failed and copy into validation errors directory
         Collection<String> failedMangledNames = null;
-        if (validation.conversionErrorsDirectory != null) {
+        if (validation.conversionErrorsDirectory != null &&
+            validation.validationErrorsDirectory != null) {
             File[] errorFiles = validation.conversionErrorsDirectory.listFiles();
             if (errorFiles != null && errorFiles.length > 0) {
                 failedMangledNames = new LinkedHashSet<String>(errorFiles.length);
@@ -250,20 +251,22 @@ public class MzTabValidator
             // otherwise, log error and move on
             else {
                 System.out.println(message.toString());
-                File errorFile =
-                    new File(validationErrorsDirectory, inputFile.getMangledMzTabFilename());
-                PrintWriter errorWriter = null;
-                try {
-                    errorWriter = new PrintWriter(errorFile);
-                    errorWriter.println(message.toString());
-                } catch (Throwable error) {
-                    die(String.format("Could not write validation error message " +
-                        "for mzTab file [%s] to result file validation errors directory [%s].",
-                        inputFile.getMzTabPath(), validationErrorsDirectory.getAbsolutePath()),
-                        error);
-                } finally {
-                    try { errorWriter.close(); }
-                    catch (Throwable error) {}
+                if (validationErrorsDirectory != null) {
+                    File errorFile =
+                        new File(validationErrorsDirectory, inputFile.getMangledMzTabFilename());
+                    PrintWriter errorWriter = null;
+                    try {
+                        errorWriter = new PrintWriter(errorFile);
+                        errorWriter.println(message.toString());
+                    } catch (Throwable error) {
+                        die(String.format("Could not write validation error message " +
+                            "for mzTab file [%s] to result file validation errors directory [%s].",
+                            inputFile.getMzTabPath(), validationErrorsDirectory.getAbsolutePath()),
+                            error);
+                    } finally {
+                        try { errorWriter.close(); }
+                        catch (Throwable error) {}
+                    }
                 }
                 return;
             }
@@ -465,19 +468,18 @@ public class MzTabValidator
                         conversionErrorsDirectory.getAbsolutePath()));
                 this.conversionErrorsDirectory = conversionErrorsDirectory;
             }
-            // validate result file validation errors output directory
-            if (validationErrorsDirectory == null)
-                throw new NullPointerException(
-                    "Result file validation errors directory cannot be null.");
-            else if (validationErrorsDirectory.isDirectory() == false)
-                throw new IllegalArgumentException(String.format(
-                    "Result file validation errors directory [%s] must be a directory.",
-                    validationErrorsDirectory.getAbsolutePath()));
-            else if (validationErrorsDirectory.canWrite() == false)
-                throw new IllegalArgumentException(String.format(
-                    "Result file validation errors directory [%s] must be writable.",
-                    validationErrorsDirectory.getAbsolutePath()));
-            else this.validationErrorsDirectory = validationErrorsDirectory;
+            // validate result file validation errors output directory (may be null)
+            if (validationErrorsDirectory != null) {
+                if (validationErrorsDirectory.isDirectory() == false)
+                    throw new IllegalArgumentException(String.format(
+                        "Result file validation errors directory [%s] must be a directory.",
+                        validationErrorsDirectory.getAbsolutePath()));
+                else if (validationErrorsDirectory.canWrite() == false)
+                    throw new IllegalArgumentException(String.format(
+                        "Result file validation errors directory [%s] must be writable.",
+                        validationErrorsDirectory.getAbsolutePath()));
+                this.validationErrorsDirectory = validationErrorsDirectory;
+            }
 			// validate processed mzTab output directory
 			if (outputDirectory == null)
 				throw new NullPointerException(
