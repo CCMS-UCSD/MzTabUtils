@@ -300,8 +300,29 @@ public class FDRCalculationProcessor implements MzTabProcessor
 				// if the source column is present, read it
 				if (decoyColumn != null)
 					index = columns.get(decoyColumn);
-				// otherwise look at the protein accession by default
-				else index = columns.get(MzTabConstants.PSH_PROTEIN_COLUMN);
+				// otherwise look for known decoy columns
+				else {
+					// get PSM section column headers
+					List<String> headers = psmHeader.getColumns();
+					// look at each column header to see if it matches a known decoy column
+					for (String column : MzTabConstants.KNOWN_DECOY_COLUMNS) {
+						for (int i=0; i<headers.size(); i++) {
+							String header = headers.get(i);
+							if (header == null)
+								continue;
+							else if (CommonUtils.headerCorrespondsToColumn(
+								header, column, scoreColumns)) {
+								index = columns.get(header);
+								break;
+							}
+						}
+						if (index != null)
+							break;
+					}
+				}
+				// finally, look at the protein accession by default
+				if (index == null)
+					index = columns.get(MzTabConstants.PSH_PROTEIN_COLUMN);
 				// if any potential decoy-indicating
 				// column could be found, check it
 				if (index != null) {
