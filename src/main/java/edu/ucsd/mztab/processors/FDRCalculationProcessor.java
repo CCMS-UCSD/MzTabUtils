@@ -175,6 +175,24 @@ public class FDRCalculationProcessor implements MzTabProcessor
 						break;
 				}
 			}
+			// if the user did not specify a decoy-indicating column,
+			// then look for one that we know corresponds to this
+			if (decoyColumn == null) {
+				for (String column : MzTabConstants.KNOWN_DECOY_COLUMNS) {
+					for (int i=0; i<headers.size(); i++) {
+						String header = headers.get(i);
+						if (header == null)
+							continue;
+						else if (CommonUtils.headerCorrespondsToColumn(
+							header, column, scoreColumns)) {
+							decoyColumn = header;
+							break;
+						}
+					}
+					if (decoyColumn != null)
+						break;
+				}
+			}
 			// record all relevant column indices
 			for (int i=0; i<headers.size(); i++) {
 				String header = headers.get(i);

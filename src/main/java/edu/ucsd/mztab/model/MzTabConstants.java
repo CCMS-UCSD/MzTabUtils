@@ -132,6 +132,9 @@ public class MzTabConstants
 	public static final String[] KNOWN_PEPTIDE_QVALUE_COLUMNS = new String[]{
 		"PepQValue", "MS-GF:PepQValue"
 	};
+	public static final String[] KNOWN_DECOY_COLUMNS = new String[]{
+		"decoy"
+	};
 	public static final String[] KNOWN_DECOY_PATTERNS = new String[]{
 		"XXX_"
 	};
