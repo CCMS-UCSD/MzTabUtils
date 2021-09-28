@@ -52,6 +52,7 @@ public class PROXIProcessor implements MzTabProcessor
 	private MzTabSectionHeader                pepHeader;
 	private MzTabSectionHeader                psmHeader;
 	private boolean                           importByQValue;
+    private boolean                           test;
 	private Integer                           validColumn;
 	private Integer                           qValueColumn;
 	private Long                              start;
@@ -60,14 +61,14 @@ public class PROXIProcessor implements MzTabProcessor
 	 * Constructor
 	 *========================================================================*/
 	public PROXIProcessor(
-		String taskID, String datasetID, boolean importByQValue,
+		String taskID, String datasetID, boolean importByQValue, boolean test,
 		Connection connection
 	) {
-		this(taskID, datasetID, importByQValue, null, connection);
+		this(taskID, datasetID, importByQValue, test, null, connection);
 	}
 	
 	public PROXIProcessor(
-		String taskID, String datasetID, boolean importByQValue,
+		String taskID, String datasetID, boolean importByQValue, boolean test,
 		Map<String, Map<String, Integer>> globalElements, Connection connection
 	) {
 		// validate database connection
@@ -95,6 +96,7 @@ public class PROXIProcessor implements MzTabProcessor
 		psmHeader = null;
 		qValueColumn = null;
 		this.importByQValue = importByQValue;
+		this.test = test;
 		// intialize start time
 		start = null;
 	}
@@ -311,7 +313,9 @@ public class PROXIProcessor implements MzTabProcessor
 					for (int tries=1; tries<=IMPORT_ATTEMPTS_PER_PSM; tries++) {
 						try {
 							cascadePSM(psm, cleanedAccession, modifications);
-							connection.commit();
+							// only commit if this is not a test
+							if (test == false)
+								connection.commit();
 							importError = null;
 							break;
 						} catch (Throwable error) {
@@ -478,8 +482,9 @@ public class PROXIProcessor implements MzTabProcessor
 			else throw new RuntimeException(String.format(
 				"The resultfile insert statement returned a value of \"%d\".",
 				insertion));
-			// commit result file insertion
-			connection.commit();
+			// if this is not a test, commit result file insertion
+			if (test == false)
+				connection.commit();
 		} catch (Throwable error) {
 			throw new RuntimeException("Error recording resultfile: There " +
 				"was an error inserting the resultfile row into the database.",
@@ -696,11 +701,12 @@ public class PROXIProcessor implements MzTabProcessor
 			else throw new RuntimeException(String.format(
 				"The spectrumfile insert statement returned a value of \"%d\".",
 				insertion));
-			// commit spectrum file insertion, since spectrum files might be
-			// shared across multiple concurrent import operations, so we
-			// don't want to try to roll back this insertion if something goes
+			// if this is not a test, commit spectrum file insertion, since spectrum
+			// files might be shared across multiple concurrent import operations, so
+			// we don't want to try to roll back this insertion if something goes
 			// wrong with some but not all of those imports
-			connection.commit();
+			if (test == false)
+				connection.commit();
 		} catch (Throwable error) {
 			throw new RuntimeException("Error recording spectrumfile: There " +
 				"was an error inserting the spectrumfile row into the " +
