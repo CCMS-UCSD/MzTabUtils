@@ -87,7 +87,7 @@ public class PROXIProcessor implements MzTabProcessor
 		mzTabRecord.datasetID = datasetID;
 		// initialize counter maps
 		uniqueElements = new HashMap<String, Map<String, Integer>>();
-		if (globalElements == null)
+		if (globalElements != null)
 			this.globalElements = globalElements;
 		rowCounts = new HashMap<String, Integer>(3);
 		// initialize mzTab file parameters
