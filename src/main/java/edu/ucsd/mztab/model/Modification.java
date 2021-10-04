@@ -69,6 +69,10 @@ public class Modification
 		}
 	}
 	
+	public int hashCode() {
+		return toString().hashCode();
+	}
+	
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
