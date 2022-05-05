@@ -170,6 +170,7 @@ public class MzTabConstants
 		AMINO_ACID_MASSES.put('V', 99.068413915);
 		AMINO_ACID_MASSES.put('W', 186.079312952);
 		AMINO_ACID_MASSES.put('Y', 163.063328537);
+		AMINO_ACID_MASSES.put('X', 0.0);
 	}
 	public static final Set<Character> KNOWN_AMINO_ACIDS =
 		new HashSet<Character>(AMINO_ACID_MASSES.keySet());

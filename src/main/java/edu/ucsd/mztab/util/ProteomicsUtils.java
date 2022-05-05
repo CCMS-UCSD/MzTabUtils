@@ -72,9 +72,13 @@ public class ProteomicsUtils
 		}
 		return clean.toString();
 	}
-	
+
+	public static String addModToPeptide(String peptide, double mass, int position) {
+		return addModToPeptide(peptide, mass, position, false);
+	}
+
 	public static String addModToPeptide(
-		String peptide, double mass, int position
+		String peptide, double mass, int position, boolean sumMassesAtSamePosition
 	) {
 		if (peptide == null)
 			return null;
@@ -93,8 +97,7 @@ public class ProteomicsUtils
 			for (index=1; index<=peptide.length(); index++) {
 				String character =
 					Character.toString(peptide.charAt(index - 1));
-				if (MzTabConstants.AMINO_ACID_PATTERN.matcher(character)
-					.matches()) {
+				if (MzTabConstants.AMINO_ACID_PATTERN.matcher(character).matches()) {
 					foundAminoAcids++;
 					if (foundAminoAcids == position)
 						break;
@@ -105,32 +108,34 @@ public class ProteomicsUtils
 		// ensure we don't go past the end of the sequence
 		if (index > peptide.length())
 			index = peptide.length();
-		// if the first part of the remaining sequence is a mass offset, then
-		// capture it, add this mod's mass to it, and write the sum in its place
-		String suffix = peptide.substring(index);
-		Matcher matcher = MzTabConstants.FLOAT_PATTERN.matcher(suffix);
-		if (matcher.find()) {
-			String currentMass = matcher.group();
-			int start = suffix.indexOf(currentMass);
-			// only sum masses if this mass is at the beginning of the suffix
-			if (start == 0) try {
-				mass += Double.parseDouble(currentMass);
-				peptide = String.format("%s%s", peptide.substring(0, index),
-					suffix.substring(currentMass.length()));
-			} catch (NumberFormatException error) {}
+		if (sumMassesAtSamePosition) {
+			// if the first part of the remaining sequence is a mass offset, then
+			// capture it, add this mod's mass to it, and write the sum in its place
+			String suffix = peptide.substring(index);
+			Matcher matcher = MzTabConstants.FLOAT_PATTERN.matcher(suffix);
+			if (matcher.find()) {
+				String currentMass = matcher.group();
+				int start = suffix.indexOf(currentMass);
+				// only sum masses if this mass is at the beginning of the suffix
+				if (start == 0) try {
+					mass += Double.parseDouble(currentMass);
+					peptide = String.format("%s%s", peptide.substring(0, index),
+						suffix.substring(currentMass.length()));
+				} catch (NumberFormatException error) {}
+			}
 		}
 		// write mass offset into processed peptide string at the proper index
-		return new StringBuilder(peptide).insert(index, formatMass(mass))
-			.toString();
+		return new StringBuilder(peptide).insert(index, formatMass(mass)).toString();
 	}
 	
 	public static String formatMass(Double mass) {
 		if (mass == null)
 			return null;
 		String formattedMass;
-		if (mass == (int)mass.doubleValue())
-			formattedMass = String.format("%d", (int)mass.doubleValue());
-		else formattedMass = String.format("%s", mass.toString());
+		int wholeMass = (int)mass.doubleValue();
+		if (mass == wholeMass)
+			formattedMass = String.format("%d", wholeMass);
+		else formattedMass = String.format("%.3f", mass);
 		// prepend a "+" if this is a non-negative mass offset
 		if (mass >= 0.0 && formattedMass.startsWith("+") == false)
 			formattedMass = "+" + formattedMass;

@@ -56,7 +56,11 @@ public class CommonUtils
 			return String.format("%d%ss", seconds, suffix);
 		else return String.format("%d ms", milliseconds);
 	}
-	
+
+	public static String formatNanoseconds(long nanoseconds) {
+		return formatMilliseconds(Math.round((double)nanoseconds / 1000000));
+	}
+
 	public static String formatBytes(long bytes) {
 		return formatBytes(bytes, true);
 	}
