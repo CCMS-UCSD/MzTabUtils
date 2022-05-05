@@ -6,12 +6,13 @@ import java.util.regex.Matcher;
 
 import org.apache.commons.lang3.StringEscapeUtils;
 
-public class PSM
+public class PSM implements Comparable<PSM>
 {
 	/*========================================================================
 	 * Properties
 	 *========================================================================*/
-	private Integer                  id;
+	private String                   id;
+	private Integer                  index;
 	private Integer                  msRun;
 	private String                   nativeID;
 	private String                   sequence;
@@ -23,20 +24,17 @@ public class PSM
 	 * Constructor
 	 *========================================================================*/
 	public PSM(
-		String id, String spectraRef, String sequence, String charge,
+		String id, Integer index, String spectraRef, String sequence, String charge,
 		String massToCharge, Collection<Modification> modifications
 	) {
 		// validate PSM_ID string
 		if (id == null)
-			throw new NullPointerException(
-				"Argument \"PSM_ID\" string cannot be null.");
-		else try {
-			this.id = Integer.parseInt(id);
-		} catch (NumberFormatException error) {
-			throw new IllegalArgumentException(String.format(
-				"Invalid \"PSM_ID\" string [%s]: \"PSM_ID\" must " +
-				"be an integer greater than or equal to 1.", id));
-		}
+			throw new NullPointerException("Argument \"PSM_ID\" string cannot be null.");
+		else this.id = id;
+		// validate PSM's index in result file
+		if (index == null)
+			throw new NullPointerException("Argument PSM index cannot be null.");
+		else this.index = index;
 		// validate spectra_ref string
 		if (spectraRef == null || spectraRef.trim().equalsIgnoreCase("null"))
 			throw new NullPointerException(
@@ -136,14 +134,24 @@ public class PSM
 	public int hashCode() {
 		return toString().hashCode();
 	}
+
+	public int compareTo(PSM psm) {
+		if (psm == null)
+			return 1;
+		else return getID().compareTo(psm.getID());
+	}
 	
 	/*========================================================================
 	 * Property accessor methods
 	 *========================================================================*/
-	public Integer getID() {
+	public String getID() {
 		return id;
 	}
-	
+
+	public Integer getIndex() {
+		return index;
+	}
+
 	public Integer getMsRun() {
 		return msRun;
 	}

@@ -10,17 +10,19 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
 
 import edu.ucsd.mztab.MzTabReader;
 import edu.ucsd.mztab.TaskMzTabContext;
 import edu.ucsd.mztab.model.MzTabConstants;
 import edu.ucsd.mztab.model.MzTabSectionHeader;
 import edu.ucsd.mztab.model.PSM;
-import edu.ucsd.mztab.processors.PROXIProcessor;
+import edu.ucsd.mztab.processors.MassIVESearchProcessor;
 import edu.ucsd.mztab.util.CommonUtils;
 import edu.ucsd.mztab.util.DatabaseUtils;
 import edu.ucsd.mztab.util.FileIOUtils;
@@ -44,7 +46,9 @@ public class MzTabPROXIImporter
 		"\n\t-params          <ProteoSAFeParametersFile>" +
 		"\n\t-task            <ProteoSAFeTaskID>" +
 		"\n\t-dataset         <DatasetID>|<DatasetIDFile>" +
-		"\n\t[-importByQValue true|false (default true)]";
+		"\n\t[-importByQValue true|false (default true)]" +
+		"\n\t[-startingPSMID  long int (default 1) - " +
+			"starting database ID for this batch of PSMs to be imported]";
 	private static final Pattern DATASET_ID_PATTERN =
 		Pattern.compile("^R?MSV(\\d{9}(?:\\.\\d+)?)$");
 	
@@ -58,7 +62,7 @@ public class MzTabPROXIImporter
 		try {
 			importDataset(importer.mzTabDirectory, importer.context,
 				importer.taskID, importer.datasetID, importer.importByQValue,
-				importer.start);
+				importer.startingPSMID, importer.start);
 		} catch (Throwable error) {
 			die(null, error);
 		}
@@ -66,22 +70,25 @@ public class MzTabPROXIImporter
 	
 	public static boolean importDataset(
 		File mzTabDirectory, TaskMzTabContext context, String taskID,
-		String datasetID, Boolean importByQValue, Long start
+		String datasetID, Boolean importByQValue, Long startingPSMID, Long start
 	) {
 		return importDataset(mzTabDirectory, context, taskID, datasetID,
-			importByQValue, start, null);
+			importByQValue, startingPSMID, start, null);
 	}
 	
 	public static boolean importDataset(
 		File mzTabDirectory, TaskMzTabContext context, String taskID,
-		String datasetID, Boolean importByQValue, Long start,
-		Map<String, Map<String, Integer>> globalElements
+		String datasetID, Boolean importByQValue, Long startingPSMID,
+		Long start, Map<String, Map<String, Integer>> globalElements
 	) {
 		if (mzTabDirectory == null || context == null || taskID == null)
 			return false;
 		// importByQValue defaults to true
 		if (importByQValue == null)
 			importByQValue = true;
+		// starting PSM database ID defaults to 1
+		if (startingPSMID == null)
+			startingPSMID = 1L;
 		// start defaults to current time
 		if (start == null)
 			start = System.currentTimeMillis();
@@ -114,14 +121,15 @@ public class MzTabPROXIImporter
 			for (File file : files) {
 				// try to import this file; null means it was not imported
 				// for benign reasons, errors should throw an exception
-				ImmutablePair<Integer, Integer> importCounts =
+				ImmutableTriple<Integer, Integer, Long> importCounts =
 					importMzTabFile(file, context, taskID, datasetID,
-						importByQValue, false, globalElements, connection);
+						importByQValue, startingPSMID, globalElements, connection);
 				if (importCounts == null)
 					continue;
 				filesImported++;
 				totalLines += importCounts.getLeft();
-				totalPSMRows += importCounts.getRight();
+				totalPSMRows += importCounts.getMiddle();
+				startingPSMID = importCounts.getRight();
 			}
 			long elapsed = System.currentTimeMillis() - start;
 			double seconds = elapsed / 1000.0;
@@ -143,18 +151,20 @@ public class MzTabPROXIImporter
 			try { connection.close(); } catch (Throwable error) {}
 		}
 	}
-	
-	public static ImmutablePair<Integer, Integer> importMzTabFile(
+
+	// import mzTab file - no database connection, no global elements map
+	public static ImmutableTriple<Integer, Integer, Long> importMzTabFile(
 		File mzTabFile, TaskMzTabContext context, String taskID,
-		String datasetID, Boolean importByQValue, Boolean test
+		String datasetID, Boolean importByQValue, Long startingPSMID
 	) {
 		return importMzTabFile(mzTabFile, context, taskID, datasetID,
-			importByQValue, test, (Map<String, Map<String, Integer>>)null);
+			importByQValue, startingPSMID, (Map<String, Map<String, Integer>>)null);
 	}
-	
-	public static ImmutablePair<Integer, Integer> importMzTabFile(
+
+	// import mzTab file - no database connection, yes global elements map
+	public static ImmutableTriple<Integer, Integer, Long> importMzTabFile(
 		File mzTabFile, TaskMzTabContext context, String taskID,
-		String datasetID, Boolean importByQValue, Boolean test,
+		String datasetID, Boolean importByQValue, Long startingPSMID,
 		Map<String, Map<String, Integer>> globalElements
 	) {
 		if (mzTabFile == null || context == null || taskID == null)
@@ -166,7 +176,7 @@ public class MzTabPROXIImporter
 				"Could not connect to the MassIVE search database server.");
 		try {
 			return importMzTabFile(mzTabFile, context, taskID, datasetID,
-				importByQValue, test, globalElements, connection);
+				importByQValue, startingPSMID, globalElements, connection);
 		} catch (Throwable error) {
 			throw new RuntimeException(String.format(
 				"Error importing mzTab file [%s] to the MassIVE search " +
@@ -175,18 +185,21 @@ public class MzTabPROXIImporter
 			try { connection.close(); } catch (Throwable error) {}
 		}
 	}
-	
-	public static ImmutablePair<Integer, Integer> importMzTabFile(
+
+	// import mzTab file - yes database connection, no global elements map
+	public static ImmutableTriple<Integer, Integer, Long> importMzTabFile(
 		File mzTabFile, TaskMzTabContext context, String taskID,
-		String datasetID, Boolean importByQValue, Boolean test, Connection connection
+		String datasetID, Boolean importByQValue, Long startingPSMID,
+		Connection connection
 	) {
 		return importMzTabFile(mzTabFile, context, taskID, datasetID,
-			importByQValue, test, null, connection);
+			importByQValue, startingPSMID, null, connection);
 	}
-	
-	public static ImmutablePair<Integer, Integer> importMzTabFile(
+
+	// import mzTab file - yes database connection, yes global elements map
+	public static ImmutableTriple<Integer, Integer, Long> importMzTabFile(
 		File mzTabFile, TaskMzTabContext context, String taskID,
-		String datasetID, Boolean importByQValue, Boolean test,
+		String datasetID, Boolean importByQValue, Long startingPSMID,
 		Map<String, Map<String, Integer>> globalElements, Connection connection
 	) {
 		if (mzTabFile == null || context == null || taskID == null ||
@@ -195,23 +208,21 @@ public class MzTabPROXIImporter
 		// importByQValue defaults to true
 		if (importByQValue == null)
 			importByQValue = true;
-		// test defaults to false
-		if (test == null)
-			test = false;
 		// only import this mzTab file if it contains importable PSMs
 		if (isImportable(mzTabFile, importByQValue) == false)
 			return null;
 		MzTabReader reader = new MzTabReader(context.getMzTabFile(mzTabFile));
-		PROXIProcessor processor = new PROXIProcessor(
-			taskID, datasetID, importByQValue, test, globalElements, connection);
+		MassIVESearchProcessor processor = new MassIVESearchProcessor(
+			taskID, datasetID, importByQValue, startingPSMID, globalElements, connection);
 		reader.addProcessor(processor);
 		reader.read();
 		// return import counts:
 		// left: total lines read in the mzTab file
 		// right: total unique PSMs imported to search from the mzTab file
-		return new ImmutablePair<Integer, Integer>(
+		return new ImmutableTriple<Integer, Integer, Long>(
 			processor.getRowCount("lines_in_file"),
-			processor.getRowCount("PSM"));
+			processor.getRowCount("PSM"),
+			processor.getLastPSMDatabaseID());
 	}
 	
 	public static boolean isImportable(File mzTabFile, boolean importByQValue) {
@@ -226,6 +237,8 @@ public class MzTabPROXIImporter
 			String line = null;
 			int lineNumber = 0;
 			MzTabSectionHeader psmHeader = null;
+			Set<String> psmIDs = new TreeSet<String>();
+			Integer lastPSMIndex = null;
 			Integer validColumn = null;
 			Integer qValueColumn = null;
 			while (true) {
@@ -267,6 +280,14 @@ public class MzTabPROXIImporter
 					else psmHeader.validateMzTabRow(line);
 					// check all the required elements of this PSM row
 					String[] columns = line.split("\\t");
+					// get this PSM's index
+					String psmID = columns[psmHeader.getColumnIndex("PSM_ID")];
+					if (lastPSMIndex == null)
+						lastPSMIndex = 1;
+					else if (psmIDs.contains(psmID) == false) {
+						lastPSMIndex++;
+						psmIDs.add(psmID);
+					}
 					// all importable PSMs must be marked as "VALID"
 					String valid = columns[validColumn];
 					if (valid == null ||
@@ -288,7 +309,7 @@ public class MzTabPROXIImporter
 					// with no errors, then the row is probably good
 					try {
 						PSM psm = new PSM(
-							columns[psmHeader.getColumnIndex("PSM_ID")],
+							psmID, lastPSMIndex,
 							columns[psmHeader.getColumnIndex("spectra_ref")],
 							columns[psmHeader.getColumnIndex("sequence")],
 							columns[psmHeader.getColumnIndex("charge")],
@@ -347,6 +368,7 @@ public class MzTabPROXIImporter
 		private String           taskID;
 		private String           datasetID;
 		private Boolean          importByQValue;
+		private Long             startingPSMID;
 		private TaskMzTabContext context;
 		private long             start;
 		
@@ -357,7 +379,7 @@ public class MzTabPROXIImporter
 			File mzTabDirectory, String mzTabRelativePath,
 			File peakListDirectory, String peakListRelativePath,
 			String peakListCollection, File parameters,
-			String taskID, String datasetID, String importByQValue
+			String taskID, String datasetID, String importByQValue, String startingPSMID
 		) {
 			// validate mzTab directory
 			if (mzTabDirectory == null)
@@ -416,6 +438,16 @@ public class MzTabPROXIImporter
 						"importByQValue argument [%s] could not be parsed " +
 						"as a boolean value.", importByQValue));
 			}
+			// propagate starting PSM database ID (may be null)
+			if (startingPSMID != null) try {
+				this.startingPSMID = Long.parseLong(startingPSMID);
+				if (this.startingPSMID < 1)
+					throw new IllegalArgumentException(String.format(
+						"Starting PSM database ID [%d] cannot be less than 1.", this.startingPSMID));
+			} catch (NumberFormatException error) {
+				throw new IllegalArgumentException(String.format(
+					"Starting PSM database ID [%s] must be a positive long integer.", startingPSMID));
+			}
 			// timestamp the beginning of the procedure
 			start = System.currentTimeMillis();
 			System.out.println(String.format(
@@ -451,6 +483,7 @@ public class MzTabPROXIImporter
 		String taskID = null;
 		String datasetID = null;
 		String importByQValue = null;
+		String startingPSMID = null;
 		for (int i=0; i<args.length; i++) {
 			String argument = args[i];
 			if (argument == null)
@@ -494,6 +527,8 @@ public class MzTabPROXIImporter
 					else datasetID = value;
 				} else if (argument.equals("-importByQValue"))
 					importByQValue = value;
+				else if (argument.equals("-startingPSMID"))
+					startingPSMID = value;
 				else return null;
 			}
 		}
@@ -501,7 +536,7 @@ public class MzTabPROXIImporter
 			return new MzTabImportOperation(
 				mzTabDirectory, mzTabRelativePath,
 				peakListDirectory, peakListRelativePath, peakListCollection,
-				parameters, taskID, datasetID, importByQValue);
+				parameters, taskID, datasetID, importByQValue, startingPSMID);
 		} catch (Throwable error) {
 			System.err.println(error.getMessage());
 			return null;

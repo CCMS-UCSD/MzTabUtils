@@ -111,12 +111,12 @@ public class MzTabSectionHeader
 		}
 	}
 	
-	public void validateMzTabRow(String line) {
+	public String[] validateMzTabRow(String line) {
 		if (line == null)
 			throw new NullPointerException(
 				"Argument mzTab row line is null.");
 		// split line into tab-delimited columns and compare against header
-		String[] columns = line.split("\\t", -1);
+		String[] columns = line.split("\t", -1);
 		if (columns == null || columns.length < 1)
 			throw new IllegalArgumentException(String.format(
 				"Argument mzTab row line is invalid:" +
@@ -140,6 +140,7 @@ public class MzTabSectionHeader
 				"The first token [%s] does not correspond to the expected " +
 				"mzTab file section as implied by the header row [%s].",
 				line, columns[0], section.name()));
+		return columns;
 	}
 	
 	/*========================================================================
