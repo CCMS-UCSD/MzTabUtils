@@ -127,7 +127,7 @@ public class MzTabConstants
 	
 	// constants pertaining to known optional column values
 	public static final String[] KNOWN_PSM_QVALUE_COLUMNS = new String[]{
-		"QValue", "MS-GF:QValue"
+		"QValue", "MS-GF:QValue", "percolator:Q value"
 	};
 	public static final String[] KNOWN_PEPTIDE_QVALUE_COLUMNS = new String[]{
 		"PepQValue", "MS-GF:PepQValue"
