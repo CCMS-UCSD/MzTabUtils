@@ -265,7 +265,24 @@ public class ProteomicsUtils
 		// match any of the black listed patterns
 		return accession;
 	}
-	
+
+	public static String getCanonicalProteinAccession(String accession) {
+		if (accession == null)
+			return null;
+		// the protein's "canonical" accession is defined as the middle term in
+		// the standard 3-bar protein identifier format; if the argument identifier
+		// is not in that format then the canonical accession cannot be inferred
+		String canonicalAccession = null;
+		String[] tokens = accession.split("\\|");
+		if (tokens == null || tokens.length != 3)
+			return null;
+		canonicalAccession = tokens[1];
+		// if protein is a decoy, the canonical accession should also include the decoy prefix
+		if (accession.startsWith("XXX_") && canonicalAccession.startsWith("XXX_") == false)
+			canonicalAccession = String.format("XXX_%s", canonicalAccession);
+		return canonicalAccession;
+	}
+
 	/*========================================================================
 	 * Convenience methods
 	 *========================================================================*/
