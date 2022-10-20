@@ -278,7 +278,7 @@ public class ProteomicsUtils
 			return null;
 		canonicalAccession = tokens[1];
 		// if protein is a decoy, the canonical accession should also include the decoy prefix
-		if (accession.startsWith("XXX_") && canonicalAccession.startsWith("XXX_") == false)
+		if (accession.contains("XXX_") && canonicalAccession.startsWith("XXX_") == false)
 			canonicalAccession = String.format("XXX_%s", canonicalAccession);
 		return canonicalAccession;
 	}
